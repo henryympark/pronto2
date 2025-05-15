@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { LogOut } from "lucide-react";
+import { LogOut, User, Star, Clock, Ticket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import PriceChangeInfo from "@/components/PriceChangeInfo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -70,7 +70,7 @@ interface Reservation {
 }
 
 // 필터 유형 정의
-type FilterType = 'all' | 'upcoming' | 'completed' | 'cancelled';
+type FilterType = 'upcoming' | 'completed' | 'cancelled';
 
 // 디버깅 정보 타입
 interface DebugInfo {
@@ -87,7 +87,7 @@ export default function MyPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('upcoming');
   
   // 회원 탈퇴 관련 상태
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -359,18 +359,19 @@ export default function MyPage() {
     }
   };
 
+  // 로그인 상태 확인
   useEffect(() => {
-    // 비로그인 상태이고 로딩이 끝난 경우 로그인 페이지로 리다이렉트
     if (!loading && !user) {
       router.push("/auth/login");
-      return;
+    } else if (user) {
+      fetchReservations().then(() => {
+        // 초기 필터는 이용 예정으로 설정
+        if (reservations.length > 0) {
+          applyFilter(reservations, 'upcoming');
+        }
+      });
     }
-
-    // 로딩이 완료되고 사용자가 있을 때만 예약 정보 조회
-    if (!loading && user) {
-      fetchReservations();
-    }
-  }, [user, loading]);
+  }, [user, loading, router]);
 
   // 필터 적용 함수 수정
   const applyFilter = (data: Reservation[], filter: FilterType) => {
@@ -379,7 +380,7 @@ export default function MyPage() {
     if (!data || data.length === 0) {
       console.log('필터링할 데이터가 없습니다.');
       setFilteredReservations([]);
-      return;
+      return [];
     }
     
     const now = new Date();
@@ -456,20 +457,35 @@ export default function MyPage() {
             return isCancelled;
           });
           break;
-        case 'all':
         default:
-          // 전체: 모든 예약
-          filtered = [...data];
+          // 기본값: 이용 예정으로 필터링
+          filtered = data.filter(res => {
+            try {
+              if (!res.reservation_date || !res.end_time) return false;
+              
+              // 예약 날짜와 종료 시간을 Date 객체로 변환
+              const [year, month, day] = res.reservation_date.split('-').map(Number);
+              const [hours, minutes] = res.end_time.split(':').map(Number);
+              const endDateTime = new Date(year, month - 1, day, hours, minutes);
+              
+              // 상태 확인 및 시간 비교
+              return (res.status === 'confirmed' || res.status === 'modified') && endDateTime > now;
+            } catch (error) {
+              return false;
+            }
+          });
           break;
       }
       
       console.log(`필터 '${filter}' 적용 결과:`, { 원본: data.length, 필터링: filtered.length });
       setFilteredReservations(filtered);
+      return filtered;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
       console.error('필터 적용 중 오류 발생:', errorMessage);
-      // 오류 발생 시 모든 데이터 표시
-      setFilteredReservations(data);
+      // 오류 발생 시 빈 배열 반환
+      setFilteredReservations([]);
+      return [];
     }
   };
 
@@ -796,6 +812,11 @@ export default function MyPage() {
     }
   };
 
+  // 내 정보 페이지로 이동
+  const handleMyInfoClick = () => {
+    router.push("/my/info");
+  };
+
   if (loading || !user) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -806,31 +827,9 @@ export default function MyPage() {
 
   return (
     <ErrorBoundary>
-      <div className="container mx-auto px-4 py-8">
+      <div>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">마이페이지</h1>
-          <div className="flex gap-2">
-            {process.env.NODE_ENV === 'development' && (
-              <>
-                <Button variant="outline" size="sm" onClick={fetchDebugInfo}>
-                  디버깅 정보
-                </Button>
-                <Button variant="outline" size="sm" onClick={createTestService}>
-                  테스트 서비스 생성
-                </Button>
-                <Button variant="outline" size="sm" onClick={createTestReservations}>
-                  테스트 예약 생성
-                </Button>
-                <Button variant="outline" size="sm" onClick={fetchReservations}>
-                  예약 새로고침
-                </Button>
-              </>
-            )}
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              로그아웃
-            </Button>
-          </div>
         </div>
 
         {debugInfo && (
@@ -846,36 +845,15 @@ export default function MyPage() {
           </Card>
         )}
 
+        {/* 하단 카드 섹션 - 예약내역 위로 이동 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* 사용자 정보 카드 */}
-          <Card>
-            <CardHeader>
-              <CardTitle>내 정보</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <p>
-                  <span className="font-semibold">이메일:</span> {user?.email}
-                </p>
-                <p>
-                  <span className="font-semibold">이름:</span> {user?.user_metadata?.name || '미설정'}
-                </p>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setIsDeleteModalOpen(true)}
-                  className="mt-4"
-                >
-                  회원 탈퇴
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* 적립 시간 카드 */}
           <Card>
             <CardHeader>
-              <CardTitle>적립 시간</CardTitle>
+              <CardTitle className="flex items-center">
+                <Clock className="h-5 w-5 mr-2 text-pronto-primary" />
+                적립 시간
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">0분</p>
@@ -886,11 +864,36 @@ export default function MyPage() {
           {/* 보유 쿠폰 카드 */}
           <Card>
             <CardHeader>
-              <CardTitle>보유 쿠폰</CardTitle>
+              <CardTitle className="flex items-center">
+                <Ticket className="h-5 w-5 mr-2 text-pronto-primary" />
+                보유 쿠폰
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">0장</p>
               <p className="text-sm text-gray-500">사용 가능한 쿠폰이 없습니다.</p>
+            </CardContent>
+          </Card>
+
+          {/* 리뷰 작성 카드 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Star className="h-5 w-5 mr-2 text-pronto-primary" />
+                리뷰 작성
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">0건</p>
+              <p className="text-sm text-gray-500">서비스 이용 후 리뷰를 작성해보세요!</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4"
+                onClick={() => router.push("/my/reviews")}
+              >
+                리뷰 작성하기
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -902,9 +905,8 @@ export default function MyPage() {
           </CardHeader>
           <CardContent>
             {/* 필터링 탭 추가 */}
-            <Tabs defaultValue="all" className="mb-6" onValueChange={(value) => handleFilterChange(value as FilterType)}>
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="all">전체</TabsTrigger>
+            <Tabs defaultValue="upcoming" className="mb-6" onValueChange={(value) => handleFilterChange(value as FilterType)}>
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="upcoming">이용 예정</TabsTrigger>
                 <TabsTrigger value="completed">이용 완료</TabsTrigger>
                 <TabsTrigger value="cancelled">취소 내역</TabsTrigger>
@@ -997,6 +999,18 @@ export default function MyPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* 내 정보 및 로그아웃 버튼 */}
+        <div className="flex flex-col space-y-4 justify-start mb-8">
+          <Button variant="outline" onClick={handleMyInfoClick} className="flex items-center justify-center w-40">
+            <User className="mr-2 h-4 w-4" />
+            내 정보
+          </Button>
+          <Button variant="outline" onClick={handleSignOut} className="flex items-center justify-center w-40">
+            <LogOut className="mr-2 h-4 w-4" />
+            로그아웃
+          </Button>
+        </div>
 
         {/* 예약 상세 정보 모달 */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
