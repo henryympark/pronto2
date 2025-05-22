@@ -67,3 +67,80 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 자주 사용되는 Tailwind 클래스 조합을 유틸리티 클래스로 정의 */
+@layer components {
+  /* 버튼 스타일 */
+  .btn-primary {
+    @apply inline-flex h-9 items-center justify-center rounded-md bg-pronto-primary px-4 py-2 text-sm font-medium text-white shadow transition-colors hover:bg-pronto-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring;
+  }
+
+  .btn-outline {
+    @apply inline-flex h-9 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-pronto-primary border border-pronto-primary hover:bg-pronto-primary/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring;
+  }
+
+  /* 아이콘이 있는 인풋 스타일 */
+  .input-with-icon {
+    @apply pl-10;
+  }
+
+  /* 아이콘 위치 스타일 */
+  .input-icon {
+    @apply absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pronto-gray-400;
+  }
+
+  /* 카드 컨테이너 스타일 */
+  .card-container {
+    @apply p-4 bg-white rounded-lg border border-pronto-gray-200;
+  }
+
+  /* 섹션 제목 스타일 */
+  .section-title {
+    @apply text-3xl font-bold mb-4;
+  }
+
+  /* 섹션 설명 스타일 */
+  .section-description {
+    @apply text-pronto-gray-600 max-w-lg mx-auto;
+  }
+
+  /* 아이콘 배지 스타일 */
+  .icon-badge {
+    @apply w-12 h-12 bg-pronto-primary/10 rounded-full flex items-center justify-center mb-4;
+  }
+
+  /* 기능 카드 스타일 */
+  .feature-card {
+    @apply bg-white p-6 rounded-xl shadow-sm;
+  }
+
+  /* 필수 입력 표시 스타일 */
+  .required-mark {
+    @apply text-destructive;
+  }
+
+  /* 폼 필드 그룹 스타일 */
+  .form-group {
+    @apply space-y-2;
+  }
+
+  /* 에러 메시지 스타일 */
+  .error-message {
+    @apply text-xs text-destructive;
+  }
+
+  /* 성공 메시지 스타일 */
+  .success-message {
+    @apply text-sm text-green-600 bg-green-50 p-2 rounded-md border border-green-200;
+  }
+
+  /* 헤더 스타일 */
+  .header {
+    @apply sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60;
+  }
+
+  /* 푸터 스타일 */
+  .footer {
+    @apply w-full border-t border-border/40 bg-background py-8;
+  }
+}

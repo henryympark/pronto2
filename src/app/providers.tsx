@@ -8,6 +8,10 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
+import { AuthProvider } from "@/contexts/AuthContext";
+import { SupabaseProvider } from "@/contexts/SupabaseContext";
+import { PropsWithChildren } from "react";
+import { Toaster } from "@/components/ui/toaster";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -37,7 +41,7 @@ function getQueryClient() {
   }
 }
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+export default function Providers({ children }: PropsWithChildren) {
   // NOTE: Avoid useState when initializing the query client if you don't
   //       have a suspense boundary between this and the code that may
   //       suspend because React will throw away the client on the initial
@@ -51,7 +55,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <SupabaseProvider>
+        <AuthProvider>
+          <QueryClientProvider client={queryClient}>
+            {children}
+            <Toaster />
+          </QueryClientProvider>
+        </AuthProvider>
+      </SupabaseProvider>
     </ThemeProvider>
   );
 }

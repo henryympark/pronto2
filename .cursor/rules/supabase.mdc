@@ -1,0 +1,85 @@
+---
+description: Supabase Migration SQL Guideline
+globs: supabase/migrations/*.sql
+alwaysApply: false
+---
+
+# Supabase Migration SQL Guideline
+
+## 필수 사항
+
+- Supabase를 사용할 때는 반드시 Supabase MCP(Managed Cloud Platform)를 사용해야 합니다.
+- 모든 데이터베이스 마이그레이션은 SQL 파일로 작성되어야 합니다.
+- 마이그레이션 파일은 `/supabase/migrations/` 디렉토리에 저장해야 합니다.
+- 마이그레이션 파일은 타임스탬프 형식의 이름을 사용해야 합니다. (예: `20250513120000_create_users_table.sql`)
+
+## 권장 사항
+
+- 마이그레이션을 실행하기 전에 항상 백업을 확인하세요.
+- 데이터 손실이 발생할 수 있는 마이그레이션은 특별히 주의하세요.
+- 테이블 삭제나 컬럼 제거는 되도록 피하고, 대신 폐기(deprecate) 표시를 하세요.
+
+## 마이그레이션 파일 작성 방법
+
+```sql
+-- 설명: 새 테이블을 추가하는 마이그레이션 예시
+CREATE TABLE public.example (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  name text NOT NULL,
+  description text
+);
+
+-- RLS(Row Level Security) 정책 설정
+ALTER TABLE public.example ENABLE ROW LEVEL SECURITY;
+
+-- 트리거 설정 - updated_at 자동 업데이트
+CREATE TRIGGER handle_updated_at
+BEFORE UPDATE ON public.example
+FOR EACH ROW
+EXECUTE PROCEDURE public.moddatetime (updated_at);
+```
+
+Supabase MCP를 사용하면 프로젝트 관리, 데이터베이스 백업, 스케일링 등의 이점을 얻을 수 있습니다.
+
+## Must
+- Each migration file must have a unique name with number prefix (e.g., `0001_create_users_table.sql`)
+- Each migration must be idempotent (can be run multiple times without error)
+- Use `CREATE TABLE IF NOT EXISTS` instead of just `CREATE TABLE`
+- Include proper error handling with `BEGIN` and `EXCEPTION` blocks
+- Add comments for complex operations
+- Always specify column types explicitly
+- Include proper constraints (NOT NULL, UNIQUE, etc.) where appropriate
+- Add updated_at column to all tables, and use trigger to update it
+- always check other migrations to avoid conflicts
+
+## Should
+- Keep migrations small 
+- Use consistent naming conventions for tables and columns
+- Use snake_case for all identifiers
+- Document breaking changes
+
+## Recommended Patterns
+- Use RLS (Row Level Security) for access control
+- Set up proper indexes for frequently queried columns
+- Use foreign key constraints to maintain referential integrity
+- Leverage Postgres extensions when appropriate
+- Use enums for fields with a fixed set of values
+- Consider using views for complex queries
+
+## Schema Organization
+- Group related tables together
+- Use schemas to organize tables by domain
+- Consider using Postgres schemas for multi-tenant applications
+- Keep authentication tables in the auth schema
+
+## Performance Considerations
+- Avoid adding/removing columns from large tables in production
+- Use appropriate data types to minimize storage
+- Add indexes strategically (not excessively)
+
+## Security Best Practices
+- Never store plaintext passwords
+- Use RLS policies to restrict data access
+- Sanitize all user inputs

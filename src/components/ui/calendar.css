@@ -1,0 +1,344 @@
+/* 캘린더 변수 정의 */
+:root {
+  --calendar-bg: white;
+  --calendar-border-radius: 8px;
+  --calendar-cell-size: 36px;
+  --calendar-cell-size-mobile: 32px;
+  --calendar-gap: 2px;
+  --calendar-header-height: 48px;
+  --calendar-weekday-height: 24px;
+  --calendar-accent-color: #3b82f6;
+  --calendar-text-color: #333;
+  --calendar-text-muted: #64748b;
+  --calendar-border-color: #f1f5f9;
+}
+
+/* 스크린 리더 전용 클래스 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* 완전히 숨기기 */
+.hidden {
+  display: none !important;
+}
+
+/* 중복 표시되는 캡션 숨김 - react-day-picker의 모든 캡션 관련 클래스 */
+.rdp-caption {
+  display: none !important;
+}
+.rdp-caption_label {
+  display: none !important;
+}
+.rdp-caption_dropdowns {
+  display: none !important;
+}
+.rdp-caption_start {
+  display: none !important;
+}
+.rdp-caption_end {
+  display: none !important;
+}
+.rdp-nav {
+  display: none !important;
+}
+
+/* 캘린더 컨테이너 */
+.calendar-container {
+  width: 100%;
+  max-width: 350px;
+  margin: 0 auto;
+  background-color: var(--calendar-bg);
+  border-radius: var(--calendar-border-radius);
+}
+
+/* 캘린더 그리드 래퍼 */
+.calendar-grid-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 캘린더 헤더 영역 (월/년도 + 내비게이션) */
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--calendar-header-height);
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+/* 캡션 영역 (월/년) */
+.calendar-caption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.calendar-month-year {
+  flex: 1;
+  text-align: center;
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: 0 8px;
+  color: var(--calendar-text-color);
+}
+
+/* 탐색 버튼 */
+.calendar-nav-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: var(--calendar-text-color);
+  padding: 0;
+  margin: 0 4px;
+  transition: background-color 0.2s;
+}
+
+.calendar-nav-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar-nav-button:hover:not(:disabled) {
+  background-color: #f8fafc;
+}
+
+.calendar-nav-prev,
+.calendar-nav-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: var(--calendar-text-color);
+  padding: 0;
+  margin: 0 4px;
+  transition: background-color 0.2s;
+}
+
+.calendar-nav-prev:disabled,
+.calendar-nav-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar-nav-prev:hover:not(:disabled),
+.calendar-nav-next:hover:not(:disabled) {
+  background-color: #f8fafc;
+}
+
+.calendar-nav-icon {
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
+
+/* 월 영역 */
+.calendar-months {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.calendar-month {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 요일 헤더 */
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--calendar-border-color);
+  padding-bottom: 8px;
+}
+
+.calendar-weekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--calendar-weekday-height);
+  font-size: 0.75rem;
+  color: var(--calendar-text-muted);
+  text-align: center;
+}
+
+/* 날짜 그리드 */
+.calendar-grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: var(--calendar-gap);
+}
+
+/* 주 영역 */
+.calendar-weeks {
+  width: 100%;
+}
+
+/* 일주일 행 */
+.calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--calendar-gap);
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+/* 날짜 셀 */
+.calendar-day-cell {
+  aspect-ratio: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 날짜 버튼 */
+.calendar-day {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  max-width: var(--calendar-cell-size);
+  max-height: var(--calendar-cell-size);
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--calendar-text-color);
+  padding: 0;
+  transition: background-color 0.2s;
+}
+
+/* 날짜 상태별 스타일 */
+.day-today {
+  font-weight: normal;
+  background-color: transparent;
+  position: relative;
+}
+
+/* 오늘 날짜에 '오늘' 텍스트 추가 */
+.day-today::after {
+  content: '오늘';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-weight: normal;
+  color: var(--calendar-accent-color);
+  line-height: 1;
+}
+
+/* 오늘 날짜가 선택된 경우 텍스트 색상 조정 */
+.day-today.day-selected::after {
+  color: white;
+}
+
+/* 선택된 날짜 스타일 - 파란색 배경과 흰색 텍스트 */
+.day-selected,
+.rdp-day_selected,
+.calendar-day.day-selected,
+[aria-selected="true"] {
+  background-color: var(--calendar-accent-color) !important;
+  color: white !important;
+}
+
+/* 선택된 날짜 내부의 모든 요소에 흰색 텍스트 적용 */
+.day-selected *,
+.rdp-day_selected *,
+.calendar-day.day-selected *,
+[aria-selected="true"] * {
+  color: white !important;
+}
+
+.day-outside {
+  color: #94a3b8;
+  opacity: 0.6;
+}
+
+.day-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 호버 효과에서 선택된 날짜 제외 */
+.calendar-day:hover:not(.day-selected):not(.day-disabled),
+.rdp-day:hover:not(.rdp-day_selected):not(.rdp-day_disabled) {
+  background-color: #f1f5f9;
+}
+
+/* 선택된 날짜에 호버 효과 명시적으로 제거 */
+.day-selected:hover,
+.rdp-day_selected:hover,
+.calendar-day.day-selected:hover,
+[aria-selected="true"]:hover {
+  background-color: var(--calendar-accent-color) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* 선택된 날짜의 모든 가상 요소에 대한 스타일 제거 */
+.day-selected:hover::before,
+.day-selected:hover::after,
+.rdp-day_selected:hover::before,
+.rdp-day_selected:hover::after,
+.calendar-day.day-selected:hover::before,
+.calendar-day.day-selected:hover::after,
+[aria-selected="true"]:hover::before,
+[aria-selected="true"]:hover::after {
+  display: none !important;
+  opacity: 0 !important;
+  content: none !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 선택된 날짜 내부의 모든 요소에 대한 호버 효과 제거 */
+.day-selected:hover *,
+.rdp-day_selected:hover *,
+.calendar-day.day-selected:hover *,
+[aria-selected="true"]:hover * {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border: none !important;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 480px) {
+  .calendar-day {
+    width: var(--calendar-cell-size-mobile);
+    height: var(--calendar-cell-size-mobile);
+    font-size: 0.8rem;
+  }
+} 

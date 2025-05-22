@@ -181,4 +181,63 @@ export class AppError extends Error {
       } : undefined
     };
   }
+}
+
+export interface ReviewImage {
+  id: string;
+  review_id: string;
+  image_url: string;
+  created_at: string;
+}
+
+export interface Review {
+  id: string;
+  customer_id: string;
+  service_id: string;
+  reservation_id: string;
+  rating: number;
+  content: string;
+  is_hidden: boolean;
+  created_at: string;
+  updated_at: string | null;
+  deleted_at: string | null;
+  // 조인 관계
+  customer?: {
+    id: string;
+    name: string;
+  };
+  service?: {
+    id: string;
+    name: string;
+  };
+  images?: ReviewImage[];
+}
+
+export interface ReviewFormData {
+  rating: number;
+  content: string;
+  images?: File[];
+}
+
+export interface CustomerCoupon {
+  /** 쿠폰 ID (UUID) */
+  id: string;
+  /** 고객 ID (UUID) */
+  customer_id: string;
+  /** 쿠폰 시간 (분 단위) */
+  minutes: number;
+  /** 사용 여부 */
+  is_used: boolean;
+  /** 사용 시간 */
+  used_at: string | null;
+  /** 사용된 예약 ID */
+  used_reservation_id: string | null;
+  /** 생성 일시 */
+  created_at: string;
+  /** 수정 일시 */
+  updated_at: string;
+  /** 만료 시간 */
+  expires_at: string | null;
+  /** 부여한 운영자 ID */
+  granted_by: string | null;
 } 

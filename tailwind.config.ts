@@ -1,4 +1,6 @@
 import type { Config } from 'tailwindcss';
+import tailwindcssAnimate from 'tailwindcss-animate';
+import typography from '@tailwindcss/typography';
 
 const config = {
   darkMode: ['class'],
@@ -7,7 +9,10 @@ const config = {
   theme: {
     container: {
       center: true,
-      padding: '2rem',
+      padding: {
+        DEFAULT: '1rem',
+        md: '2rem',
+      },
       screens: {
         '2xl': '1400px',
       },
@@ -47,6 +52,30 @@ const config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Pronto 디자인 가이드 v3.2 섹션 2 색상 팔레트
+        pronto: {
+          primary: '#3B82F6', // 대표색상
+          secondary: '#10B981', // 보조색상
+          accent: '#F59E0B', // 강조색상
+          dark: '#1E293B', // 어두운 색상
+          light: '#F8FAFC', // 밝은 색상
+          gray: {
+            50: '#F9FAFB',
+            100: '#F3F4F6',
+            200: '#E5E7EB',
+            300: '#D1D5DB',
+            400: '#9CA3AF',
+            500: '#6B7280',
+            600: '#4B5563',
+            700: '#374151',
+            800: '#1F2937',
+            900: '#111827',
+          },
+          error: '#EF4444', // 오류 색상
+          warning: '#F59E0B', // 경고 색상
+          success: '#10B981', // 성공 색상
+          info: '#3B82F6', // 정보 색상
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -69,7 +98,7 @@ const config = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
+  plugins: [tailwindcssAnimate, typography],
 } satisfies Config;
 
 export default config;
