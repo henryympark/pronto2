@@ -77,18 +77,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('[AuthContext] getSession 시작 (user 이미 존재, UI 로딩 최소화)');
       }
       
-      // 세션 가져오기
-      const { data, error } = await supabase.auth.getSession();
+      // 세션 가져오기 (최대 3번까지 재시도)
+      let currentSession = null;
+      let error = null;
+      
+      for (let i = 0; i < 3; i++) {
+        try {
+          const result = await supabase.auth.getSession();
+          if (!result.error) {
+            currentSession = result.data.session;
+            error = null;
+            break;
+          }
+          error = result.error;
+          console.warn(`[AuthContext] 세션 가져오기 시도 ${i+1}/3 실패:`, result.error);
+          // 실패 시 짧은 지연 후 재시도
+          if (i < 2) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (e) {
+          error = e;
+          console.warn(`[AuthContext] 세션 가져오기 예외 발생 (시도 ${i+1}/3):`, e);
+          if (i < 2) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+      }
       
       if (error) {
         throw error;
       }
       
-      const currentSession = data.session;
       console.log('[AuthContext] 세션 확인 결과:', currentSession ? '세션 있음' : '세션 없음');
       
       // 세션 정보 업데이트
       setSession(currentSession);
+      
+      // 세션이 없고 로컬 저장소에 토큰이 있는 경우 세션 복구 시도
+      if (!currentSession && typeof window !== 'undefined') {
+        const hasLocalToken = localStorage.getItem('supabase.auth.token') || 
+                              document.cookie.includes('supabase-auth-token');
+        
+        if (hasLocalToken) {
+          console.log('[AuthContext] 로컬 토큰 발견, 세션 복구 시도');
+          try {
+            const { data: refreshData } = await supabase.auth.refreshSession();
+            if (refreshData.session) {
+              console.log('[AuthContext] 세션 복구 성공');
+              currentSession = refreshData.session;
+              setSession(currentSession);
+            } else {
+              console.warn('[AuthContext] 세션 복구 시도했으나 실패');
+            }
+          } catch (refreshError) {
+            console.error('[AuthContext] 세션 복구 중 오류:', refreshError);
+          }
+        }
+      }
+      
+      // 사용자 정보 업데이트
       setUser(currentSession?.user || null);
       
       // 세션이 있으면 어드민 상태 확인
@@ -240,14 +287,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 컴포넌트 마운트 상태 추적
     let isMounted = true;
     
+    // 초기 세션 로드 및 세션 복구 시도 타임아웃 설정
+    let sessionLoadTimeout: NodeJS.Timeout | null = null;
+    
     // 초기 세션 로드 함수
     const loadInitialSession = async () => {
       try {
+        // 타임아웃 설정 (20초) - 세션 로드가 지연되는 경우 대비
+        sessionLoadTimeout = setTimeout(() => {
+          if (isMounted && loading) {
+            console.warn('[AuthContext] 세션 로드 타임아웃 (20초) 도달, 복구 시도');
+            
+            // 세션 복구 시도
+            supabase.auth.refreshSession().then(({ data, error }) => {
+              if (error) {
+                console.error('[AuthContext] 세션 복구 실패:', error);
+                updateLoading(false, 'sessionLoadTimeout 복구 실패');
+              } else if (data.session) {
+                console.log('[AuthContext] 타임아웃 후 세션 복구 성공');
+                setSession(data.session);
+                setUser(data.session.user);
+                
+                // 어드민 상태 확인
+                checkAdminStatus(data.session.user.id).then(isUserAdmin => {
+                  setIsAdmin(isUserAdmin);
+                  updateLoading(false, 'sessionLoadTimeout 복구 완료');
+                });
+              } else {
+                console.warn('[AuthContext] 타임아웃 후 세션 복구 시도했으나 세션 없음');
+                updateLoading(false, 'sessionLoadTimeout 세션 없음');
+              }
+            });
+          }
+        }, 20000);
+        
         await getSession();
+        
+        // 세션 로드 완료 후 타임아웃 제거
+        if (sessionLoadTimeout) {
+          clearTimeout(sessionLoadTimeout);
+          sessionLoadTimeout = null;
+        }
       } catch (error) {
         console.error('[AuthContext] 초기 세션 로드 오류:', error);
         if (isMounted) {
           updateLoading(false, 'initialLoad 오류');
+          
+          // 오류 발생 시 세션 복구 한 번 더 시도
+          try {
+            console.log('[AuthContext] 에러 후 세션 복구 시도');
+            const { data } = await supabase.auth.refreshSession();
+            if (data.session) {
+              console.log('[AuthContext] 에러 후 세션 복구 성공');
+              setSession(data.session);
+              setUser(data.session.user);
+            }
+          } catch (refreshError) {
+            console.error('[AuthContext] 에러 후 세션 복구 실패:', refreshError);
+          }
+        }
+        
+        // 타임아웃 제거
+        if (sessionLoadTimeout) {
+          clearTimeout(sessionLoadTimeout);
+          sessionLoadTimeout = null;
         }
       }
     };
@@ -402,6 +505,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[AuthContext] 컴포넌트 언마운트');
       isMounted = false;
       clearInterval(refreshInterval);
+      
+      if (sessionLoadTimeout) {
+        clearTimeout(sessionLoadTimeout);
+      }
+      
       subscription.unsubscribe();
     };
   }, []); // 의존성 배열 비움 - 최초 마운트 시 한 번만 실행

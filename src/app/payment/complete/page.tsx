@@ -10,6 +10,7 @@ import { createClient$ } from "@/lib/supabase";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 // Reservation에 customer_name이 포함된 확장 타입 정의
 interface ReservationWithDetails extends Reservation {
@@ -167,9 +168,11 @@ function PaymentCompleteContent() {
         ) : error ? (
           <div className="py-8 text-center">
             <p className="text-red-500 mb-4">{error}</p>
-            <Button onClick={() => router.push("/my")} className="mb-2">
-              마이페이지로 이동
-            </Button>
+            <Link href="/my">
+              <Button className="mb-2">
+                마이페이지로 이동
+              </Button>
+            </Link>
             <div className="text-sm text-gray-500 mt-2">
               문제가 지속되면 고객센터로 문의해주세요.
             </div>
@@ -282,12 +285,13 @@ function PaymentCompleteContent() {
             )}
             
             <div className="flex flex-col space-y-3">
-              <Button 
-                onClick={() => router.push("/my")} 
-                className="w-full bg-pronto-primary hover:bg-pronto-primary/90"
-              >
-                예약 내역 확인하기
-              </Button>
+              <Link href="/my">
+                <Button 
+                  className="w-full bg-pronto-primary hover:bg-pronto-primary/90"
+                >
+                  예약 내역 확인하기
+                </Button>
+              </Link>
               
               <Button 
                 onClick={handleShare}

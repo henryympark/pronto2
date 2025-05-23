@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient$ } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { useSupabase } from "@/contexts/SupabaseContext";
 
 type Reservation = {
   id: string;
@@ -38,7 +38,7 @@ export default function AdminReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const supabase = createClient$();
+  const supabase = useSupabase();
   
   useEffect(() => {
     console.log("[어드민 예약 페이지] 데이터 로드 시작");
