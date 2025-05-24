@@ -320,7 +320,7 @@ export default function SignupPage() {
       
       // 사용자 정보 저장 (customers 테이블)
       await supabase.from('customers').insert({
-        id: data.user.id,
+        id: data.user?.id || '',
         email: formData.email.toLowerCase(),
         auth_provider: 'email',
         role: 'customer',

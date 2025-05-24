@@ -1,7 +1,6 @@
 "use client";
 
-// ✅ React import 추가 (이것이 누락되어서 에러 발생)
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import { KakaoLogo, NaverLogo } from "@/components/ui/logos";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signInWithKakao, signInWithNaver, user, loading, isAdmin } = useAuth();
+  const { signInWithKakao, signInWithNaver, user, loading } = useAuth();
   const supabase = useSupabase();
   
   const [email, setEmail] = useState("");
@@ -23,8 +22,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  const hasRedirectedRef = useRef(false);
   
   // URL 파라미터 처리
   useEffect(() => {
@@ -57,7 +54,7 @@ export default function LoginPage() {
     }
   }, [searchParams]);
   
-  // ✅ 강화된 리디렉션 로직
+  // ✅ 단순화된 리디렉션 로직
   useEffect(() => {
     // 로그아웃 후 접근한 경우 리디렉션 안함
     if (searchParams.get("t")) {
@@ -65,54 +62,12 @@ export default function LoginPage() {
       return;
     }
     
-    // 이미 리디렉션했으면 중복 방지
-    if (hasRedirectedRef.current) {
-      return;
-    }
-    
-    // 로딩 완료 + 사용자 있음 = 리디렉션 (isAdmin 체크 강화)
+    // 단순한 체크만: 이미 로그인된 경우 AuthCallback으로 위임
     if (!loading && user) {
-      console.log('[LoginPage] 리디렉션 조건 만족:', { 
-        loading, 
-        hasUser: !!user, 
-        isAdmin, 
-        isAdminType: typeof isAdmin 
-      });
-      
-      hasRedirectedRef.current = true;
-      setIsRedirecting(true);
-      
-      // isAdmin이 boolean이 아닐 수도 있으므로 더 관대한 체크
-      const targetPath = isAdmin === true ? '/admin/reservations' : '/service/pronto-b';
-      
-      console.log(`[LoginPage] 리디렉션 실행: ${targetPath}`);
-      
-      // 강제 리디렉션 시도 (router.push + setTimeout 백업)
-      try {
-        router.push(targetPath);
-        
-        // 1초 후에도 같은 페이지에 있으면 window.location 사용
-        setTimeout(() => {
-          if (window.location.pathname === '/auth/login') {
-            console.log('[LoginPage] router.push 실패, window.location으로 강제 이동');
-            window.location.href = targetPath;
-          }
-        }, 1000);
-        
-      } catch (error) {
-        console.error('[LoginPage] router.push 오류:', error);
-        // 즉시 window.location 사용
-        window.location.href = targetPath;
-      }
-    } else {
-      console.log('[LoginPage] 리디렉션 조건 미만족:', { 
-        loading, 
-        hasUser: !!user, 
-        isAdmin,
-        pathname: typeof window !== 'undefined' ? window.location.pathname : 'SSR'
-      });
+      console.log('[LoginPage] 이미 로그인됨, AuthCallback으로 위임');
+      router.push('/auth/callback?source=login_page');
     }
-  }, [loading, user, isAdmin, router, searchParams]);
+  }, [loading, user, router, searchParams]);
 
   // 이메일 로그인 처리
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -191,13 +146,6 @@ export default function LoginPage() {
           </div>
         )}
         
-        {isRedirecting && (
-          <div className="p-4 text-center bg-green-50 border border-green-200 rounded flex items-center justify-center space-x-2">
-            <Loader2 className="animate-spin h-4 w-4" />
-            <span className="text-sm text-green-700">로그인 확인됨, 페이지 이동 중...</span>
-          </div>
-        )}
-        
         <Button 
           onClick={handleKakaoLogin}
           className="w-full bg-[#FEE500] text-black hover:bg-[#FEE500]/90 font-medium" 
@@ -272,7 +220,7 @@ export default function LoginPage() {
             </div>
           )}
           
-          {successMessage && !isRedirecting && (
+          {successMessage && (
             <div className="p-2 text-sm text-green-600 bg-green-50 border border-green-200 rounded mb-2">
               {successMessage}
             </div>
@@ -281,10 +229,10 @@ export default function LoginPage() {
           <Button 
             type="submit" 
             className="w-full bg-primary hover:bg-primary/90 font-medium" 
-            disabled={isLoading || isRedirecting}
+            disabled={isLoading}
           >
             {isLoading ? "로그인 중..." : "이메일로 로그인"}
-            {!isLoading && !isRedirecting && <ArrowRight className="ml-2 h-4 w-4" />}
+            {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </form>
 

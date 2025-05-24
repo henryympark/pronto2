@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { useIsMounted } from "./useIsMounted";
 import { usePathname } from "next/navigation";
+import { getUserRole } from "@/lib/auth-utils";
 
 interface HeaderAuthReturn {
   user: any;
@@ -15,13 +17,35 @@ interface HeaderAuthReturn {
 }
 
 export function useHeaderAuth(): HeaderAuthReturn {
-  const { user, loading, signOut, isAdmin } = useAuth();
+  const { user, loading, signOut } = useAuth();
+  const supabase = useSupabase();
   const isMounted = useIsMounted();
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   
   const isServicePage = useMemo(() => {
     return pathname?.includes('/service/') ?? false;
   }, [pathname]);
+  
+  // 사용자 권한 확인
+  useEffect(() => {
+    async function checkUserRole() {
+      if (!user || loading) {
+        setIsAdmin(false);
+        return;
+      }
+      
+      try {
+        const userRole = await getUserRole(supabase, user);
+        setIsAdmin(userRole.isAdmin);
+      } catch (error) {
+        console.error('[HeaderAuth] 권한 확인 실패:', error);
+        setIsAdmin(false);
+      }
+    }
+    
+    checkUserRole();
+  }, [user, loading, supabase]);
   
   // ✅ sessionStorage 기반 백업 체크가 포함된 버튼 렌더링 로직
   const shouldRenderUserButtons = useMemo(() => {

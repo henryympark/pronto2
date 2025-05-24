@@ -972,6 +972,10 @@ export default function MyPage() {
       console.log('회원 탈퇴 요청 시작');
       
       // 회원 탈퇴 요청 API 호출 로직 (여기서는 간소화)
+      if (!user) {
+        console.error('사용자 정보가 없습니다');
+        return;
+      }
       const { error } = await supabase.auth.admin.deleteUser(user.id);
         
       if (error) throw error;
