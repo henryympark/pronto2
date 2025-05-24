@@ -400,8 +400,9 @@ export default function ChangeReservationPage() {
                 <h3 className="text-lg font-medium mb-2">날짜 선택</h3>
                 <Calendar
                   mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
+                  required={false} 
+                  selected={selectedDate || undefined}
+                  onSelect={(date) => setSelectedDate(date || null)}
                   className="border rounded-md p-2"
                   disabled={(date) => {
                     // 오늘 이전 날짜는 선택 불가

@@ -1,109 +1,100 @@
 "use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { createClient$ } from '@/lib/supabase';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSupabase } from "@/contexts/SupabaseContext";
+import { getUserRole } from "@/lib/auth-utils";
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, loading, isAdmin } = useAuth();
-  const supabase = createClient$();
+  const { user, loading } = useAuth();
+  const supabase = useSupabase();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    console.log("[어드민 루트] 권한 확인 시작", { 
-      loading, 
-      userId: user?.id,
-      email: user?.email,
-      isAdmin 
-    });
-    
-    async function checkAdminAndRedirect() {
-      // 로딩 중이면 대기
-      if (loading) {
-        console.log("[어드민 루트] AuthContext 로딩 중");
-        return;
-      }
+    async function checkAdminAccess() {
+      if (loading) return;
       
-      // 로그인하지 않은 경우
       if (!user) {
-        console.log("[어드민 루트] 로그인되지 않음, 로그인 페이지로 리디렉션");
         router.push('/auth/login');
         return;
       }
 
-      // isAdmin 값이 이미 있는 경우 (AuthContext에서 설정됨)
-      if (isAdmin === true) {
-        console.log("[어드민 루트] AuthContext에서 어드민 권한 확인됨, 예약 페이지로 이동");
-        router.push('/admin/reservations');
-        return;
-      }
-      
-      // isAdmin이 false인 경우 추가 검사 없이 홈으로 리디렉션
-      if (isAdmin === false) {
-        console.log("[어드민 루트] 관리자 권한 없음, 홈으로 리디렉션");
-        router.push('/');
-        return;
-      }
-      
-      // isAdmin이 null인 경우만 직접 확인
       try {
-        console.log("[어드민 루트] isAdmin 값이 null, 직접 권한 확인");
+        const userRole = await getUserRole(supabase, user);
+        setIsAdmin(userRole.isAdmin);
         
-        // 1. 알려진 어드민 이메일 확인
-        const adminEmails = ['admin@pronto.com', 'henry.ympark@gmail.com'];
-        if (user.email && adminEmails.includes(user.email.toLowerCase())) {
-          console.log("[어드민 루트] 알려진 어드민 이메일 확인됨:", user.email);
-          router.push('/admin/reservations');
-          return;
+        if (userRole.isAdmin === true) {
+          // 관리자 확인됨 - 페이지 표시
+          setIsLoading(false);
+        } else {
+          // 관리자 아님 - 메인 페이지로 리디렉션
+          router.push('/');
         }
-        
-        // 2. RPC로 권한 확인
-        console.log("[어드민 루트] RPC 권한 확인 시작");
-        const { data: roleData, error: roleError } = await supabase
-          .rpc('get_customer_role', { user_id: user.id });
-          
-        if (!roleError && roleData === 'admin') {
-          console.log("[어드민 루트] RPC에서 관리자 권한 확인됨");
-          router.push('/admin/reservations');
-          return;
-        }
-        
-        // 3. customers 테이블에서 직접 확인
-        console.log("[어드민 루트] customers 테이블에서 직접 확인");
-        const { data: customer, error } = await supabase
-          .from('customers')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-
-        if (!error && customer && customer.role === 'admin') {
-          console.log("[어드민 루트] customers 테이블에서 관리자 권한 확인됨");
-          router.push('/admin/reservations');
-          return;
-        }
-        
-        console.log("[어드민 루트] 모든 권한 확인 실패, 관리자 아님");
-        alert('관리자 권한이 필요합니다.');
-        router.push('/');
       } catch (error) {
-        console.error("[어드민 루트] 권한 확인 중 오류:", error);
-        alert('권한 확인 중 오류가 발생했습니다.');
+        console.error('권한 확인 중 오류:', error);
         router.push('/');
       }
     }
 
-    checkAdminAndRedirect();
-  }, [user, loading, isAdmin, router, supabase]);
+    checkAdminAccess();
+  }, [user, loading, router, supabase]);
 
-  // 로딩 인디케이터 표시
+  if (loading || isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+          <p className="text-lg">권한을 확인하는 중입니다...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAdmin !== true) {
+    return null; // 리디렉션 중
+  }
+
   return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-t-pronto-primary rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-lg mb-2">어드민 페이지로 이동 중...</p>
-        <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8">관리자 대시보드</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">예약 현황</h2>
+          <p className="text-gray-600">오늘의 예약 현황을 확인하세요.</p>
+          <button 
+            onClick={() => router.push('/admin/reservations')}
+            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            예약 관리
+          </button>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">서비스 관리</h2>
+          <p className="text-gray-600">서비스 정보를 관리하세요.</p>
+          <button 
+            onClick={() => router.push('/admin/services')}
+            className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            서비스 관리
+          </button>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">고객 관리</h2>
+          <p className="text-gray-600">고객 정보를 관리하세요.</p>
+          <button 
+            onClick={() => router.push('/admin/customers')}
+            className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          >
+            고객 관리
+          </button>
+        </div>
       </div>
     </div>
   );
-} 
+}

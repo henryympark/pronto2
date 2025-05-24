@@ -28,7 +28,7 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
         <div className="lg:col-span-2 space-y-6">
           {/* 대표 이미지 영역 */}
           <ServiceImageGallery 
-            imageUrl={service.image_url} 
+            imageUrl={service.image_url || undefined}
             serviceName={service.name} 
           />
           

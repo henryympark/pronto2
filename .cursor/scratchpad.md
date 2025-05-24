@@ -167,140 +167,81 @@ ServiceDetailClient 컴포넌트에도 TimeRangeSelector 컴포넌트를 성공�
 
 ## Executor's Feedback or Assistance Requests
 
-- 현재 `src/components/Header.tsx` 컴포넌트의 코드를 분석하여 일반 계정 로그인 시 `/service/pronto-b` 페이지에서 마이페이지/로그아웃 버튼이 보이지 않는 현상에 대한 잠재적인 문제점을 도출했습니다.
-- 사용자로부터 제공된 콘솔 로그를 단계적으로 분석한 결과, `AuthContext`는 최종적으로 사용자 정보를 올바르게 로드하고(`user` 객체 확인, `loading: false`), `Header.tsx` 내의 모든 관련 상태들 (`isComponentMounted: true`, `pathname: "/service/pronto-b"`, `isServicePath: true`)이 정상적으로 설정됨을 확인했습니다.
-- 이에 따라 `shouldRenderUserButtons` 상태도 `true`로 올바르게 계산되어, 자바스크립트 로직 상으로는 버튼이 렌더링되고 `buttonSpecialStyles` (`display: 'inline-block'`, `visibility: 'visible'`, `opacity: 1`)도 적용되어야 합니다.
-- **결론적으로, 버튼이 보이지 않는 현상의 원인은 `Header.tsx` 컴포넌트의 JavaScript 로직 문제가 아니라, CSS 스타일 충돌 또는 우선순위 문제일 가능성이 매우 높습니다.**
-- 다음 단계를 위해 사용자에게 다음 정보를 요청합니다:
-    - 브라우저 개발자 도구의 'Elements' 탭에서 보이지 않는 '마이페이지' 또는 '로그아웃' 버튼 HTML 요소를 선택한 후, 'Styles' 또는 'Computed' 탭에 표시되는 최종 적용된 CSS 스타일 (특히 `display`, `visibility`, `opacity`, `width`, `height` 속성 및 값을 덮어쓰는 규칙)을 확인하여 공유해주십시오.
-
-# Pronto 코드 품질 개선 프로젝트
+# Header.tsx 컴포넌트 분석 및 개선
 
 ## Background and Motivation
 
-Pronto 서비스의 코드 품질을 향상시키기 위한 일련의 개선 작업을 진행하고 있습니다. 이전에 다음과 같은 작업을 완료했습니다:
-1. 하드코딩 제거 및 설정 중앙화
-2. 데이터 하드코딩 분리
-3. 컴포넌트 리팩토링
-4. 코드 중복 제거 및 유틸리티 함수 중앙화
-5. 타입 시스템 강화
-6. 스타일링 개선 (Tailwind CSS)
+현재 `Header.tsx` 컴포넌트에서 일반 계정 로그인 시 특정 페이지(`/service/pronto-b`)에서 마이페이지/로그아웃 버튼이 보이지 않는 문제가 발생하고 있습니다. 이 문제를 해결하고 코드의 전반적인 품질(가독성, 효율성, 유지보수성)을 향상시키기 위한 분석 및 개선 방안을 도출합니다. Supabase 및 백엔드 연동 로직은 변경하지 않습니다.
 
-현재는 7번째 항목인 "에러 처리 개선"에 대한 작업을 진행하고 있습니다.
+## Key Challenges and Analysis (Header.tsx)
 
-## Key Challenges and Analysis
+1.  **코드 길이 및 가독성**:
+    *   파일 전체 길이는 약 285줄로, 단일 컴포넌트로는 다소 길게 느껴질 수 있으나, 데스크톱/모바일 뷰 로직이 함께 있어 어느 정도 불가피한 측면도 있습니다.
+    *   `useEffect` 훅이 여러 개 사용되고 있으며, 일부는 의존성 배열 관리가 최적화될 여지가 있습니다. (예: `mounted` 상태는 `pathname` 변경 시에도 계속 `true`로 유지되어야 하지만, 현재 로직 상으로는 페이지 이동 시마다 재설정될 수 있습니다.)
+    *   조건부 렌더링 로직(`shouldRenderUserButtons`, `shouldRenderLoginButton`)이 여러 곳에서 중복되어 사용됩니다.
+    *   스타일 적용 방식이 인라인 스타일 (`buttonSpecialStyles`)과 Tailwind CSS 클래스가 혼용되어 복잡성을 더하고 있습니다. 특히 `buttonSpecialStyles`의 `visibility: 'visible' as const`는 의도를 명확히 하지만, CSS 클래스로 관리하는 것이 더 일관적일 수 있습니다.
 
-1. 코드베이스 전반에 걸쳐 에러 처리가 일관되지 않고 불완전한 부분이 있음
-2. 일부 컴포넌트에서 try-catch 블록 없이 비동기 작업을 수행하여 예외 발생 시 애플리케이션이 중단될 위험이 있음
-3. 에러 메시지가 사용자 친화적이지 않거나 개발자 중심의 메시지가 그대로 노출되는 경우가 있음
-4. 네트워크 요청 실패, 데이터베이스 오류 등 다양한 에러 상황에 대한 처리가 부족함
-5. 일부 컴포넌트에서 변수명 오류(isCancelling vs isCanceling)와 같은 일관성 문제가 있음
+2.  **로직 비효율성 및 버그 유발 가능성**:
+    *   **핵심 문제**: 버튼이 보이지 않는 현상은 스크래치패드의 이전 분석대로 CSS 충돌 또는 우선순위 문제일 가능성이 가장 높습니다. `buttonSpecialStyles`가 `mounted && isServicePath` 조건에 따라 적용되는데, 이 조건이 특정 상황에서 예상과 다르게 동작하거나, 다른 CSS 규칙에 의해 덮어쓰일 가능성을 조사해야 합니다.
+    *   `isServicePath` 상태는 `pathname`에 의존하는데, `pathname` 변경 시 `useEffect`가 실행되어 `isServicePath`를 설정합니다. 이 과정에서 미세한 시간차나 리렌더링 순서에 따라 `buttonSpecialStyles`가 일시적으로 적용되지 않거나, 잘못된 스타일이 적용될 수 있습니다.
+    *   `mounted` 상태 관리: `useEffect(() => { setMounted(true); }, [pathname]);`은 `pathname`이 변경될 때마다 `mounted`를 `true`로 설정합니다. 이는 의도된 동작(컴포넌트 마운트 시 한 번만 `true`로 설정)과 다를 수 있으며, 불필요한 상태 업데이트를 유발할 수 있습니다. 컴포넌트 마운트 시점에만 실행되도록 의존성 배열을 `[]`로 변경하는 것이 일반적입니다.
+    *   `handleAdminClick`, `handleLoginClick`, `handleMyPageClick` 함수 내에서 `router.push` 후 `window.location.href`를 사용하는 예외 처리 방식은 일반적인 Next.js 라우팅 패턴과 다소 차이가 있으며, 사용자 경험에 영향을 줄 수 있습니다 (페이지 전체 새로고침 발생). `router.push`가 실패하는 근본 원인을 파악하고 해결하는 것이 좋습니다.
 
-## High-level Task Breakdown
+3.  **유지보수성**:
+    *   **상태 의존성**: 여러 `useEffect` 훅과 상태 변수(`isMenuOpen`, `mounted`, `isServicePath`, `user`, `loading`, `isAdmin`)들이 서로 얽혀있어 로직 흐름을 파악하기 어려울 수 있습니다.
+    *   **중복 로직**: 데스크톱/모바일 메뉴의 사용자 버튼 및 로그인 버튼 렌더링 로직이 거의 동일하게 반복됩니다. 이를 별도의 컴포넌트나 함수로 추출하여 재사용성을 높일 수 있습니다.
+    *   **스타일 관리**: 인라인 스타일과 Tailwind 클래스의 혼용은 일관성을 저해하고 유지보수를 어렵게 만듭니다. 가능한 Tailwind 클래스만 사용하거나, `clsx` 또는 `cva` 같은 유틸리티를 사용하여 조건부 스타일을 관리하는 것이 좋습니다.
+    *   **콘솔 로그 과다**: 개발 환경에서만 출력되도록 하거나, 서비스 안정화 후 불필요한 로그 제거.
 
-1. [x] 에러 처리 전략 수립
-   - [x] 에러 타입 정의
-   - [x] 공통 에러 처리 유틸리티 함수 구현
-   - [x] 사용자 친화적인 에러 메시지 정의
-2. [ ] 주요 컴포넌트 에러 처리 개선
-   - [x] 마이 페이지 컴포넌트 에러 처리 개선
-   - [ ] 예약 관련 컴포넌트 에러 처리 개선
-   - [ ] 인증 관련 컴포넌트 에러 처리 개선
-3. [x] API 호출 에러 처리 개선
-   - [x] API 응답 타입 및 에러 상태 표준화
-   - [x] API 호출 래퍼 함수 구현
-4. [x] 전역 에러 처리 구현
-   - [x] 에러 경계(Error Boundary) 컴포넌트 구현
-   - [x] 에러 로깅 메커니즘 구현
-5. [x] 변수명 일관성 개선
-   - [x] isCancelling/isCanceling 등 변수명 통일
+## High-level Task Breakdown (Header.tsx 개선)
 
-## Project Status Board
+1.  **[ ] CSS 충돌 및 우선순위 문제 해결 (버튼 안 보이는 현상) - 최우선 과제**
+    *   [ ] **사용자 확인 필요**: 개발자 도구를 사용하여 실제 적용되는 CSS 스타일 (특히 `display`, `visibility`, `opacity` 및 관련 클래스) 확인 및 문제의 원인이 되는 스타일 규칙 특정. 어떤 규칙에 의해 버튼이 숨겨지는지, `specialPathClasses` (`visible opacity-100`)가 덮어쓰이는지 확인 필요.
+    *   [x] `buttonSpecialStyles` 로직 검토:
+        *   [x] `isServicePath`가 올바르게 계산되는지 확인 (useMemo로 개선 완료).
+        *   [x] `mounted` 상태가 의도대로 동작하는지 확인 (컴포넌트 마운트 시 한 번만 true로 설정되도록 개선 완료).
+    *   [ ] 해당 버튼에 적용되는 Tailwind CSS 클래스와 인라인 스타일을 분석하여, 우선순위에 의해 `visibility: hidden` 또는 `display: none` 등이 적용되는지 확인.
+    *   **해결 방안**:
+        *   우선순위가 높은 다른 CSS 규칙을 수정하거나, `!important` 사용 (최후의 수단).
+        *   `buttonSpecialStyles` 대신 Tailwind의 반응형 클래스 (`md:visible`, `invisible`) 또는 조건부 클래스 적용 방식을 사용하여 `visibility`를 명확하게 제어.
+    *   **성공 기준**: `/service/pronto-b` 페이지를 포함한 모든 페이지에서 로그인/비로그인 상태에 따라 마이페이지/로그아웃/로그인 버튼이 정상적으로 노출됨.
 
-- [x] 에러 처리 전략 수립
-- [x] 에러 타입 정의
-- [x] 공통 에러 처리 유틸리티 함수 구현
-- [x] 사용자 친화적인 에러 메시지 정의
-- [x] 마이 페이지 컴포넌트 에러 처리 개선
-- [ ] 예약 관련 컴포넌트 에러 처리 개선
-- [ ] 인증 관련 컴포넌트 에러 처리 개선
-- [x] API 응답 타입 및 에러 상태 표준화
-- [x] API 호출 래퍼 함수 구현
-- [x] 에러 경계(Error Boundary) 컴포넌트 구현
-- [x] 에러 로깅 메커니즘 구현
-- [x] 변수명 일관성 개선
+2.  **[ ] `useEffect` 및 상태 관리 최적화**
+    *   [x] `mounted` 상태 설정 로직 변경: `useEffect(() => { setMounted(true); }, []);` 로 수정하여 컴포넌트 마운트 시 한 번만 실행되도록 변경.
+    *   [x] `isServicePath` 상태 로직 개선: `pathname`으로부터 직접 파생된 변수로 사용하거나, `useMemo`를 사용하여 불필요한 상태 업데이트 방지.
+        ```typescript
+        const isServicePath = useMemo(() => pathname?.includes('/service/') ?? false, [pathname]);
+        ```
+    *   [ ] 불필요한 `useEffect` 훅 통합 또는 제거 검토.
+    *   **성공 기준**: 상태 업데이트 로직이 간결해지고, 불필요한 리렌더링이 감소함.
 
-## Current Status / Progress Tracking
+3.  **[x] 라우팅 함수 개선**
+    *   [x] `handleAdminClick`, `handleLoginClick`, `handleMyPageClick` 함수에서 `window.location.href`를 사용하는 예외 처리 대신, `router.push` 실패 원인 분석 및 해결 (폴백 로직 제거, 에러 발생 시 알림으로 변경).
+    *   [ ] 또는, 에러 발생 시 사용자에게 알림을 주는 방식으로 변경. (위 항목에서 처리 완료)
+    *   **성공 기준**: 페이지 이동이 Next.js 라우터만으로 안정적으로 처리됨.
 
-에러 처리 개선 작업을 진행하고 있습니다. 다음과 같은 작업을 완료했습니다:
+4.  **[x] 코드 중복 제거 및 컴포넌트 분리**
+    *   [x] 데스크톱/모바일 메뉴의 사용자 버튼 및 로그인 버튼 렌더링 로직을 별도의 내부 컴포넌트(예: `UserActions`, `LoginPromptButton`)로 추출.
+    *   [x] 이 내부 컴포넌트는 `user`, `loading`, `isAdmin`, `signOut`, `handleMyPageClick` 등의 props를 받아 일관된 UI를 렌더링 (실제로는 `Header` 컴포넌트 스코프의 변수/함수를 직접 사용하고 `isMobile`, `closeMenu` props를 받도록 구현).
+    *   **성공 기준**: `Header.tsx`의 메인 컴포넌트 코드가 간결해지고, 버튼 렌더링 로직이 재사용 가능한 컴포넌트로 분리됨.
 
-1. 변수명 일관성 문제 해결
-   - 마이 페이지 컴포넌트(src/app/my/page.tsx)에서 `isCanceling`과 `setIsCanceling` 변수명을 `isCancelling`과 `setIsCancelling`으로 통일했습니다.
+5.  **[x] 스타일 관리 일원화**
+    *   [x] `buttonSpecialStyles` 같은 인라인 스타일 대신 Tailwind CSS 클래스 또는 `cva` (class-variance-authority)를 사용한 조건부 스타일링으로 변경 (실제로는 인라인 스타일 객체를 Tailwind 클래스 문자열로 변경하여 className에 통합).
+    *   **성공 기준**: 스타일 정의가 일관되고 예측 가능하게 변경됨.
 
-2. 에러 타입 정의
-   - `src/types/index.ts` 파일에 `ErrorCode` 열거형과 `ErrorSeverity` 열거형을 정의했습니다.
-   - `AppError` 클래스를 구현하여 애플리케이션 전반에서 일관된 에러 처리를 가능하게 했습니다.
-
-3. 공통 에러 처리 유틸리티 함수 구현
-   - `src/lib/utils.ts` 파일에 다음 함수들을 추가했습니다:
-     - `handleError`: 다양한 타입의 에러를 `AppError` 형식으로 변환
-     - `logError`: 에러 로깅 처리
-     - `getUserFriendlyErrorMessage`: 사용자 친화적인 에러 메시지 생성
-
-4. 에러 경계(Error Boundary) 컴포넌트 구현
-   - `src/components/ui/error-boundary.tsx` 파일을 생성하여 React의 Error Boundary 기능을 구현했습니다.
-   - `withErrorBoundary` HOC(Higher-Order Component)를 구현하여 함수형 컴포넌트에서 쉽게 에러 경계를 사용할 수 있도록 했습니다.
-
-5. API 호출 래퍼 함수 구현
-   - `src/hooks/use-api.ts` 파일을 생성하여 API 호출을 위한 커스텀 훅을 구현했습니다.
-   - `useApi` 훅은 데이터 페칭, 로딩 상태, 에러 처리를 통합적으로 관리합니다.
-   - `apiRequest` 함수는 fetch API를 래핑하여 일관된 에러 처리를 제공합니다.
-
-6. 마이 페이지 컴포넌트 에러 처리 개선
-   - `src/app/my/page.tsx` 파일의 `fetchReservations` 함수와 `handleCancelReservation` 함수에 새로운 에러 처리 메커니즘을 적용했습니다.
-   - 에러 발생 시 `AppError` 객체로 변환하여 일관된 에러 처리를 수행합니다.
-   - 에러 로깅을 추가하여 디버깅을 용이하게 했습니다.
-   - 사용자 친화적인 에러 메시지를 표시하도록 개선했습니다.
-   - 컴포넌트 전체를 `ErrorBoundary`로 감싸 예상치 못한 에러로부터 애플리케이션을 보호했습니다.
-   - 중복 코드를 제거하고 코드 재사용성을 높였습니다(예약 목록 새로고침 시 기존 함수 재사용).
-
-다음 단계로는 예약 관련 컴포넌트와 인증 관련 컴포넌트의 에러 처리를 개선할 예정입니다.
+6.  **[ ] 콘솔 로그 정리 (보류)**
+    *   [ ] 개발 환경에서만 출력되도록 하거나, 서비스 안정화 후 불필요한 로그 제거.
+    *   **성공 기준**: 프로덕션 빌드에서 불필요한 콘솔 로그가 제거됨.
 
 ## Executor's Feedback or Assistance Requests
 
-마이 페이지 컴포넌트의 에러 처리를 성공적으로 개선했습니다. 주요 개선 사항은 다음과 같습니다:
-
-1. 일관된 에러 처리 패턴 적용
-   - 모든 에러를 `AppError` 객체로 변환하여 일관된 형식으로 처리
-   - 에러 코드, 개발자용 메시지, 사용자용 메시지를 명확하게 구분
-
-2. 에러 로깅 강화
-   - `logError` 함수를 사용하여 컨텍스트 정보와 함께 에러 로깅
-   - 개발 환경에서는 콘솔에 상세 정보 출력
-
-3. 사용자 경험 개선
-   - 사용자 친화적인 에러 메시지 표시
-   - 치명적이지 않은 에러(예: 가격 변동 정보 조회 실패)는 사용자에게 노출하지 않음
-
-4. 코드 품질 향상
-   - 중복 코드 제거(예약 목록 새로고침 로직)
-   - 웹훅 호출 실패와 같은 부수적인 오류 처리 개선
-
-5. 안정성 강화
-   - 컴포넌트 전체를 `ErrorBoundary`로 감싸 예상치 못한 에러로부터 보호
-
-다음으로는 예약 관련 컴포넌트(예약 생성, 수정)와 인증 관련 컴포넌트(로그인, 회원가입)에 동일한 패턴을 적용할 예정입니다.
-
-## Lessons
-
-1. 일관된 에러 처리 전략은 애플리케이션의 안정성과 사용자 경험을 크게 향상시킵니다.
-2. 변수명의 일관성은 코드 가독성과 유지보수성에 중요한 영향을 미칩니다.
-3. 사용자 친화적인 에러 메시지는 사용자의 혼란을 줄이고 적절한 대응을 유도할 수 있습니다.
-4. 에러 경계(Error Boundary)를 사용하면 애플리케이션 전체가 중단되는 것을 방지할 수 있습니다.
-5. 구조화된 에러 로깅은 문제 해결과 디버깅에 큰 도움이 됩니다.
-6. 커스텀 훅을 사용하여 API 호출 및 에러 처리 로직을 중앙화하면 코드 중복을 줄이고 일관성을 유지할 수 있습니다.
-7. TypeScript의 타입 시스템을 활용하면 컴파일 시점에 많은 잠재적 에러를 방지할 수 있습니다.
-8. 치명적이지 않은 에러는 사용자 경험을 해치지 않도록 적절히 처리하는 것이 중요합니다. 
+- `Header.tsx` 컴포넌트에 대한 여러 개선 작업(상태 관리 최적화, 라우팅 함수 개선, 코드 분리, 스타일 일원화)을 진행했으나, **핵심 문제인 특정 경로에서 버튼이 보이지 않는 현상이 아직 해결되지 않았습니다.**
+- 이는 JavaScript 로직보다는 **CSS 스타일 충돌 또는 우선순위 문제일 가능성이 매우 높습니다.**
+- **사용자 지원 요청:** 문제 해결을 위해, 브라우저 개발자 도구의 'Elements' 탭에서 보이지 않는 버튼을 선택한 후, 다음 정보를 공유해주십시오:
+    1.  **'Styles' 탭**: 버튼을 숨기는 것으로 보이는 CSS 규칙 (예: `display: none`, `visibility: hidden`, `opacity: 0` 또는 관련 Tailwind 클래스인 `hidden`, `invisible`) 및 이 규칙이 저희가 적용하려는 `visible opacity-100` 보다 우선순위가 높은지 여부.
+    2.  **'Computed' 탭**: 해당 버튼의 최종 계산된 `display`, `visibility`, `opacity` 값 및 이 값을 결정한 CSS 규칙.
+- 이 정보가 확인되어야 정확한 CSS 충돌 지점을 파악하고 해결책을 적용할 수 있습니다.
+- "콘솔 로그 정리" 작업은 이 버튼 표시 문제가 해결될 때까지 보류합니다.
 
 # 모바일 화면 콘텐츠 영역 개선 프로젝트
 
@@ -412,12 +353,3 @@ Pronto 서비스의 모바일 화면에서 콘텐츠 영역의 상하 여백이 
 6. UI 변경 사항은 다양한 화면 크기에서 철저히 테스트해야 합니다. 특히 반응형 디자인에서는 브레이크포인트 전후의 동작을 확인하는 것이 중요합니다.
 
 7. 작은 UI 개선도 누적되면 전체적인 사용자 경험에 큰 영향을 미칠 수 있습니다. 이번 패딩 조정으로 모바일 화면에서 약 15%의 추가 공간이 확보되어 사용자 경험이 크게 개선되었습니다. 
-
-# Executor's Feedback or Assistance Requests
-
-- 현재 `src/components/Header.tsx` 컴포넌트의 코드를 분석하여 일반 계정 로그인 시 `/service/pronto-b` 페이지에서 마이페이지/로그아웃 버튼이 보이지 않는 현상에 대한 잠재적인 문제점을 도출했습니다.
-- 사용자로부터 제공된 콘솔 로그를 단계적으로 분석한 결과, `AuthContext`는 최종적으로 사용자 정보를 올바르게 로드하고(`user` 객체 확인, `loading: false`), `Header.tsx` 내의 모든 관련 상태들 (`isComponentMounted: true`, `pathname: "/service/pronto-b"`, `isServicePath: true`)이 정상적으로 설정됨을 확인했습니다.
-- 이에 따라 `shouldRenderUserButtons` 상태도 `true`로 올바르게 계산되어, 자바스크립트 로직 상으로는 버튼이 렌더링되고 `buttonSpecialStyles` (`display: 'inline-block'`, `visibility: 'visible'`, `opacity: 1`)도 적용되어야 합니다.
-- **결론적으로, 버튼이 보이지 않는 현상의 원인은 `Header.tsx` 컴포넌트의 JavaScript 로직 문제가 아니라, CSS 스타일 충돌 또는 우선순위 문제일 가능성이 매우 높습니다.**
-- 다음 단계를 위해 사용자에게 다음 정보를 요청합니다:
-    - 브라우저 개발자 도구의 'Elements' 탭에서 보이지 않는 '마이페이지' 또는 '로그아웃' 버튼 HTML 요소를 선택한 후, 'Styles' 또는 'Computed' 탭에 표시되는 최종 적용된 CSS 스타일 (특히 `display`, `visibility`, `opacity`, `width`, `height` 속성 및 값을 덮어쓰는 규칙)을 확인하여 공유해주십시오. 

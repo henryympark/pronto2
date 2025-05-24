@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, User, Phone, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { createClient$ } from "@/lib/supabase";
+import Link from "next/link";
 
 export default function MyInfoPage() {
   const { user, loading } = useAuth();
@@ -350,11 +351,6 @@ export default function MyInfoPage() {
     }));
   };
 
-  // 뒤로 가기
-  const handleBack = () => {
-    router.push("/my");
-  };
-
   if (loading || !user) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -366,14 +362,15 @@ export default function MyInfoPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="flex items-center mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleBack}
-          className="mr-2"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <Link href="/my">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="mr-2"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
         <h1 className="text-3xl font-bold">내 정보</h1>
       </div>
 

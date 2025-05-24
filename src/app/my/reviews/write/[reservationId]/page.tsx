@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { ReviewFormData } from "@/types";
 import React from "react";
+import Link from "next/link";
 
 // 리뷰 작성 폼 스키마
 const reviewSchema = z.object({
@@ -395,7 +396,9 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <h2 className="text-xl font-semibold mb-2">예약을 찾을 수 없습니다</h2>
         <p className="text-gray-500 mb-4">해당 예약이 존재하지 않거나 접근 권한이 없습니다.</p>
-        <Button onClick={() => router.push("/my")}>마이페이지로 이동</Button>
+        <Link href="/my">
+          <Button>마이페이지로 이동</Button>
+        </Link>
       </div>
     );
   }

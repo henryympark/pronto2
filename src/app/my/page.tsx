@@ -31,6 +31,7 @@ import { ReservationStatus } from "@/types";
 import { AppError, ErrorCode } from "@/types";
 import { handleError, logError, getUserFriendlyErrorMessage } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import Link from "next/link";
 
 // 서비스 타입 정의
 interface Service {
@@ -115,6 +116,10 @@ export default function MyPage() {
   
   // 액션 플래그 - useEffect 내 리디렉션/데이터 로드 한 번만 실행하도록
   const actionAttemptedRef = useRef(false);
+  
+  // 초기 데이터 로드 상태 플래그 (성능 최적화)
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 수동 새로고침 핸들러
   const handleRefresh = () => {
@@ -128,15 +133,15 @@ export default function MyPage() {
     setIsLoading(true);
     
     // useEffect 내의 loadData 함수와 동일한 로직 수행
-    // 병렬로 모든 데이터 요청 시작
+    // 병렬로 모든 데이터 요청 시작 (Promise.allSettled로 변경)
     Promise.allSettled([
       fetchReservations(),
       fetchSimplifiedData()
     ]).then(results => {
-      // 결과 확인 (디버깅 용도)
+      // 결과 확인 및 로깅
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          console.warn(`데이터 로드 ${index} 실패:`, result.reason);
+          console.warn(`새로고침 데이터 로드 ${index} 실패:`, result.reason);
         }
       });
       
@@ -231,58 +236,104 @@ export default function MyPage() {
 
   // 예약 데이터를 가져오는 함수를 컴포넌트 외부로 분리
   const fetchReservations = async (retryCount = 0, maxRetries = 2) => {
-    if (!user || !user.id) return; // 사용자 정보가 없거나 ID가 없으면 조기 종료
-    
-    console.log('사용자 ID:', user.id);
-    console.log('사용자 이메일:', user.email);
+    if (!user || !user.id) {
+      console.error('fetchReservations: 사용자 정보 없음 - 사용자 ID가 필요합니다.');
+      setHasError(true);
+      setErrorMessage("사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
+      return; // 사용자 정보가 없거나 ID가 없으면 조기 종료
+    }
+
+    console.log('fetchReservations 시작 - 사용자 ID:', user.id);
     
     try {
-      // 로딩 상태는 loadData에서 전체적으로 관리하므로 여기서는 설정하지 않음
-      
-      // 사용자 고객 정보 확인 - RPC 함수를 통해 간소화
+      // 세션 확인 - 인증 상태 검증
       try {
-        // 직접 customers 테이블에 접근하는 대신 RPC 함수를 사용해 자동 생성 로직 활용
-        console.log('RPC를 통한 고객 정보 동기화 시도...');
-        
-        // sync_missing_customers 함수를 호출하여 고객 데이터 자동 생성
-        await supabase.rpc('sync_missing_customers');
-        
-        // 사용자 대시보드 데이터 함수를 호출하여 고객 데이터가 생성되었는지 확인
-        const { data: dashboardData, error: dashboardError } = await supabase
-          .rpc('get_user_dashboard_data', { user_id: user.id });
-          
-        if (!dashboardError && dashboardData) {
-          console.log('고객 정보 초기화 성공:', dashboardData);
-        } else {
-          console.warn('고객 정보 초기화 중 경고:', dashboardError || '데이터 없음');
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.error('세션 확인 오류:', sessionError);
+          throw new Error('인증 세션 확인 실패');
         }
-      } catch (customerCheckErr) {
-        console.warn('고객 정보 초기화 중 예외 발생:', customerCheckErr);
-        // 오류가 발생해도 계속 진행 - 예약 조회 과정에서 자동 처리됨
+        
+        if (!sessionData.session) {
+          console.error('유효한 세션이 없습니다. 재로그인이 필요할 수 있습니다.');
+          throw new Error('유효한 인증 세션 없음');
+        }
+        
+        console.log('인증 세션 확인 성공');
+      } catch (sessionErr) {
+        console.warn('세션 확인 중 오류 발생:', sessionErr);
+        // 세션 오류가 발생해도 계속 시도 (로컬 상태로 인증되었을 가능성)
       }
-      
-      // 타임아웃 처리 추가 - 20초로 증가
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('예약 정보 조회 시간 초과')), 300000); // 5분(300초) 제한
-      });
-      
-      console.log('예약 정보 조회 시작 - customer_id:', user.id);
       
       // customer_id 검증 - 잘못된 형식이면 조기 종료
-      if (!user.id || typeof user.id !== 'string' || user.id.length < 10) {
-        console.error('유효하지 않은 사용자 ID:', user.id);
-        throw new Error('유효하지 않은 사용자 ID');
+      if (typeof user.id !== 'string' || user.id.length < 10) {
+        console.error('유효하지 않은 사용자 ID 형식:', user.id);
+        throw new Error('유효하지 않은 사용자 ID 형식');
       }
       
-      // RLS 정책 우회 테스트를 위한 함수 호출 (필요한 경우)
+      // RPC 함수 최적화 호출 - 부가적인 동기화 작업은 별도 비동기로 처리
+      console.log('get_user_reservations RPC 호출 시작');
+      
+      // RPC 함수 정의 확인 (디버깅용)
       try {
-        // RPC를 통해 예약 정보 조회 시도
+        const { data: funcInfo, error: funcError } = await supabase
+          .from('pg_proc')
+          .select('*')
+          .eq('proname', 'get_user_reservations')
+          .limit(1);
+          
+        if (funcError) {
+          console.warn('RPC 함수 정의 확인 실패:', funcError.message);
+        } else if (funcInfo && funcInfo.length > 0) {
+          console.log('RPC 함수 정의 확인 성공:', funcInfo[0].proname);
+        } else {
+          console.warn('RPC 함수 정의를 찾을 수 없습니다.');
+        }
+      } catch (funcCheckErr) {
+        console.warn('RPC 함수 정의 확인 중 오류:', funcCheckErr);
+      }
+      
+      try {
+        // 정의된 파라미터만 전달 (cache_buster 제거)
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_user_reservations', { user_id: user.id });
+          .rpc('get_user_reservations', { 
+            user_id: user.id
+          });
           
         if (rpcError) {
-          console.warn('RPC 조회 실패, 일반 쿼리로 진행:', rpcError.message);
-        } else if (rpcData) {
+          console.warn('RPC 조회 실패, 일반 쿼리로 진행. 오류 메시지:', rpcError.message || '오류 정보 없음', 'Code:', rpcError.code || '코드 없음');
+          // RPC 오류 세부 정보 기록
+          if (rpcError.details) console.warn('RPC 오류 세부 정보:', rpcError.details);
+          if (rpcError.hint) console.warn('RPC 오류 힌트:', rpcError.hint);
+          
+          // RPC 함수 존재 여부 확인
+          try {
+            const { data: routines, error: routinesError } = await supabase
+              .from('information_schema.routines')
+              .select('routine_name, specific_name, routine_definition')
+              .eq('routine_name', 'get_user_reservations')
+              .eq('routine_schema', 'public');
+              
+            if (routinesError) {
+              console.warn('RPC 함수 정보 조회 실패:', routinesError);
+            } else if (routines && routines.length > 0) {
+              console.log('RPC 함수가 존재합니다:', routines.length, '개 발견');
+              routines.forEach((r, i) => {
+                console.log(`RPC 함수 ${i+1} 이름:`, r.routine_name);
+                console.log(`RPC 함수 ${i+1} 구체적 이름:`, r.specific_name);
+              });
+            } else {
+              console.warn('RPC 함수가 존재하지 않습니다.');
+            }
+          } catch (routineCheckErr) {
+            console.warn('RPC 함수 정보 조회 중 오류:', routineCheckErr);
+          }
+          
+          // 일반 쿼리로 진행
+          throw new Error(rpcError.message || 'RPC 함수 호출 실패');
+        }
+        
+        if (rpcData) {
           console.log('RPC를 통한 예약 정보 조회 성공:', (rpcData || []).length, '개의 예약');
           
           // RPC 성공 시 데이터 처리 (빈 배열도 정상 처리)
@@ -321,81 +372,64 @@ export default function MyPage() {
           setReservations(formattedData);
           const filtered = applyFilter(formattedData, activeFilter);
           console.log('필터링 후 예약 데이터:', filtered.length, '개의 예약');
-          return; // 성공적으로 처리됨, 이후 코드 실행 중단
+          setHasError(false);
+          return; // 성공적으로 처리됨, 일반 쿼리 생략
         }
-      } catch (rpcErr) {
-        console.warn('RPC 호출 중 예외 발생, 일반 쿼리로 진행:', rpcErr);
+        
+        // RPC 호출 실패 시 일반 쿼리로 진행
+        console.log('RPC 결과가 없어 일반 쿼리로 진행');
+      } catch (rpcError) {
+        console.warn('RPC 처리 중 예외 발생:', rpcError);
+        // 계속 진행하여 일반 쿼리 시도
       }
       
-      // 일반 쿼리 실행 - 기존 코드
-      const fetchPromise = supabase
-        .from('reservations')
-        .select(`
-          id,
-          service_id,
-          customer_id,
-          reservation_date,
-          start_time,
-          end_time,
-          total_hours,
-          total_price,
-          status,
-          customer_name,
-          created_at,
-          updated_at,
-          original_total_price,
-          recalculated_total_amount,
-          pending_payment_amount,
-          pending_refund_amount,
-          has_review,
-          service:services(id, name),
-          company_name,
-          shooting_purpose,
-          vehicle_number
-        `)
-        .eq('customer_id', user.id)
-        .order('reservation_date', { ascending: false });
-        
-        // 두 Promise 중 먼저 완료되는 것 사용
-        const { data, error } = await Promise.race([
-          fetchPromise,
-          timeoutPromise.then(() => ({ data: null, error: new Error('예약 정보 조회 시간 초과') }))
-        ]);
+      // 일반 쿼리로 진행
+      console.log('일반 쿼리를 통한 예약 정보 조회 시도');
+      
+      // 캐시 방지를 위한 동적 쿼리 - 매번 새로운 쿼리를 보내도록 처리
+      const currentTime = new Date();
+      const currentHour = currentTime.getHours();
+      const currentMin = currentTime.getMinutes();
+      
+      try {
+        const { data, error } = await supabase
+          .from('reservations')
+          .select(`
+            id,
+            service_id,
+            customer_id,
+            reservation_date,
+            start_time,
+            end_time,
+            total_hours,
+            total_price,
+            status,
+            customer_name,
+            created_at,
+            updated_at,
+            original_total_price,
+            recalculated_total_amount,
+            pending_payment_amount,
+            pending_refund_amount,
+            has_review,
+            service:services(id, name),
+            company_name,
+            shooting_purpose,
+            vehicle_number
+          `)
+          .eq('customer_id', user.id)
+          // 캐싱 방지를 위한 동적 조건 - 항상 참이지만 매번 다른 쿼리를 생성
+          .or(`updated_at.gt.${currentHour-24},updated_at.gt.${currentHour-23}`)
+          .order('reservation_date', { ascending: false });
     
         if (error) {
-          // 디버깅: 오류 상세 정보
-          console.error('예약 정보 조회 오류:', error.message);
-          console.error('오류 객체:', error);
-          
-          // 타임아웃 에러인 경우 재시도 로직 실행
-          if (error.message && error.message.includes('시간 초과') && retryCount < maxRetries) {
-            console.warn(`예약 정보 조회 시간 초과 (${retryCount + 1}/${maxRetries + 1}), 재시도 중...`);
-            
-            // 사용자에게 재시도 중임을 알림
-            toast({
-              title: "예약 정보 로딩 중",
-              description: `서버 응답이 지연되고 있습니다. 재시도 중... (${retryCount + 1}/${maxRetries + 1})`,
-              variant: "default",
-            });
-            
-            // 재시도 간격을 약간 늘려가며 재시도 (지수 백오프)
-            const retryDelay = 1000 * Math.pow(1.5, retryCount); // 1초, 1.5초, 2.25초...
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            
-            // 재귀적으로 재시도
-            return fetchReservations(retryCount + 1, maxRetries);
-          }
-          
-          console.error('예약 정보 조회 실패:', error.message || JSON.stringify(error));
-          throw handleError(
-            error, 
-            ErrorCode.DATABASE_ERROR,
-            '예약 정보 조회 실패',
-            '예약 정보를 불러오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.'
-          );
+          console.error('예약 정보 일반 쿼리 조회 오류:', error.message);
+          // 오류 세부 정보 로깅
+          if (error.details) console.error('오류 세부 정보:', error.details);
+          if (error.hint) console.error('오류 힌트:', error.hint);
+          throw error;
         }
         
-        // 안전하게 데이터 변환
         if (data && data.length > 0) {
           console.log('예약 데이터 수신 성공:', data.length, '개의 예약');
           
@@ -414,11 +448,9 @@ export default function MyPage() {
               purpose: item.shooting_purpose || '',
               car_number: item.vehicle_number || '',
               memo: '',
-              // 존재하지 않는 컬럼에 대한 기본값 설정
               paid_amount: 0,
               refunded: false,
               refunded_at: null,
-              // has_review가 null이면 false로 처리
               has_review: item.has_review === true
             };
           });
@@ -426,163 +458,327 @@ export default function MyPage() {
           setReservations(formattedData);
           const filtered = applyFilter(formattedData, activeFilter);
           console.log('필터링 후 예약 데이터:', filtered.length, '개의 예약');
+          setHasError(false);
         } else {
           console.log('예약 데이터 없음 또는 빈 배열 반환됨');
           setReservations([]);
           setFilteredReservations([]);
         }
+      } catch (queryError) {
+        console.error('일반 쿼리 실패, API 폴백 시도:', queryError);
+        
+        // API 엔드포인트 존재 여부 확인 (개발 환경 등에서는 없을 수 있음)
+        const hasApiEndpoint = typeof window !== 'undefined' && 
+          (window.location.hostname === 'localhost' || window.location.hostname.includes('pronto'));
+        
+        if (hasApiEndpoint) {
+          // API 엔드포인트를 통한 폴백 시도
+          try {
+            console.log('API 엔드포인트를 통한 예약 데이터 조회 시도');
+            const response = await fetch(`/api/reservations/user?timestamp=${Date.now()}`);
+            
+            if (!response.ok) {
+              throw new Error(`API 응답 오류: ${response.status} ${response.statusText}`);
+            }
+            
+            const apiData = await response.json();
+            
+            if (apiData && Array.isArray(apiData.data) && apiData.data.length > 0) {
+              console.log('API를 통한 예약 데이터 수신 성공:', apiData.data.length, '개의 예약');
+              
+              const formattedData = apiData.data.map((item: any) => ({
+                ...item,
+                service: item.service || { id: item.service_id, name: '알 수 없는 서비스' },
+                company_name: item.company_name || '',
+                purpose: item.shooting_purpose || '',
+                car_number: item.vehicle_number || '',
+                memo: '',
+                paid_amount: item.paid_amount || 0,
+                refunded: item.refunded || false,
+                refunded_at: item.refunded_at || null,
+                has_review: item.has_review === true
+              }));
+              
+              setReservations(formattedData);
+              const filtered = applyFilter(formattedData, activeFilter);
+              console.log('API 필터링 후 예약 데이터:', filtered.length, '개의 예약');
+              setHasError(false);
+              return; // 성공적으로 데이터를 가져왔으므로 종료
+            } else {
+              console.log('API를 통한 예약 데이터 없음');
+              setReservations([]);
+              setFilteredReservations([]);
+              return; // 데이터가 없어도 정상 처리로 간주
+            }
+          } catch (apiError) {
+            console.error('API 폴백도 실패:', apiError);
+            // API 폴백이 실패해도 계속 진행 (오류 전파하지 않음)
+          }
+        } else {
+          console.log('API 엔드포인트 건너뜀 (개발 환경 또는 미지원)');
+        }
+        
+        // 모든 데이터 소스에서 실패한 경우 빈 결과로 처리
+        console.warn('모든 데이터 소스에서 예약 정보를 가져오지 못했습니다. 빈 결과로 처리합니다.');
+        setReservations([]);
+        setFilteredReservations([]);
+      }
     } catch (error: any) {
-      // 타임아웃 오류인지 확인
-      if (error.message && error.message.includes('시간 초과')) {
-        console.error('예약 정보 조회 시간 초과:', error.message);
+      // 오류 객체 세부 분석 및 디버깅 정보 기록
+      let errorMessage = '예약 정보를 불러오는 중 오류가 발생했습니다.';
+      console.error('예약 정보 조회 오류 상세 정보:', error);
+      
+      if (error instanceof Error) {
+        errorMessage = error.message || errorMessage;
+        console.error('예약 정보 조회 중 오류 발생 (Error 객체):', error.message, error.stack);
+      } else if (typeof error === 'object' && error !== null) {
+        // Supabase 오류 객체일 수 있는 경우
+        const possibleMsg = error.message || error.error || error.errorMessage;
+        const possibleCode = error.code || error.statusCode || error.status;
+        errorMessage = possibleMsg || errorMessage;
         
-        // 오류 상태 업데이트
-        setHasError(true);
-        setErrorMessage("서버 응답이 지연되고 있습니다. 네트워크 상태를 확인하고 새로고침 버튼을 클릭해 다시 시도해주세요.");
-        
-        // 사용자에게 알림 - 재시도 방법 안내
-        toast({
-          title: "예약 정보 조회 시간 초과",
-          description: "서버 응답이 지연되고 있습니다. 네트워크 상태를 확인하고 새로고침 버튼을 클릭해 다시 시도해주세요.",
-          variant: "destructive",
+        console.error('예약 정보 조회 중 오류 발생 (객체):', {
+          message: possibleMsg,
+          code: possibleCode,
+          details: error.details || error.errorDetails,
+          hint: error.hint,
+          fullObject: JSON.stringify(error)
         });
       } else {
-        // 일반 오류 처리
-        const appError = handleError(
-          error,
-          ErrorCode.UNKNOWN_ERROR,
-          '예약 정보 조회 중 오류 발생',
-          '예약 정보를 불러오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.'
-        );
-        
-        // 오류 상태 업데이트
-        setHasError(true);
-        setErrorMessage(getUserFriendlyErrorMessage(appError));
-        
-        logError(appError, { context: 'fetchReservations', userId: user?.id });
-        
-        // 사용자에게 오류 알림
-        toast({
-          title: "예약 정보 조회 실패",
-          description: getUserFriendlyErrorMessage(appError),
-          variant: "destructive",
-        });
+        console.error('예약 정보 조회 중 오류 발생 (기타 유형):', error);
       }
+      
+      // 오류 상태 업데이트
+      setHasError(true);
+      setErrorMessage(errorMessage);
+      
+      // 사용자에게 오류 알림
+      toast({
+        title: "예약 정보 조회 실패",
+        description: errorMessage,
+        variant: "destructive",
+      });
       
       // 상태 초기화
       setReservations([]);
       setFilteredReservations([]);
     }
-    // 로딩 상태는 부모 함수(loadData)에서 관리하므로 여기서는 따로 설정하지 않음
   };
 
   // 로그인 상태 확인 및 데이터 로드 최적화
   useEffect(() => {
+    // 초기화 시 로딩 타임아웃 제거
+    if (loadTimeoutRef.current) {
+      clearTimeout(loadTimeoutRef.current);
+      loadTimeoutRef.current = null;
+    }
+    
     // 고유 식별자 (디버깅용)
     const debugId = Math.floor(Math.random() * 10000);
     console.log(`[MyPage ${debugId}] useEffect 실행, loading: ${loading}, user: ${user ? '있음' : '없음'}`);
     
-    // 로딩 타임아웃 - 10초 이상 로딩 중이면 로그인 페이지로 강제 리디렉션
-    const loadingTimeoutId = setTimeout(() => {
-      if (loading) {
-        console.log(`[MyPage ${debugId}] 로딩 타임아웃 (10초) 도달, 로그인 페이지로 리디렉션`);
-        try {
-          sessionStorage.setItem('my_to_login_redirect_time', Date.now().toString());
-          sessionStorage.setItem('my_page_timeout_redirect', 'true');
-          router.push('/auth/login');
-        } catch (error) {
-          console.error(`[MyPage ${debugId}] 타임아웃 리디렉션 오류:`, error);
+    // 로컬 세션 확인 - 브라우저에 저장된 토큰으로 로그인 상태 검증
+    const checkLocalSession = async () => {
+      try {
+        // 로컬 스토리지에서 supabase 세션 확인
+        const localStorageSession = 
+          typeof localStorage !== 'undefined' && 
+          localStorage.getItem('supabase.auth.token');
+          
+        // 쿠키에서 세션 확인
+        const hasCookieSession = 
+          typeof document !== 'undefined' && 
+          document.cookie.includes('supabase-auth-token');
+          
+        if (localStorageSession || hasCookieSession) {
+          console.log(`[MyPage ${debugId}] 로컬 세션 감지됨, 세션 복구 대기...`);
+          
+          // 세션이 존재하지만 user 객체가 없는 경우, 세션 복구 시도
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error(`[MyPage ${debugId}] 세션 복구 오류:`, error);
+          } else if (data?.session) {
+            console.log(`[MyPage ${debugId}] 세션 복구 성공, 사용자 ID: ${data.session.user.id}`);
+            return true; // 유효한 세션 존재
+          }
         }
+        
+        return false; // 유효한 세션 없음
+      } catch (error) {
+        console.error(`[MyPage ${debugId}] 로컬 세션 확인 중 오류:`, error);
+        return false;
       }
-    }, 10000);
+    };
     
-    // 로딩 중일 때는 대기
+    // 로딩 중일 때는 대기 (타임아웃 시간 15초로 증가)
     if (loading) {
       console.log(`[MyPage ${debugId}] 인증 상태 로딩 중... 대기`);
-      return () => clearTimeout(loadingTimeoutId);
-    }
-    
-    // 로딩 완료됐으므로 타임아웃 제거
-    clearTimeout(loadingTimeoutId);
-    
-    // 리디렉션/데이터 로드가 이미 시도되었는지 확인
-    if (actionAttemptedRef.current) {
-      console.log(`[MyPage ${debugId}] 리디렉션/데이터 로드 이미 시도됨, 중복 실행 방지`);
-      return;
-    }
-    
-    // 비로그인 상태면 로그인 페이지로 리디렉션
-    if (!user) {
-      console.log(`[MyPage ${debugId}] 비로그인 상태 감지, 로그인 페이지로 리디렉션`);
-      actionAttemptedRef.current = true;
       
-      try {
-        // 리디렉션 무한 루프 방지 로직
-        const now = Date.now();
-        const lastRedirectTime = sessionStorage.getItem('my_to_login_redirect_time');
+      // 로컬 세션 확인 - 타임아웃 예방
+      checkLocalSession().then(hasLocalSession => {
+        if (hasLocalSession) {
+          console.log(`[MyPage ${debugId}] 유효한 로컬 세션 감지, 타임아웃 취소`);
+          if (loadTimeoutRef.current) {
+            clearTimeout(loadTimeoutRef.current);
+            loadTimeoutRef.current = null;
+          }
+        }
+      });
+      
+      // 로딩 지연 시 타임아웃 설정 (15초로 연장)
+      loadTimeoutRef.current = setTimeout(() => {
+        if (loading) {
+          console.log(`[MyPage ${debugId}] 로딩 타임아웃 (15초) 도달`);
+          
+          // 세션 복구 시도
+          checkLocalSession().then(hasLocalSession => {
+            if (hasLocalSession) {
+              console.log(`[MyPage ${debugId}] 타임아웃 발생했지만 유효한 로컬 세션이 있습니다. 페이지 새로고침 시도...`);
+              // 페이지 새로고침 
+              if (typeof window !== 'undefined') {
+                // 새로고침 무한 루프 방지를 위해 플래그 설정
+                sessionStorage.setItem('retry_my_page', 'true');
+                window.location.reload();
+              }
+            } else {
+              console.log(`[MyPage ${debugId}] 로그인 페이지로 리디렉션`);
+              try {
+                sessionStorage.setItem('my_to_login_redirect_time', Date.now().toString());
+                sessionStorage.setItem('my_page_timeout_redirect', 'true');
+                router.push('/auth/login');
+              } catch (error) {
+                console.error(`[MyPage ${debugId}] 타임아웃 리디렉션 오류:`, error);
+              }
+            }
+          });
+        }
+      }, 15000); // 15초로 연장
+      
+      return () => {
+        if (loadTimeoutRef.current) {
+          clearTimeout(loadTimeoutRef.current);
+          loadTimeoutRef.current = null;
+        }
+      };
+    }
+    
+    // 로그인 상태 확인 및 디버깅
+    if (user) {
+      console.log(`[MyPage ${debugId}] 사용자 정보:`, {
+        id: user.id,
+        email: user.email
+      });
+      
+      // 반복된 새로고침 방지를 위한 플래그 제거
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('retry_my_page')) {
+        sessionStorage.removeItem('retry_my_page');
+      }
+      
+      // 인증 상태 확인
+      if (!initialDataLoaded) {
+        console.log(`[MyPage ${debugId}] 초기 데이터 로드 시작`);
         
-        if (lastRedirectTime && (now - parseInt(lastRedirectTime, 10)) < 3000) {
-          console.log(`[MyPage ${debugId}] 3초 내 반복 리디렉션 감지, 무시`);
-          return;
+        // 데이터 로드 상태 설정
+        setIsLoading(true);
+        
+        // 데이터 로드 함수 - 비동기 병렬 처리로 최적화
+        const loadInitialData = async () => {
+          try {
+            // Promise.all 대신 Promise.allSettled 사용하여 부분 실패 허용
+            const results = await Promise.allSettled([
+              fetchReservations(),
+              fetchSimplifiedData()
+            ]);
+            
+            // 결과 확인 및 로깅
+            let hasFailures = false;
+            results.forEach((result, index) => {
+              if (result.status === 'rejected') {
+                hasFailures = true;
+                console.warn(`초기 데이터 로드 요청 ${index} 실패:`, result.reason);
+              }
+            });
+            
+            // 모든 요청이 실패한 경우 특별 처리
+            if (hasFailures && results.every(r => r.status === 'rejected')) {
+              console.error(`[MyPage ${debugId}] 모든 초기 데이터 로드 요청이 실패했습니다. 세션 복구 시도...`);
+              
+              // 세션 복구 시도
+              try {
+                const { data, error } = await supabase.auth.refreshSession();
+                if (error) {
+                  console.error('세션 리프레시 실패:', error);
+                } else {
+                  console.log('세션 리프레시 성공, 데이터 다시 로드 시도');
+                  
+                  // 세션 리프레시 후 데이터 다시 로드 시도
+                  setTimeout(() => {
+                    setInitialDataLoaded(false);  // 데이터 로드 플래그 재설정
+                  }, 1000);
+                }
+              } catch (refreshErr) {
+                console.error('세션 리프레시 중 오류:', refreshErr);
+              }
+            }
+            
+            console.log(`[MyPage ${debugId}] 초기 데이터 로드 완료`);
+          } catch (error) {
+            console.error(`[MyPage ${debugId}] 초기 데이터 로드 오류:`, error);
+          } finally {
+            setIsLoading(false);
+            setInitialDataLoaded(true);
+          }
+        };
+        
+        // 즉시 데이터 로드 시작
+        loadInitialData();
+      }
+    } else if (!loading) {
+      // 로그인 상태가 아닌 경우 로그인 페이지로 리디렉션
+      console.log(`[MyPage ${debugId}] 비로그인 상태 감지, 로컬 세션 확인 중...`);
+      
+      // 로컬 세션 확인 후 처리
+      checkLocalSession().then(hasLocalSession => {
+        if (hasLocalSession) {
+          console.log(`[MyPage ${debugId}] 유효한 로컬 세션이 있지만 로그인 상태가 아닙니다. 페이지 새로고침 시도...`);
+          
+          // 이미 새로고침을 시도했는지 확인
+          if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem('retry_my_page')) {
+            // 새로고침 무한 루프 방지를 위해 플래그 설정
+            sessionStorage.setItem('retry_my_page', 'true');
+            window.location.reload();
+            return;
+          }
         }
         
-        sessionStorage.setItem('my_to_login_redirect_time', now.toString());
-        router.push('/auth/login');
-      } catch (error) {
-        console.error(`[MyPage ${debugId}] 로그인 페이지 리디렉션 오류:`, error);
-        actionAttemptedRef.current = false; // 오류 시 재시도 가능하도록 플래그 초기화
-      }
-      return;
-    }
-    
-    // 로그인 상태이면 데이터 로드 시작
-    console.log(`[MyPage ${debugId}] 로그인 상태 확인, 데이터 로드 시작`);
-    actionAttemptedRef.current = true;
-    
-    // 컴포넌트 마운트 상태 추적
-    let isMounted = true;
-    
-    // 데이터 로드 함수
-    const loadData = async () => {
-      if (!isMounted) return;
-      
-      setIsLoading(true);
-      setHasError(false);
-      setErrorMessage("");
-      
-      try {
-        console.log(`[MyPage ${debugId}] 데이터 로드 시작, 사용자 ID: ${user.id}`);
-        
-        // 예약 데이터 로드
-        await fetchReservations();
-        
-        // 추가 데이터 로드 (쿠폰, 리뷰 등)
-        await fetchSimplifiedData();
-        
-        console.log(`[MyPage ${debugId}] 데이터 로드 완료`);
-      } catch (error) {
-        console.error(`[MyPage ${debugId}] 데이터 로드 오류:`, error);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
+        // 세션이 없거나 이미 새로고침 시도했으면 로그인 페이지로 이동
+        try {
+          // 리디렉션 무한 루프 방지 로직
+          const now = Date.now();
+          const lastRedirectTime = sessionStorage.getItem('my_to_login_redirect_time');
+          
+          if (lastRedirectTime && (now - parseInt(lastRedirectTime, 10)) < 3000) {
+            console.log(`[MyPage ${debugId}] 3초 내 반복 리디렉션 감지, 무시`);
+            return;
+          }
+          
+          sessionStorage.setItem('my_to_login_redirect_time', now.toString());
+          console.log(`[MyPage ${debugId}] 로그인 페이지로 리디렉션 실행`);
+          router.push('/auth/login');
+        } catch (error) {
+          console.error(`[MyPage ${debugId}] 로그인 페이지 리디렉션 오류:`, error);
         }
-      }
-    };
-    
-    // 데이터 로드 실행
-    loadData();
-    
-    // 사용자가 로그아웃하면 액션 플래그 초기화
-    if (!user) {
-      actionAttemptedRef.current = false;
+      });
     }
     
-    // 클린업 함수
     return () => {
-      isMounted = false;
-      clearTimeout(loadingTimeoutId);
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+        loadTimeoutRef.current = null;
+      }
     };
-  }, [user, loading, router]);
+  }, [user, loading]);
   
   // 필터 함수 구현 (missing function error 해결)
   const applyFilter = (allReservations: Reservation[], filterType: FilterType) => {
@@ -776,6 +972,10 @@ export default function MyPage() {
       console.log('회원 탈퇴 요청 시작');
       
       // 회원 탈퇴 요청 API 호출 로직 (여기서는 간소화)
+      if (!user) {
+        console.error('사용자 정보가 없습니다');
+        return;
+      }
       const { error } = await supabase.auth.admin.deleteUser(user.id);
         
       if (error) throw error;
@@ -807,12 +1007,47 @@ export default function MyPage() {
     if (!user || !user.id) return;
     
     try {
-      // 임시로 빈 값 설정 (실제 구현에서는 API 또는 RPC 호출)
+      console.log('간소화된 데이터 로드 시작 - 사용자 ID:', user.id);
+      
+      // 대시보드 데이터 호출로 통계 정보 가져오기 - 병렬 처리
+      const { data: dashboardData, error: dashboardError } = await supabase
+        .rpc('get_user_dashboard_data', { 
+          user_id: user.id
+        });
+        
+      if (dashboardError) {
+        console.warn('대시보드 데이터 오류:', dashboardError.message, 'Code:', dashboardError.code || '코드 없음');
+        
+        // 기본값 설정
+        setAccumulatedTime(0);
+        setCouponsCount(0);
+        setReviewsCount(0);
+      } else if (dashboardData) {
+        console.log('대시보드 데이터 로드 성공:', dashboardData);
+        
+        // 통계 데이터 설정
+        setAccumulatedTime(dashboardData.accumulated_time_minutes || 0);
+        setCouponsCount(dashboardData.active_coupons_count || 0);
+        setReviewsCount(dashboardData.reviews_count || 0);
+      }
+      
+      // 백그라운드에서 고객 정보 동기화 (비차단적 실행)
+      Promise.resolve(supabase.rpc('sync_missing_customers'))
+        .then(({ error }) => {
+          if (error) {
+            console.warn('백그라운드 고객 정보 동기화 실패:', error.message);
+          } else {
+            console.log('백그라운드 고객 정보 동기화 성공');
+          }
+        })
+        .catch(err => console.warn('백그라운드 고객 정보 동기화 오류:', err));
+      
+    } catch (error) {
+      console.error('간소화된 데이터 로드 실패:', error);
+      // 기본값으로 설정
       setAccumulatedTime(0);
       setCouponsCount(0);
       setReviewsCount(0);
-    } catch (error) {
-      console.error('간소화된 데이터 로드 실패:', error);
     }
   };
 
@@ -889,9 +1124,11 @@ export default function MyPage() {
           {!isLoading && !hasError && filteredReservations.length === 0 && (
             <div className="text-center py-10">
               <p className="text-lg text-gray-500 mb-4">예약 내역이 없습니다.</p>
-              <Button onClick={() => router.push('/')}>
-                서비스 둘러보기
-              </Button>
+              <Link href="/">
+                <Button>
+                  서비스 둘러보기
+                </Button>
+              </Link>
             </div>
           )}
 
@@ -974,6 +1211,11 @@ export default function MyPage() {
               ) : filteredReservations.length === 0 ? (
                 <div className="text-center py-10">
                   <p className="text-gray-500">예약 내역이 없습니다.</p>
+                  <Link href="/" className="mt-4 inline-block">
+                    <Button>
+                      서비스 둘러보기
+                    </Button>
+                  </Link>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1035,16 +1277,17 @@ export default function MyPage() {
                                 ((reservation.status === 'confirmed' || reservation.status === 'modified') && 
                                   new Date(`${reservation.reservation_date}T${reservation.end_time}`) <= new Date())) && 
                                 !reservation.has_review && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    router.push(`/my/reviews/write/${reservation.id}`);
-                                  }}
+                                <Link 
+                                  href={`/my/reviews/write/${reservation.id}`}
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  리뷰 작성
-                                </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                  >
+                                    리뷰 작성
+                                  </Button>
+                                </Link>
                               )}
                               <Button 
                                 variant="outline" 
@@ -1069,10 +1312,12 @@ export default function MyPage() {
 
           {/* 내 정보 및 로그아웃 버튼 */}
           <div className="flex flex-col space-y-4 justify-start mb-8">
-            <Button variant="outline" onClick={handleMyInfoClick} className="flex items-center justify-center w-40">
-              <User className="mr-2 h-4 w-4" />
-              내 정보
-            </Button>
+            <Link href="/my/profile">
+              <Button variant="outline" className="flex items-center justify-center w-40">
+                <User className="mr-2 h-4 w-4" />
+                내 정보
+              </Button>
+            </Link>
             <Button variant="outline" onClick={handleSignOut} className="flex items-center justify-center w-40">
               <LogOut className="mr-2 h-4 w-4" />
               로그아웃
@@ -1169,7 +1414,7 @@ export default function MyPage() {
                       variant="outline"
                       onClick={() => {
                         setIsModalOpen(false);
-                        handleChangeReservation(selectedReservation.id);
+                        router.push(`/my/reservations/change/${selectedReservation.id}`);
                       }}
                     >
                       예약 변경

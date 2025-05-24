@@ -66,8 +66,9 @@ export default function ReservationSidebar({ service }: ReservationSidebarProps)
         <div className="flex flex-col items-center">
           <MemoizedCalendar
             mode="single"
-            selected={selectedDate}
-            onSelect={handleDateChange}
+            required={false} 
+            selected={selectedDate || undefined}
+            onSelect={(date) => handleDateChange(date || null)}
             disabled={{ before: new Date(), after: maxDate }}
             className="rounded-md"
           />

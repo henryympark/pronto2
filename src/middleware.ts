@@ -129,12 +129,25 @@ export async function middleware(request: NextRequest) {
         
         return redirectResponse;
       }
+
+      // 사용자 정보 null 체크 추가
+      if (!user) {
+        console.log('[미들웨어] 사용자 정보 없음, 로그인 페이지로 리디렉션');
+        const redirectUrl = new URL('/auth/login', request.url);
+        const redirectResponse = NextResponse.redirect(redirectUrl);
+        
+        response.cookies.getAll().forEach(cookie => {
+          redirectResponse.cookies.set(cookie);
+        });
+        
+        return redirectResponse;
+      }
       
-      devLog(`[미들웨어] 사용자 확인됨, 이메일: ${user?.email}`);
+      devLog(`[미들웨어] 사용자 확인됨, 이메일: ${user.email}`);
 
       // 1. 알려진 어드민 이메일 목록 - AuthContext와 일관성 유지
       const adminEmails = ['admin@pronto.com', 'henry.ympark@gmail.com'];
-      if (user?.email && adminEmails.includes(user.email.toLowerCase())) {
+      if (user.email && adminEmails.includes(user.email.toLowerCase())) {
         devLog('[미들웨어] 알려진 어드민 이메일 확인됨:', user.email);
         return response; // 어드민 이메일이면 접근 허용
       }
@@ -241,4 +254,4 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // 미들웨어를 적용할 경로 패턴 지정
   matcher: ['/admin/:path*'],
-} 
+}
