@@ -12,10 +12,10 @@ export const headerStyles = {
   logo: "flex items-center mr-6",
   logoText: "text-2xl font-bold tracking-tighter text-black",
   
-  // 내비게이션 영역
-  desktopNav: "hidden md:flex md:flex-1 md:items-center md:justify-end md:space-x-4",
-  mobileMenuButtonContainer: "flex flex-1 items-center justify-end md:hidden",
-  mobileNavContainer: "container md:hidden",
+  // ✅ 올바른 해결책 - 모바일 우선 접근법
+  desktopNav: "flex lg:flex-1 lg:items-center lg:justify-end lg:space-x-4 max-lg:hidden",
+  mobileMenuButtonContainer: "flex flex-1 items-center justify-end lg:hidden",
+  mobileNavContainer: "container lg:hidden",
   mobileNav: "flex flex-col space-y-4 p-4",
 };
 
@@ -33,4 +33,4 @@ export const menuItemStyles = {
   
   // 아이콘 스타일
   icon: "mr-2 h-4 w-4",
-}; 
+};

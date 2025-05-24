@@ -35,10 +35,11 @@ export function useHeaderNavigation(): HeaderNavigationReturn {
     return pathIncludesService;
   }, [pathname]);
   
-  // 특별한 경로에 대한 스타일 클래스 - 서비스 페이지에서 항상 버튼이 보이도록
+  // ✅ 특별한 경로에 대한 스타일 클래스 - 문제 클래스 제거
   const specialPathClasses = useMemo(() => {
     if (isServicePath) {
-      return "!block !visible opacity-100 z-50"; // 서비스 페이지에서 헤더 버튼을 강제로 보이게
+      // !block 제거 - 이것이 flex 레이아웃을 방해했음
+      return ""; // 또는 필요한 다른 클래스만 사용
     }
     return "";
   }, [isServicePath]);
@@ -50,7 +51,7 @@ export function useHeaderNavigation(): HeaderNavigationReturn {
         pathname,
         isServicePath,
         isMounted,
-        specialPathClasses
+        specialPathClasses: specialPathClasses || '(빈 문자열)'
       });
     }
   }, [pathname, isServicePath, isMounted, specialPathClasses]);
@@ -72,4 +73,4 @@ export function useHeaderNavigation(): HeaderNavigationReturn {
     isServicePath,
     specialPathClasses
   };
-} 
+}

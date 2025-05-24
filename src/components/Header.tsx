@@ -116,10 +116,10 @@ export function Header() {
         </nav>
       </div>
 
-      {/* 모바일 메뉴 (작은 화면에서만 표시) */}
+      {/* ✅ 모바일 메뉴 (완전히 숨김 보장) */}
       {isMenuOpen && (
-        <div className={headerStyles.mobileNavContainer}>
-          <nav className={headerStyles.mobileNav}>
+        <div className="container lg:hidden">
+          <nav className="flex flex-col space-y-4 p-4">
             <HeaderMenuItems 
               shouldRenderUserButtons={shouldRenderUserButtons}
               shouldRenderLoginButton={shouldRenderLoginButton}
@@ -137,4 +137,4 @@ export function Header() {
       )}
     </header>
   );
-} 
+}

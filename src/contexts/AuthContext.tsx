@@ -23,210 +23,186 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
-  // 상태 변경 추적 방지 플래그
-  const authActionInProgressRef = useRef(false);
-  
-  // useSupabase 훅을 사용하여 단일 Supabase 인스턴스 사용
+  const actionInProgressRef = useRef(false);
+  const mountedRef = useRef(true);
   const supabase = useSupabase();
   
-  // 로딩 상태 변경 함수 - 로깅 추가
-  const updateLoading = useCallback((value: boolean, source: string) => {
-    console.log(`[AuthContext] 로딩 상태 변경: ${value ? 'true' : 'false'}, 출처: ${source}`);
-    setLoading(value);
+  // 디버깅 로그
+  const debugLog = useCallback((action: string, data?: any) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[AuthContext] ${action}`, {
+        ...data,
+        timestamp: new Date().toISOString(),
+        pathname: typeof window !== 'undefined' ? window.location.pathname : 'SSR'
+      });
+    }
   }, []);
   
-  // 관리자 상태 확인 함수
-  const checkAdminStatus = useCallback(async (userId: string) => {
+  // 관리자 상태 확인
+  const checkAdminStatus = useCallback(async (userId: string): Promise<boolean> => {
     try {
-      console.log('[AuthContext] 어드민 상태 확인 시작:', userId);
-      
+      debugLog('어드민 상태 확인', { userId });
       const { data, error } = await supabase.rpc('check_admin_access');
       
       if (error) {
-        console.error('[AuthContext] 어드민 체크 오류:', error);
+        debugLog('어드민 체크 오류', { error: error.message });
         return false;
       }
       
-      const newAdminState = !!data;
-      console.log('[AuthContext] 어드민 체크 결과:', newAdminState);
-      
-      // 함수에서는 상태를 변경하지 않고 결과만 반환
-      return newAdminState;
+      const isUserAdmin = !!data;
+      debugLog('어드민 체크 완료', { isAdmin: isUserAdmin });
+      return isUserAdmin;
     } catch (error) {
-      console.error('[AuthContext] 어드민 상태 확인 오류:', error);
+      debugLog('어드민 상태 확인 예외', { error });
       return false;
     }
-  }, [supabase]);
+  }, [supabase, debugLog]);
   
-  // 현재 세션 가져오기 함수
+  // 상태 업데이트 헬퍼
+  const updateAuthState = useCallback((updates: {
+    session?: Session | null;
+    user?: User | null;
+    isAdmin?: boolean;
+    loading?: boolean;
+    isInitialized?: boolean;
+  }) => {
+    if (!mountedRef.current) return;
+    
+    debugLog('상태 업데이트', updates);
+    
+    if (updates.session !== undefined) setSession(updates.session);
+    if (updates.user !== undefined) setUser(updates.user);
+    if (updates.isAdmin !== undefined) setIsAdmin(updates.isAdmin);
+    if (updates.loading !== undefined) setLoading(updates.loading);
+    if (updates.isInitialized !== undefined) setIsInitialized(updates.isInitialized);
+  }, [debugLog]);
+  
+  // 세션 가져오기
   const getSession = useCallback(async () => {
-    try {
-      // 이미 다른 인증 작업이 진행 중이면 중복 실행 방지
-      if (authActionInProgressRef.current) {
-        console.log('[AuthContext] 다른 인증 작업이 진행 중, getSession 호출 무시');
-        return;
-      }
-      
-      authActionInProgressRef.current = true;
-      console.log('[AuthContext] 세션 가져오기 시작');
-      // 이미 user 정보가 있는 상태에서 getSession이 다시 호출될 경우, UI 로딩을 최소화
-      if (!user) {
-        updateLoading(true, 'getSession 시작 (user 없음)');
-      } else {
-        console.log('[AuthContext] getSession 시작 (user 이미 존재, UI 로딩 최소화)');
-      }
-      
-      // 세션 가져오기 (최대 3번까지 재시도)
-      let currentSession = null;
-      let error = null;
-      
-      for (let i = 0; i < 3; i++) {
-        try {
-          const result = await supabase.auth.getSession();
-          if (!result.error) {
-            currentSession = result.data.session;
-            error = null;
-            break;
-          }
-          error = result.error;
-          console.warn(`[AuthContext] 세션 가져오기 시도 ${i+1}/3 실패:`, result.error);
-          // 실패 시 짧은 지연 후 재시도
-          if (i < 2) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        } catch (e) {
-          error = e;
-          console.warn(`[AuthContext] 세션 가져오기 예외 발생 (시도 ${i+1}/3):`, e);
-          if (i < 2) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        }
-      }
-      
-      if (error) {
-        throw error;
-      }
-      
-      console.log('[AuthContext] 세션 확인 결과:', currentSession ? '세션 있음' : '세션 없음');
-      
-      // 세션 정보 업데이트
-      setSession(currentSession);
-      
-      // 세션이 없고 로컬 저장소에 토큰이 있는 경우 세션 복구 시도
-      if (!currentSession && typeof window !== 'undefined') {
-        const hasLocalToken = localStorage.getItem('supabase.auth.token') || 
-                              document.cookie.includes('supabase-auth-token');
-        
-        if (hasLocalToken) {
-          console.log('[AuthContext] 로컬 토큰 발견, 세션 복구 시도');
-          try {
-            const { data: refreshData } = await supabase.auth.refreshSession();
-            if (refreshData.session) {
-              console.log('[AuthContext] 세션 복구 성공');
-              currentSession = refreshData.session;
-              setSession(currentSession);
-            } else {
-              console.warn('[AuthContext] 세션 복구 시도했으나 실패');
-            }
-          } catch (refreshError) {
-            console.error('[AuthContext] 세션 복구 중 오류:', refreshError);
-          }
-        }
-      }
-      
-      // 사용자 정보 업데이트
-      setUser(currentSession?.user || null);
-      
-      // 세션이 있으면 어드민 상태 확인
-      if (currentSession?.user) {
-        const isUserAdmin = await checkAdminStatus(currentSession.user.id);
-        setIsAdmin(isUserAdmin);
-        console.log('[AuthContext] 어드민 상태 설정 완료:', isUserAdmin);
-      } else {
-        setIsAdmin(false);
-      }
-      
-      // 모든 작업 완료 후 로딩 상태 false로 변경
-      updateLoading(false, 'getSession 완료');
-      authActionInProgressRef.current = false;
-    } catch (err) {
-      console.error("[AuthContext] 세션 가져오기 오류:", err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-      setSession(null);
-      setUser(null);
-      setIsAdmin(false);
-      updateLoading(false, 'getSession 오류');
-      authActionInProgressRef.current = false;
+    if (actionInProgressRef.current || !mountedRef.current) {
+      debugLog('getSession 스킵', { 
+        actionInProgress: actionInProgressRef.current, 
+        mounted: mountedRef.current 
+      });
+      return;
     }
-  }, [supabase.auth, checkAdminStatus, updateLoading, user]);
-
-  // 로그아웃 함수
-  const signOut = useCallback(async () => {
+    
+    actionInProgressRef.current = true;
+    debugLog('세션 가져오기 시작');
+    
     try {
-      // 이미 다른 인증 작업이 진행 중이면 중복 실행 방지
-      if (authActionInProgressRef.current) {
-        console.log('[AuthContext] 다른 인증 작업이 진행 중, signOut 호출 무시');
-        return;
+      if (!isInitialized) {
+        updateAuthState({ loading: true });
       }
       
-      authActionInProgressRef.current = true;
-      console.log('[AuthContext] 로그아웃 시작');
-      updateLoading(true, 'signOut 시작');
+      const { data, error } = await supabase.auth.getSession();
       
-      // 로그아웃 전에 사용자 상태 초기화
-      setSession(null);
-      setUser(null);
-      setIsAdmin(false);
+      if (error) throw error;
       
-      // Supabase 로그아웃 요청 - global 스코프로 모든 디바이스에서 로그아웃
+      const currentSession = data.session;
+      debugLog('세션 확인 완료', { hasSession: !!currentSession });
+      
+      updateAuthState({
+        session: currentSession,
+        user: currentSession?.user || null
+      });
+      
+      // 관리자 상태 확인
+      let adminStatus = false;
+      if (currentSession?.user) {
+        adminStatus = await checkAdminStatus(currentSession.user.id);
+      }
+      
+      // 최종 상태 업데이트
+      updateAuthState({
+        isAdmin: adminStatus,
+        loading: false,
+        isInitialized: true
+      });
+      
+      // sessionStorage 동기화
+      if (typeof window !== 'undefined') {
+        const authState = {
+          hasUser: !!currentSession?.user,
+          isAdmin: adminStatus,
+          timestamp: Date.now()
+        };
+        sessionStorage.setItem('pronto_auth_state', JSON.stringify(authState));
+      }
+      
+    } catch (err) {
+      debugLog('세션 가져오기 오류', { error: err });
+      setError(err instanceof Error ? err : new Error(String(err)));
+      
+      updateAuthState({
+        session: null,
+        user: null,
+        isAdmin: false,
+        loading: false,
+        isInitialized: true
+      });
+      
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('pronto_auth_state');
+      }
+    } finally {
+      actionInProgressRef.current = false;
+    }
+  }, [supabase.auth, checkAdminStatus, updateAuthState, isInitialized, debugLog]);
+
+  // 로그아웃
+  const signOut = useCallback(async () => {
+    if (actionInProgressRef.current) {
+      debugLog('signOut 스킵 - 액션 진행 중');
+      return;
+    }
+    
+    actionInProgressRef.current = true;
+    debugLog('로그아웃 시작');
+    
+    try {
+      updateAuthState({
+        session: null,
+        user: null,
+        isAdmin: false,
+        loading: false
+      });
+      
+      if (typeof window !== 'undefined') {
+        sessionStorage.clear();
+      }
+      
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       
       if (error) {
-        throw error;
+        debugLog('로그아웃 오류', { error: error.message });
       }
       
-      // 로딩 상태를 즉시 false로 변경
-      console.log('[AuthContext] 로그아웃 완료');
-      updateLoading(false, 'signOut 완료');
+      debugLog('로그아웃 완료');
       
-      // 브라우저 로컬 스토리지와 세션 스토리지 정리
       if (typeof window !== 'undefined') {
-        // 세션 스토리지 정리
-        sessionStorage.clear();
-        
-        // 무한루프 방지를 위한 리디렉션 타이머 초기화
-        sessionStorage.removeItem('last_login_redirect_time');
-        sessionStorage.removeItem('login_redirect_attempted');
-        
-        // 타임스탬프 추가하여 캐시 무효화
-        const timestamp = Date.now();
-        window.location.href = `/auth/login?t=${timestamp}`;
+        window.location.href = `/auth/login?t=${Date.now()}`;
       }
       
-      authActionInProgressRef.current = false;
     } catch (error) {
-      console.error("[AuthContext] 로그아웃 오류:", error);
+      debugLog('로그아웃 예외', { error });
       setError(error instanceof Error ? error : new Error(String(error)));
-      updateLoading(false, 'signOut 오류');
-      authActionInProgressRef.current = false;
       throw error;
+    } finally {
+      actionInProgressRef.current = false;
     }
-  }, [supabase.auth, updateLoading]);
+  }, [supabase.auth, updateAuthState, debugLog]);
 
-  // 카카오 로그인 함수
+  // OAuth 로그인들
   const signInWithKakao = useCallback(async () => {
+    if (actionInProgressRef.current) return;
+    
+    actionInProgressRef.current = true;
+    debugLog('카카오 로그인 시작');
+    
     try {
-      // 이미 다른 인증 작업이 진행 중이면 중복 실행 방지
-      if (authActionInProgressRef.current) {
-        console.log('[AuthContext] 다른 인증 작업이 진행 중, signInWithKakao 호출 무시');
-        return;
-      }
-      
-      authActionInProgressRef.current = true;
-      console.log('[AuthContext] 카카오 로그인 시작');
-      updateLoading(true, 'signInWithKakao 시작');
-      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'kakao' as Provider,
         options: {
@@ -235,31 +211,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
-      
-      // 성공 시 상태는 onAuthStateChange에서 처리됨
       return data;
     } catch (error) {
-      console.error("[AuthContext] 카카오 로그인 오류:", error);
+      debugLog('카카오 로그인 오류', { error });
       setError(error instanceof Error ? error : new Error(String(error)));
-      updateLoading(false, 'signInWithKakao 오류');
-      authActionInProgressRef.current = false;
       throw error;
+    } finally {
+      actionInProgressRef.current = false;
     }
-  }, [supabase.auth, updateLoading]);
+  }, [supabase.auth, debugLog]);
 
-  // 네이버 로그인 함수
   const signInWithNaver = useCallback(async () => {
+    if (actionInProgressRef.current) return;
+    
+    actionInProgressRef.current = true;
+    debugLog('네이버 로그인 시작');
+    
     try {
-      // 이미 다른 인증 작업이 진행 중이면 중복 실행 방지
-      if (authActionInProgressRef.current) {
-        console.log('[AuthContext] 다른 인증 작업이 진행 중, signInWithNaver 호출 무시');
-        return;
-      }
-      
-      authActionInProgressRef.current = true;
-      console.log('[AuthContext] 네이버 로그인 시작');
-      updateLoading(true, 'signInWithNaver 시작');
-      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'naver' as Provider,
         options: {
@@ -268,251 +236,123 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
-      
-      // 성공 시 상태는 onAuthStateChange에서 처리됨
       return data;
     } catch (error) {
-      console.error("[AuthContext] 네이버 로그인 오류:", error);
+      debugLog('네이버 로그인 오류', { error });
       setError(error instanceof Error ? error : new Error(String(error)));
-      updateLoading(false, 'signInWithNaver 오류');
-      authActionInProgressRef.current = false;
       throw error;
+    } finally {
+      actionInProgressRef.current = false;
     }
-  }, [supabase.auth, updateLoading]);
+  }, [supabase.auth, debugLog]);
 
-  // 초기화 및 인증 상태 변경 감지 (최초 1회만 실행)
+  // 초기화 및 인증 상태 변경 감지
   useEffect(() => {
-    console.log('[AuthContext] 컴포넌트 최초 마운트: 초기 세션 로드 시작');
+    debugLog('AuthProvider 마운트');
+    mountedRef.current = true;
     
-    // 컴포넌트 마운트 상태 추적
-    let isMounted = true;
+    getSession();
     
-    // 초기 세션 로드 및 세션 복구 시도 타임아웃 설정
-    let sessionLoadTimeout: NodeJS.Timeout | null = null;
-    
-    // 초기 세션 로드 함수
-    const loadInitialSession = async () => {
-      try {
-        // 타임아웃 설정 (20초) - 세션 로드가 지연되는 경우 대비
-        sessionLoadTimeout = setTimeout(() => {
-          if (isMounted && loading) {
-            console.warn('[AuthContext] 세션 로드 타임아웃 (20초) 도달, 복구 시도');
-            
-            // 세션 복구 시도
-            supabase.auth.refreshSession().then(({ data, error }) => {
-              if (error) {
-                console.error('[AuthContext] 세션 복구 실패:', error);
-                updateLoading(false, 'sessionLoadTimeout 복구 실패');
-              } else if (data.session) {
-                console.log('[AuthContext] 타임아웃 후 세션 복구 성공');
-                setSession(data.session);
-                setUser(data.session.user);
-                
-                // 어드민 상태 확인
-                checkAdminStatus(data.session.user.id).then(isUserAdmin => {
-                  setIsAdmin(isUserAdmin);
-                  updateLoading(false, 'sessionLoadTimeout 복구 완료');
-                });
-              } else {
-                console.warn('[AuthContext] 타임아웃 후 세션 복구 시도했으나 세션 없음');
-                updateLoading(false, 'sessionLoadTimeout 세션 없음');
-              }
-            });
-          }
-        }, 20000);
-        
-        await getSession();
-        
-        // 세션 로드 완료 후 타임아웃 제거
-        if (sessionLoadTimeout) {
-          clearTimeout(sessionLoadTimeout);
-          sessionLoadTimeout = null;
-        }
-      } catch (error) {
-        console.error('[AuthContext] 초기 세션 로드 오류:', error);
-        if (isMounted) {
-          updateLoading(false, 'initialLoad 오류');
-          
-          // 오류 발생 시 세션 복구 한 번 더 시도
-          try {
-            console.log('[AuthContext] 에러 후 세션 복구 시도');
-            const { data } = await supabase.auth.refreshSession();
-            if (data.session) {
-              console.log('[AuthContext] 에러 후 세션 복구 성공');
-              setSession(data.session);
-              setUser(data.session.user);
-            }
-          } catch (refreshError) {
-            console.error('[AuthContext] 에러 후 세션 복구 실패:', refreshError);
-          }
-        }
-        
-        // 타임아웃 제거
-        if (sessionLoadTimeout) {
-          clearTimeout(sessionLoadTimeout);
-          sessionLoadTimeout = null;
-        }
-      }
-    };
-    
-    // 초기 세션 로드 실행
-    loadInitialSession();
-    
-    // 인증 상태 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log('[AuthContext] 인증 상태 변경:', event, newSession ? '세션 있음' : '세션 없음');
+        debugLog('인증 상태 변경', { event, hasSession: !!newSession });
         
-        if (!isMounted) return;
+        if (!mountedRef.current) return;
         
-        // 이미 다른 인증 작업이 진행 중이면 상태 업데이트 건너뛰기
-        if (authActionInProgressRef.current && event !== 'INITIAL_SESSION') {
-          console.log(`[AuthContext] 다른 인증 작업이 진행 중, ${event} 이벤트 처리 생략`);
+        if (actionInProgressRef.current && event !== 'INITIAL_SESSION') {
+          debugLog('액션 진행 중 - 이벤트 처리 스킵', { event });
           return;
         }
         
-        if (event === 'SIGNED_IN') {
-          authActionInProgressRef.current = true;
-          updateLoading(true, 'SIGNED_IN 이벤트 시작');
-          
-          try {
+        switch (event) {
+          case 'SIGNED_IN':
             if (newSession?.user) {
-              console.log('[AuthContext] 로그인 성공 - 세션 및 사용자 정보 업데이트');
-              
-              // 세션 및 사용자 정보 업데이트
-              setSession(newSession);
-              setUser(newSession.user);
-              
-              // 어드민 상태 확인 및 설정 - 순차적으로 진행
-              const isUserAdmin = await checkAdminStatus(newSession.user.id);
-              setIsAdmin(isUserAdmin);
-              console.log('[AuthContext] 어드민 상태 설정 완료:', isUserAdmin);
-            } else {
-              console.log('[AuthContext] 로그인 이벤트이나 세션 없음 - 상태 초기화');
-              setSession(null);
-              setUser(null);
-              setIsAdmin(false);
-            }
-          } catch (error) {
-            console.error('[AuthContext] SIGNED_IN 이벤트 처리 오류:', error);
-            // 오류 시 상태를 명확하게 초기화
-            setIsAdmin(false);
-          } finally {
-            // 모든 상태 업데이트가 완료된 후에 loading 상태 변경
-            console.log('[AuthContext] SIGNED_IN 이벤트 처리 완료: loading=false로 설정');
-            updateLoading(false, 'SIGNED_IN 이벤트 완료');
-            authActionInProgressRef.current = false;
-          }
-        } else if (event === 'SIGNED_OUT') {
-          authActionInProgressRef.current = true;
-          updateLoading(true, 'SIGNED_OUT 이벤트 시작');
-          
-          try {
-            console.log('[AuthContext] 로그아웃 - 상태 초기화');
-            setSession(null);
-            setUser(null);
-            setIsAdmin(false);
-          } finally {
-            updateLoading(false, 'SIGNED_OUT 이벤트 완료');
-            authActionInProgressRef.current = false;
-          }
-        } else if (event === 'USER_UPDATED' && newSession) {
-          authActionInProgressRef.current = true;
-          updateLoading(true, 'USER_UPDATED 이벤트 시작');
-          
-          try {
-            console.log('[AuthContext] 사용자 정보 업데이트');
-            setSession(newSession);
-            setUser(newSession.user);
-            
-            if (newSession.user) {
-              const isUserAdmin = await checkAdminStatus(newSession.user.id);
-              setIsAdmin(isUserAdmin);
-              console.log('[AuthContext] 어드민 상태 설정 완료:', isUserAdmin);
-            } else {
-              setIsAdmin(false);
-            }
-          } catch (error) {
-            console.error('[AuthContext] USER_UPDATED 이벤트 처리 오류:', error);
-            setIsAdmin(false);
-          } finally {
-            updateLoading(false, 'USER_UPDATED 이벤트 완료');
-            authActionInProgressRef.current = false;
-          }
-        } else if (event === 'INITIAL_SESSION') {
-          // 초기 세션 이벤트는 getSession에서 이미 처리했을 가능성이 높으므로
-          // 세션이 있지만 getSession이 아직 완료되지 않은 경우에만 처리
-          if (newSession && (!session || loading)) {
-            console.log('[AuthContext] 초기 세션 감지 - 세션 정보 동기화');
-            
-            // getSession이 실행 중이 아닌 경우에만 상태 업데이트 수행
-            if (!authActionInProgressRef.current) {
-              authActionInProgressRef.current = true;
-              updateLoading(true, 'INITIAL_SESSION 처리 시작');
-              
+              actionInProgressRef.current = true;
               try {
-                setSession(newSession);
-                setUser(newSession.user);
+                updateAuthState({
+                  session: newSession,
+                  user: newSession.user
+                });
                 
-                // 어드민 상태 확인 및 설정
-                if (newSession.user) {
-                  const isUserAdmin = await checkAdminStatus(newSession.user.id);
-                  setIsAdmin(isUserAdmin);
-                  console.log('[AuthContext] 어드민 상태 설정 완료:', isUserAdmin);
+                const adminStatus = await checkAdminStatus(newSession.user.id);
+                updateAuthState({
+                  isAdmin: adminStatus,
+                  loading: false,
+                  isInitialized: true
+                });
+                
+                if (typeof window !== 'undefined') {
+                  const authState = {
+                    hasUser: true,
+                    isAdmin: adminStatus,
+                    timestamp: Date.now()
+                  };
+                  sessionStorage.setItem('pronto_auth_state', JSON.stringify(authState));
                 }
-              } catch (error) {
-                console.error('[AuthContext] INITIAL_SESSION 처리 오류:', error);
-                setIsAdmin(false);
               } finally {
-                updateLoading(false, 'INITIAL_SESSION 처리 완료');
-                authActionInProgressRef.current = false;
+                actionInProgressRef.current = false;
               }
             }
-          } else if (!newSession && loading) {
-            // 초기 세션이 없고 아직 로딩 상태인 경우 로딩 완료 처리
-            console.log('[AuthContext] 초기 세션 없음 - 로딩 완료 처리');
-            updateLoading(false, 'INITIAL_SESSION (세션 없음)');
-          }
-        } else if (event === 'TOKEN_REFRESHED' && newSession) {
-          // 토큰 갱신 시 세션 정보 업데이트
-          console.log('[AuthContext] 토큰 갱신 - 세션 정보 업데이트');
-          setSession(newSession);
-          setUser(newSession.user);
+            break;
+            
+          case 'SIGNED_OUT':
+            updateAuthState({
+              session: null,
+              user: null,
+              isAdmin: false,
+              loading: false
+            });
+            
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('pronto_auth_state');
+            }
+            break;
+            
+          case 'TOKEN_REFRESHED':
+            if (newSession) {
+              updateAuthState({
+                session: newSession,
+                user: newSession.user
+              });
+            }
+            break;
         }
       }
     );
 
-    // 세션 자동 새로고침 설정 (5분마다)
-    const refreshInterval = setInterval(async () => {
-      if (!isMounted || !session) return;
-      
-      try {
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) {
-          console.warn('[AuthContext] 세션 자동 새로고침 실패:', error.message);
-        } else if (data.session) {
-          console.log('[AuthContext] 세션 자동 새로고침 성공');
-          setSession(data.session);
-          setUser(data.session.user);
-        }
-      } catch (error) {
-        console.error('[AuthContext] 세션 자동 새로고침 오류:', error);
+    // ✅ Visibility API 간섭 방지
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        debugLog('페이지가 다시 보여짐 - 상태 안정화 대기');
+        // 페이지가 다시 보여질 때 잠시 대기 후 상태 확인
+        setTimeout(() => {
+          if (!mountedRef.current || actionInProgressRef.current) return;
+          
+          // 현재 상태가 불안정한 경우에만 세션 재확인
+          if (loading && session) {
+            debugLog('Visibility 복구 후 상태 동기화');
+            updateAuthState({ loading: false });
+          }
+        }, 500);
       }
-    }, 300000); // 5분마다
-
-    // 클린업 함수
-    return () => {
-      console.log('[AuthContext] 컴포넌트 언마운트');
-      isMounted = false;
-      clearInterval(refreshInterval);
-      
-      if (sessionLoadTimeout) {
-        clearTimeout(sessionLoadTimeout);
-      }
-      
-      subscription.unsubscribe();
     };
-  }, []); // 의존성 배열 비움 - 최초 마운트 시 한 번만 실행
+
+    // Visibility change 이벤트 리스너 추가
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      debugLog('AuthProvider 언마운트');
+      mountedRef.current = false;
+      subscription.unsubscribe();
+      
+      // 이벤트 리스너 정리
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
+  }, [getSession, supabase.auth, checkAdminStatus, updateAuthState, debugLog, loading, session]);
 
   const value: AuthContextType = {
     session,
@@ -534,4 +374,4 @@ export const useAuth = () => {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-}; 
+};
