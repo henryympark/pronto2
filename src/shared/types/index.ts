@@ -1,9 +1,20 @@
 // Barrel export for shared types
-// Common type definitions used across domains
+export * from './common';
 
-// Example structure (will be updated):
-// export type { User } from './auth';
-// export type { ApiResponse } from './api';
-// export type { BaseEntity } from './common';
+// Re-export commonly used types for convenience
+export type {
+  BaseEntity,
+  ApiResponse,
+  PaginationParams,
+  Option,
+  Result,
+  LoadingState,
+  ColorVariant,
+  Size
+} from './common';
 
-export {};
+export {
+  ErrorSeverity,
+  ErrorCode,
+  AppError
+} from './common';

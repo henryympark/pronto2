@@ -1,9 +1,8 @@
 // Barrel export for shared hooks
-// Common hooks that are used across multiple domains
+export { useIsMounted } from './useIsMounted';
+export { useToast, toast } from './useToast';
+export { useApi, apiRequest } from './useApi';
 
-// Example structure (will be updated):
-// export { useIsMounted } from './useIsMounted';
-// export { useToast } from './use-toast';
-// export { useApi } from './use-api';
-
-export {};
+// Re-export with original names for backward compatibility
+export { useToast as useToast } from './useToast';
+export { useApi as useApi } from './useApi';
