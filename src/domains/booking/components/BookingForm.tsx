@@ -10,7 +10,7 @@ import { useBookingFormStore } from "../stores";
 import { useReservationStore } from "../stores";
 import { useToast } from "@/shared/hooks/useToast";
 import { useAuth } from "@/domains/auth";
-import { useSupabaseClient } from "@supabase/auth-helpers-react";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { useRouter } from "next/navigation";
 
 interface BookingFormProps {
@@ -20,7 +20,7 @@ interface BookingFormProps {
 export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
   const { toast } = useToast();
   const router = useRouter();
-  const supabase = useSupabaseClient();
+  const supabase = useSupabase();
   const { user } = useAuth();
   
   const { 
