@@ -1,6 +1,16 @@
-// Booking 도메인 스토어 배럴 익스포트
-// 예약 관련 모든 상태 관리 스토어들을 여기서 통합 관리
+/**
+ * Booking 도메인 스토어 통합 export
+ * 예약 관련 모든 상태 관리 스토어들을 통합 제공
+ */
 
-// TODO: 스토어 파일들이 생성되면 export 추가
-// export { useBookingStore } from './bookingStore';
-// export { useBookingFormStore } from './bookingFormStore';
+// 예약 폼 스토어
+export { useBookingFormStore, type BookingFormData } from './bookingFormStore';
+
+// 예약 상태 스토어
+export { useReservationStore, type TimeRange } from './reservationStore';
+
+// 기존 코드와의 호환성을 위한 alias export
+export {
+  useBookingFormStore as useBookingStore,
+  useReservationStore as useBookingReservationStore
+} from './bookingFormStore';
