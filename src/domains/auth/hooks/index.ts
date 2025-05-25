@@ -1,5 +1,17 @@
 // Auth 도메인 훅스 배럴 익스포트
-// useHeaderAuth, useAuth, useSession 등이 여기에 익스포트됩니다
+// 인증 관련 모든 커스텀 훅들을 여기서 export
 
-// 임시 placeholder - 실제 훅 이동 시 제거
-export const AUTH_HOOKS_PLACEHOLDER = 'auth-hooks' as const;
+// 핵심 Auth 훅
+export { useHeaderAuth } from './useHeaderAuth';
+
+// 추후 추가될 Auth 훅들
+// export { useAuth } from './useAuth';          // AuthContext 로직 분리 후
+// export { useSession } from './useSession';    // 세션 관리 훅
+// export { useAuthGuard } from './useAuthGuard'; // 인증 보호 훅
+
+// 훅 메타데이터
+export const AUTH_HOOKS_META = {
+  count: 1,
+  available: ['useHeaderAuth'],
+  planned: ['useAuth', 'useSession', 'useAuthGuard']
+} as const;
