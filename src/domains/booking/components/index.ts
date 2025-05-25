@@ -6,14 +6,12 @@
 // 예약 폼 컴포넌트
 export { BookingForm, default as BookingFormDefault } from './BookingForm';
 
-// TODO: 추가 컴포넌트들이 이동되면 export 추가
-// export { BookingCard } from './BookingCard';
-// export { BookingCalendar } from './BookingCalendar';
-// export { TimeSlotPicker } from './TimeSlotPicker';
-// export { BookingStatus } from './BookingStatus';
-// export { ReservationSidebar } from './ReservationSidebar';
+// 시간 선택 컴포넌트
+export { default as TimeRangeSelector } from './TimeRangeSelector';
+export { default as TimeSlotGrid } from './TimeSlotGrid';
 
 // 기존 코드와의 호환성을 위한 alias export
 export {
-  BookingForm as ReservationForm
+  BookingForm as ReservationForm,
+  default as TimeRangeSelectorAlias
 } from './BookingForm';
