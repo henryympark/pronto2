@@ -42,7 +42,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
         title: "시간 선택 필요",
         description: "예약 시간을 선택해주세요.",
         variant: "destructive"
-      });
+      } as any);
       return;
     }
 
@@ -66,7 +66,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           title: "이름을 입력해주세요",
           description: "예약자 이름은 필수입니다.",
           variant: "destructive"
-        });
+        } as any);
         return;
       }
 
@@ -75,7 +75,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           title: "개인정보 수집 동의가 필요합니다",
           description: "개인정보 수집에 동의해주세요.",
           variant: "destructive"
-        });
+        } as any);
         return;
       }
 
@@ -84,7 +84,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           title: "로그인이 필요합니다",
           description: "예약하려면 먼저 로그인해주세요.",
           variant: "destructive"
-        });
+        } as any);
         return;
       }
 
@@ -93,7 +93,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           title: "예약 시간을 선택해주세요",
           description: "날짜와 시간을 모두 선택해야 합니다.",
           variant: "destructive"
-        });
+        } as any);
         return;
       }
 
@@ -106,7 +106,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           title: "날짜 형식 오류",
           description: "날짜 형식이 올바르지 않습니다.",
           variant: "destructive"
-        });
+        } as any);
         setIsSubmitting(false);
         return;
       }
@@ -128,7 +128,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           title: "예약 시간 오류",
           description: "이미 지나간 시간이나 현재 시간에 너무 가까운 시간은 예약할 수 없습니다.",
           variant: "destructive"
-        });
+        } as any);
         setIsSubmitting(false);
         return;
       }
@@ -161,7 +161,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           title: "예약 생성 실패",
           description: `예약 생성 오류: ${error.message || "예약을 생성하는 중 오류가 발생했습니다."}`,
           variant: "destructive"
-        });
+        } as any);
         setIsSubmitting(false);
         return;
       }
@@ -172,7 +172,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
       toast({
         title: "예약이 완료되었습니다",
         description: "예약이 성공적으로 처리되었습니다."
-      });
+      } as any);
       
       // 결제 완료 페이지로 리디렉션
       router.push(`/payment/complete?reservationId=${data.id}`);
@@ -183,7 +183,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
         title: "오류 발생",
         description: "예약 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
         variant: "destructive"
-      });
+      } as any);
     } finally {
       setIsSubmitting(false);
     }
