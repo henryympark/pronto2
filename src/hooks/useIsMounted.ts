@@ -1,11 +1,4 @@
-import { useEffect, useState } from 'react';
+// This file has been moved to src/shared/hooks/useIsMounted.ts
+// Please use: import { useIsMounted } from "@/shared/hooks";
 
-export function useIsMounted(): boolean {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  return isMounted;
-}
+export {};
