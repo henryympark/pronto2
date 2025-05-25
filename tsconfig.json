@@ -35,6 +35,12 @@
       "@/domains/*": [
         "./src/domains/*"
       ],
+      "@/domains/auth": [
+        "./src/domains/auth"
+      ],
+      "@/domains/auth/*": [
+        "./src/domains/auth/*"
+      ],
       "@/infrastructure/*": [
         "./src/infrastructure/*"
       ]
