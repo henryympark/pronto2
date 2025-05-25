@@ -1,9 +1,6 @@
 // Barrel export for utility functions
-// Common utilities used across the application
+export { cn } from './cn';
+export { handleError, logError, getUserFriendlyErrorMessage } from './error';
 
-// Example structure (will be updated):
-// export { cn } from './cn';
-// export { formatDate } from './date';
-// export { api } from './api';
-
-export {};
+// Re-export the main cn function as default for backward compatibility
+export { cn as default } from './cn';
