@@ -10,7 +10,7 @@ import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { KakaoLogo, NaverLogo } from "@/components/ui/logos";
-import { getUserRole, registerNewUser } from '@/lib/auth-utils';
+import { getUserRole, registerNewUser } from '@/domains/auth';
 
 export default function LoginPage() {
   const router = useRouter();
