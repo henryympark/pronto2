@@ -260,7 +260,7 @@ export const generateTimeSlots = (
   const start = new Date(`2000-01-01T${startTime}:00`);
   const end = new Date(`2000-01-01T${endTime}:00`);
   
-  let current = new Date(start);
+  const current = new Date(start);
   
   while (current < end) {
     const timeString = current.toTimeString().slice(0, 5);
