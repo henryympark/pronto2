@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Session, User, Provider } from "@supabase/supabase-js";
 import { useSupabase } from "./SupabaseContext";
-import { clearRoleCache } from "@/lib/auth-utils";
+import { clearRoleCache } from "@/domains/auth";
 
 // ✅ 단순화된 타입 정의
 type AuthContextType = {
