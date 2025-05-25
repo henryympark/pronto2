@@ -2,3 +2,6 @@
 // Please use: import { getUserRole, ... } from "@/domains/auth";
 
 export {};
+
+// Re-export for backward compatibility (temporary)
+export * from "@/domains/auth";
