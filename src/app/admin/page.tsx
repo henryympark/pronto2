@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSupabase } from "@/contexts/SupabaseContext";
-import { getUserRole } from "@/lib/auth-utils";
+import { getUserRole } from "@/domains/auth";
 
 export default function AdminPage() {
   const router = useRouter();
