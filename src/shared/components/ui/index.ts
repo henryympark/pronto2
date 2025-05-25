@@ -2,6 +2,8 @@
 // Core components that have been moved to shared
 export { Button, buttonVariants } from './button';
 export { Input } from './input';
+export { Label } from './label';
+export { Checkbox } from './checkbox';
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from './card';
 
 // Temporary exports for components still in old location
@@ -12,13 +14,11 @@ export { default as Alert } from '../../../components/ui/alert';
 export { default as Avatar } from '../../../components/ui/avatar';
 export { default as Badge } from '../../../components/ui/badge';
 export { default as Calendar } from '../../../components/ui/calendar';
-export { default as Checkbox } from '../../../components/ui/checkbox';
 export { default as Dialog } from '../../../components/ui/dialog';
 export { default as DropdownMenu } from '../../../components/ui/dropdown-menu';
 export { default as ErrorBoundary } from '../../../components/ui/error-boundary';
 export { default as FileUpload } from '../../../components/ui/file-upload';
 export { default as Form } from '../../../components/ui/form';
-export { default as Label } from '../../../components/ui/label';
 export { default as Logos } from '../../../components/ui/logos';
 export { default as MonthYearNavigator } from '../../../components/ui/month-year-navigator';
 export { default as MonthYearNavigatorMinimal } from '../../../components/ui/month-year-navigator-minimal';
