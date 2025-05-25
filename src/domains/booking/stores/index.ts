@@ -11,6 +11,9 @@ export { useReservationStore, type TimeRange } from './reservationStore';
 
 // 기존 코드와의 호환성을 위한 alias export
 export {
-  useBookingFormStore as useBookingStore,
-  useReservationStore as useBookingReservationStore
+  useBookingFormStore as useBookingStore
 } from './bookingFormStore';
+
+export {
+  useReservationStore as useBookingReservationStore
+} from './reservationStore';
