@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useHeaderNavigation } from "@/hooks/useHeaderNavigation";
-import { useHeaderAuth } from "@/hooks/useHeaderAuth";
+import { useHeaderAuth } from "@/domains/auth";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import { HeaderMenuItems } from "@/components/HeaderMenuItems";
 import { cn } from "@/lib/utils";
