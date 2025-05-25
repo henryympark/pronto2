@@ -3,7 +3,7 @@
 import { useEffect, Suspense, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSupabase } from "@/contexts/SupabaseContext";
-import { getUserRole, registerNewUser } from '@/lib/auth-utils';
+import { getUserRole, registerNewUser } from '@/domains/auth';
 
 // OAuth 콜백 처리를 담당하는 컴포넌트
 function OAuthCallbackHandler() {
