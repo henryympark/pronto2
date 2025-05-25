@@ -25,6 +25,18 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@/shared": [
+        "./src/shared"
+      ],
+      "@/shared/*": [
+        "./src/shared/*"
+      ],
+      "@/domains/*": [
+        "./src/domains/*"
+      ],
+      "@/infrastructure/*": [
+        "./src/infrastructure/*"
       ]
     },
     "target": "ES2017"
