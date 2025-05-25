@@ -7,11 +7,51 @@ export * from './components';
 // 훅스
 export * from './hooks';
 
-// 서비스 (타입 제외)
+// 서비스
 export * from './services';
 
 // 타입들 (명시적 재export로 충돌 해결)
-export type * from './types';
+export type {
+  // User types
+  AuthUser,
+  UserRole,
+  UserPermission,
+  
+  // Authentication types
+  LoginCredentials,
+  SignupData,
+  AuthError,
+  AuthState,
+  AuthContextType,
+  
+  // Permission types
+  PermissionLevel,
+  ResourceType,
+  AccessControl,
+  RolePermissions,
+  
+  // API types
+  AuthResponse,
+  RefreshTokenResponse,
+  
+  // Component types
+  AuthGuardProps,
+  ConditionalAuthProps,
+  AdminOnlyProps,
+  UserOnlyProps,
+  
+  // Hook types
+  UseHeaderAuthReturn,
+  AuthHookOptions,
+  
+  // Utility types
+  SessionInfo,
+  TokenPayload,
+  
+  // Configuration types
+  AuthConfig,
+  SecuritySettings
+} from './types';
 
 // 추후 페이지 로직 추가
 // export * from './pages';
