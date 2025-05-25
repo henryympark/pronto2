@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (mountedRef.current) {
         setSession(currentSession);
         setUser(currentSession?.user || null);
-        setLoading(false);
+        setLoading(false); // ✅ 명시적으로 로딩 해제
       }
       
     } catch (err) {
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setError(err instanceof Error ? err : new Error(String(err)));
         setSession(null);
         setUser(null);
-        setLoading(false);
+        setLoading(false); // ✅ 에러 시에도 로딩 해제
       }
     }
   }, [supabase.auth, debugLog]);
@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase.auth, debugLog]);
 
-  // ✅ 단순화된 초기화 및 상태 변경 감지
+  // ✅ 개선된 초기화 및 상태 변경 감지
   useEffect(() => {
     debugLog('AuthProvider 마운트');
     mountedRef.current = true;
@@ -163,13 +163,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           case 'SIGNED_IN':
             setSession(newSession);
             setUser(newSession?.user || null);
-            setLoading(false);
+            setLoading(false); // ✅ 명시적으로 로딩 해제
             break;
             
           case 'SIGNED_OUT':
             setSession(null);
             setUser(null);
-            setLoading(false);
+            setLoading(false); // ✅ 명시적으로 로딩 해제
             clearRoleCache(); // 로그아웃 시 권한 캐시 클리어
             break;
             
@@ -178,10 +178,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setSession(newSession);
               setUser(newSession.user);
             }
+            setLoading(false); // ✅ TOKEN_REFRESHED에서도 로딩 해제
+            break;
+            
+          case 'INITIAL_SESSION': // ✅ 초기 세션 이벤트 처리
+            setSession(newSession);
+            setUser(newSession?.user || null);
+            setLoading(false);
+            break;
+            
+          case 'PASSWORD_RECOVERY':
+            // 비밀번호 복구 시에도 로딩 해제
+            setLoading(false);
             break;
             
           default:
-            setLoading(false);
+            debugLog('알 수 없는 인증 이벤트', { event });
+            setLoading(false); // ✅ 모든 경우에 로딩 해제
         }
       }
     );
@@ -192,6 +205,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [getSession, supabase.auth, debugLog]);
+
+  // ✅ 로딩 타임아웃 (최대 10초 후 강제 해제)
+  useEffect(() => {
+    if (loading) {
+      const timeoutId = setTimeout(() => {
+        if (mountedRef.current && loading) {
+          debugLog('로딩 타임아웃 - 강제 해제');
+          setLoading(false);
+        }
+      }, 10000); // 10초 타임아웃
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [loading, debugLog]);
 
   const value: AuthContextType = {
     session,

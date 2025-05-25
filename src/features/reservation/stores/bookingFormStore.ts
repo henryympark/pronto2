@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { createClient$ } from "@/lib/supabase";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * 예약 폼 데이터 인터페이스
@@ -29,8 +29,8 @@ interface BookingFormState {
   setIsSubmitting: (isSubmitting: boolean) => void;
   resetForm: () => void;
   
-  // 비동기 액션
-  loadRecentBookingData: (userId: string) => Promise<void>;
+  // 비동기 액션 (Supabase 클라이언트를 파라미터로 받음)
+  loadRecentBookingData: (supabase: SupabaseClient, userId: string) => Promise<void>;
 }
 
 /**
@@ -80,10 +80,11 @@ export const useBookingFormStore = create<BookingFormState>((set, get) => ({
     });
   },
   
-  // 비동기 액션
-  loadRecentBookingData: async (userId) => {
+  // 비동기 액션 - Supabase 클라이언트를 파라미터로 받음
+  loadRecentBookingData: async (supabase: SupabaseClient, userId: string) => {
     try {
-      const supabase = createClient$();
+      console.log('[BookingStore] 최근 예약 정보 로딩 시작:', { userId });
+      
       const { data: recentReservation, error } = await supabase
         .from("reservations")
         .select("customer_name, company_name, shooting_purpose")
@@ -92,7 +93,14 @@ export const useBookingFormStore = create<BookingFormState>((set, get) => ({
         .limit(1)
         .single();
         
-      if (recentReservation && !error) {
+      if (error) {
+        console.log('[BookingStore] 최근 예약 정보 없음:', error.message);
+        return;
+      }
+        
+      if (recentReservation) {
+        console.log('[BookingStore] 최근 예약 정보 발견:', recentReservation);
+        
         // 최근 예약 정보가 있으면 자동으로 채우기
         set((state) => ({
           formData: {
@@ -102,9 +110,11 @@ export const useBookingFormStore = create<BookingFormState>((set, get) => ({
             shootingPurpose: recentReservation.shooting_purpose || ""
           }
         }));
+        
+        console.log('[BookingStore] 폼 데이터 자동 입력 완료');
       }
     } catch (err) {
-      console.log("최근 예약 정보가 없습니다.");
+      console.log('[BookingStore] 최근 예약 정보 로딩 실패:', err);
     }
   }
-})); 
+}));

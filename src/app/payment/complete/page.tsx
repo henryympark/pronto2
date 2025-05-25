@@ -6,7 +6,7 @@ import { CheckCircle, MapPin, Calendar, Clock, CreditCard, User, Mail, Phone, Sh
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Reservation } from "@/types/reservation";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext"; // ✅ 올바른 훅 사용
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -35,11 +35,20 @@ function PaymentCompleteContent() {
   const [reservation, setReservation] = useState<ReservationWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const supabase = createClient$();
+  const supabase = useSupabase(); // ✅ 올바른 훅 사용
 
   useEffect(() => {
+    // ✅ URL 파라미터 검증 강화
     if (!reservationId) {
-      setError("예약 정보를 찾을 수 없습니다.");
+      setError("예약 정보를 찾을 수 없습니다. 올바른 링크를 통해 접근해주세요.");
+      setLoading(false);
+      return;
+    }
+
+    // ✅ UUID 형식 검증 (보안 강화)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(reservationId)) {
+      setError("잘못된 예약 ID 형식입니다.");
       setLoading(false);
       return;
     }
@@ -55,7 +64,7 @@ function PaymentCompleteContent() {
             services(name, price_per_hour, location, image_url, description)
           `)
           .eq("id", reservationId)
-          .single();
+          .maybeSingle(); // ✅ .single() → .maybeSingle() 변경
 
         if (reservationError) {
           console.error("예약 조회 오류:", JSON.stringify(reservationError, null, 2));
@@ -64,9 +73,10 @@ function PaymentCompleteContent() {
           return;
         }
 
+        // ✅ 데이터 존재 여부 확인 강화
         if (!reservationData) {
           console.error("예약 데이터가 없습니다:", reservationId);
-          setError("예약 정보를 찾을 수 없습니다.");
+          setError("해당 예약을 찾을 수 없습니다. 예약 번호를 다시 확인해주세요.");
           setLoading(false);
           return;
         }
@@ -78,7 +88,7 @@ function PaymentCompleteContent() {
             .from("customers")
             .select("email, nickname, phone")
             .eq("id", reservationData.customer_id)
-            .maybeSingle();
+            .maybeSingle(); // ✅ .single() → .maybeSingle() 변경
             
           if (userError) {
             console.warn("고객 정보 조회 오류:", JSON.stringify(userError, null, 2));
@@ -103,7 +113,7 @@ function PaymentCompleteContent() {
         setLoading(false);
       } catch (err) {
         console.error("예약 조회 중 오류:", err);
-        setError("예약 정보를 불러오는 중 오류가 발생했습니다.");
+        setError("예약 정보를 불러오는 중 예상치 못한 오류가 발생했습니다.");
         setLoading(false);
       }
     };
@@ -323,4 +333,4 @@ export default function PaymentCompletePage() {
       </Suspense>
     </div>
   );
-} 
+}

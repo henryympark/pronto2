@@ -10,6 +10,7 @@ import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { KakaoLogo, NaverLogo } from "@/components/ui/logos";
+import { getUserRole, registerNewUser } from '@/lib/auth-utils';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function LoginPage() {
         "register": "계정 등록 중 문제가 발생했습니다.",
         "activation": "계정 활성화 중 문제가 발생했습니다.",
         "logout_failed": "로그아웃 처리 중 오류가 발생했습니다.",
+        "oauth": "소셜 로그인 처리 중 오류가 발생했습니다.",
         "unknown": "로그인 처리 중 오류가 발생했습니다."
       };
       setError(errorMessages[errorParam] || "로그인에 실패했습니다.");
@@ -54,29 +56,59 @@ export default function LoginPage() {
     }
   }, [searchParams]);
   
-  // ✅ 단순화된 리디렉션 로직
+  // ✅ DB 기반 직접 리디렉션 로직
   useEffect(() => {
+    console.log('[LoginPage] 상태 체크:', { 
+      loading, 
+      hasUser: !!user, 
+      hasLogoutParam: !!searchParams.get("t") 
+    });
+    
     // 로그아웃 후 접근한 경우 리디렉션 안함
     if (searchParams.get("t")) {
       console.log('[LoginPage] 로그아웃 후 접근 - 리디렉션 스킵');
       return;
     }
     
-    // 단순한 체크만: 이미 로그인된 경우 AuthCallback으로 위임
+    // 로딩 완료 && 사용자 있음 = DB 기반 권한 체크 후 리디렉션
     if (!loading && user) {
-      console.log('[LoginPage] 이미 로그인됨, AuthCallback으로 위임');
-      router.push('/auth/callback?source=login_page');
+      console.log('[LoginPage] 기존 로그인 사용자 감지 - DB 기반 리디렉션 처리');
+      
+      const handleDirectRedirect = async () => {
+        try {
+          console.log('[LoginPage] DB 기반 권한 체크 시작');
+          const userRole = await getUserRole(supabase, user);
+          
+          console.log('[LoginPage] 권한 체크 완료:', {
+            isAdmin: userRole.isAdmin,
+            role: userRole.role,
+            source: userRole.source
+          });
+          
+          const targetPath = userRole.isAdmin ? '/admin/reservations' : '/service/pronto-b';
+          console.log(`[LoginPage] DB 기반 리디렉션: ${targetPath}`);
+          
+          router.push(targetPath);
+          
+        } catch (error) {
+          console.error('[LoginPage] 권한 체크 실패:', error);
+          // 권한 체크 실패 시 기본 서비스 페이지로
+          router.push('/service/pronto-b');
+        }
+      };
+      
+      handleDirectRedirect();
     }
-  }, [loading, user, router, searchParams]);
+  }, [loading, user, router, searchParams, supabase]);
 
-  // 이메일 로그인 처리
+  // 이메일 로그인 처리 (DB 기반 직접 리디렉션)
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
     
     try {
-      console.log("[로그인] 로그인 시도 이메일:", email);
+      console.log("[이메일 로그인] 로그인 시도:", email);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -84,7 +116,7 @@ export default function LoginPage() {
       });
       
       if (error) {
-        console.error("[로그인] 로그인 에러 발생:", error.message);
+        console.error("[이메일 로그인] 로그인 에러:", error.message);
         if (error.message.includes('Invalid login credentials')) {
           setError('이메일 또는 비밀번호가 일치하지 않습니다.');
         } else {
@@ -94,24 +126,56 @@ export default function LoginPage() {
       }
       
       if (data.session && data.user) {
-        console.log("[로그인] 로그인 성공! 사용자 정보:", data.user);
-        setSuccessMessage("로그인 성공! 페이지 이동 중...");
-        // 리디렉션은 useEffect에서 처리
+        console.log("[이메일 로그인] 로그인 성공! DB 기반 리디렉션 처리");
+        
+        try {
+          // ✅ DB 기반 권한 체크 후 리디렉션
+          const userRole = await getUserRole(supabase, data.user);
+          
+          console.log('[이메일 로그인] DB 기반 권한 체크 완료:', {
+            isAdmin: userRole.isAdmin,
+            role: userRole.role,
+            source: userRole.source
+          });
+          
+          // customers 테이블에 사용자가 없으면 자동 생성
+          if (userRole.source === 'default') {
+            console.log("[이메일 로그인] 새 사용자 등록 처리");
+            const registered = await registerNewUser(supabase, data.user, 'email');
+            if (!registered) {
+              console.warn("[이메일 로그인] 사용자 등록 실패했지만 계속 진행");
+            }
+          }
+          
+          const targetPath = userRole.isAdmin ? '/admin/reservations' : '/service/pronto-b';
+          setSuccessMessage(`로그인 성공! ${userRole.isAdmin ? '관리자' : '서비스'} 페이지로 이동 중...`);
+          
+          console.log(`[이메일 로그인] DB 기반 리디렉션 실행: ${targetPath}`);
+          router.push(targetPath);
+          
+        } catch (roleError) {
+          console.error('[이메일 로그인] 권한 체크 실패:', roleError);
+          setSuccessMessage('로그인 성공! 서비스 페이지로 이동 중...');
+          router.push('/service/pronto-b');
+        }
+        
       } else {
-        console.log("[로그인] 로그인 성공했지만 세션이 없음");
+        console.error("[이메일 로그인] 세션 생성 실패");
         setError("로그인에 성공했지만 세션을 생성할 수 없습니다.");
       }
     } catch (error: any) {
-      console.error("[로그인] 로그인 에러:", error);
+      console.error("[이메일 로그인] 로그인 에러:", error);
       setError(error.message || "로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // OAuth 로그인들 (AuthCallback으로 이동)
   const handleKakaoLogin = async () => {
     setError(null);
     try {
+      console.log('[카카오 로그인] OAuth 시작 - AuthCallback에서 DB 기반 처리됨');
       await signInWithKakao();
     } catch (error: any) {
       setError("카카오 로그인에 실패했습니다.");
@@ -122,6 +186,7 @@ export default function LoginPage() {
   const handleNaverLogin = async () => {
     setError(null);
     try {
+      console.log('[네이버 로그인] OAuth 시작 - AuthCallback에서 DB 기반 처리됨');
       await signInWithNaver();
     } catch (error: any) {
       setError("네이버 로그인에 실패했습니다.");
@@ -244,7 +309,7 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-10 text-center text-xs text-gray-400">
-          <p>운영자는 지정된 이메일과 비밀번호로 로그인해주세요</p>
+          <p>DB에 등록된 관리자 계정으로 로그인하면 관리자 페이지로 이동합니다</p>
         </div>
       </div>
     </div>

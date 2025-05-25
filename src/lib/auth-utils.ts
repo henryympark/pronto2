@@ -1,5 +1,5 @@
 // src/lib/auth-utils.ts
-// 통합 권한 관리 유틸리티 - 모든 권한 체크 로직을 여기서 관리
+// DB 기반 통합 권한 관리 유틸리티 - customers 테이블만 사용
 
 import { SupabaseClient, User } from '@supabase/supabase-js';
 
@@ -12,7 +12,7 @@ export interface UserRole {
   userId: string;
   email?: string;
   timestamp: number;
-  source: 'cache' | 'email' | 'database' | 'rpc' | 'default';
+  source: 'cache' | 'database' | 'rpc' | 'default';
 }
 
 export interface AuthCheckResult {
@@ -84,15 +84,11 @@ const roleCache = new RoleCache();
 // 설정 및 상수
 // =================================
 const AUTH_CONFIG = {
-  // 하드코딩된 관리자 이메일 목록
-  ADMIN_EMAILS: ['admin@pronto.com', 'henry.ympark@gmail.com'] as string[],
-  
   // 캐시 설정
   CACHE_DURATION: 5 * 60 * 1000, // 5분
   
   // RPC 함수명
   RPC_FUNCTIONS: {
-    CHECK_ADMIN: 'check_admin_access',
     GET_ROLE: 'get_customer_role'
   },
   
@@ -135,31 +131,7 @@ function checkCache(userId: string): UserRole | null {
 }
 
 /**
- * 2단계: 하드코딩된 관리자 이메일 확인 (가장 빠른 체크)
- */
-function checkAdminEmail(user: User): UserRole | null {
-  const email = user.email?.toLowerCase();
-  if (!email) return null;
-  
-  const isAdminEmail = AUTH_CONFIG.ADMIN_EMAILS.includes(email);
-  
-  if (isAdminEmail) {
-    debugLog('관리자 이메일 확인됨', { email });
-    return {
-      isAdmin: true,
-      role: AUTH_CONFIG.ADMIN_ROLE,
-      userId: user.id,
-      email: email,
-      timestamp: Date.now(),
-      source: 'email'
-    };
-  }
-  
-  return null;
-}
-
-/**
- * 3단계: customers 테이블에서 직접 역할 조회 (신뢰성 높음)
+ * 2단계: customers 테이블에서 직접 역할 조회 (메인 방법)
  */
 async function checkCustomersTable(
   supabase: SupabaseClient, 
@@ -212,7 +184,7 @@ async function checkCustomersTable(
 }
 
 /**
- * 4단계: RPC 함수로 권한 확인 (백업용)
+ * 3단계: RPC 함수로 권한 확인 (백업용)
  */
 async function checkRpcFunction(
   supabase: SupabaseClient, 
@@ -251,7 +223,7 @@ async function checkRpcFunction(
 }
 
 /**
- * 5단계: 기본값 반환
+ * 4단계: 기본값 반환
  */
 function getDefaultRole(user: User): UserRole {
   debugLog('기본 권한 정보 반환', { userId: user.id });
@@ -271,7 +243,7 @@ function getDefaultRole(user: User): UserRole {
 // =================================
 
 /**
- * 사용자의 권한 정보를 종합적으로 확인
+ * 사용자의 권한 정보를 DB 기반으로 확인
  * 
  * @param supabase Supabase 클라이언트
  * @param user 사용자 정보 (선택적)
@@ -298,7 +270,7 @@ export async function getUserRole(
       user = currentUser;
     }
     
-    debugLog('권한 체크 시작', { userId: user.id, email: user.email });
+    debugLog('DB 기반 권한 체크 시작', { userId: user.id, email: user.email });
     
     // 1단계: 캐시 확인
     const cachedRole = checkCache(user.id);
@@ -306,28 +278,21 @@ export async function getUserRole(
       return cachedRole;
     }
     
-    // 2단계: 관리자 이메일 확인
-    const emailRole = checkAdminEmail(user);
-    if (emailRole) {
-      roleCache.set(user.id, emailRole);
-      return emailRole;
-    }
-    
-    // 3단계: customers 테이블 확인
+    // 2단계: customers 테이블 확인 (메인 방법)
     const dbRole = await checkCustomersTable(supabase, user);
     if (dbRole) {
       roleCache.set(user.id, dbRole);
       return dbRole;
     }
     
-    // 4단계: RPC 함수 확인 (백업)
+    // 3단계: RPC 함수 확인 (백업)
     const rpcRole = await checkRpcFunction(supabase, user);
     if (rpcRole) {
       roleCache.set(user.id, rpcRole);
       return rpcRole;
     }
     
-    // 5단계: 기본값 반환
+    // 4단계: 기본값 반환
     const defaultRole = getDefaultRole(user);
     roleCache.set(user.id, defaultRole);
     return defaultRole;
@@ -442,6 +407,70 @@ export async function refreshUserRole(
 }
 
 // =================================
+// 새 사용자 등록 함수
+// =================================
+
+/**
+ * 새 사용자를 customers 테이블에 등록
+ * 
+ * @param supabase Supabase 클라이언트
+ * @param user 사용자 정보
+ * @param authProvider 인증 제공자 ('email', 'kakao', 'naver' 등)
+ * @returns 등록 성공 여부
+ */
+export async function registerNewUser(
+  supabase: SupabaseClient,
+  user: User,
+  authProvider: string = 'email'
+): Promise<boolean> {
+  try {
+    debugLog('새 사용자 등록 시작', { 
+      userId: user.id, 
+      email: user.email, 
+      provider: authProvider 
+    });
+    
+    const { error: insertError } = await supabase
+      .from("customers")
+      .insert({
+        id: user.id,
+        email: user.email,
+        role: AUTH_CONFIG.DEFAULT_ROLE,
+        auth_provider: authProvider,
+      });
+    
+    if (insertError) {
+      // 중복 키 오류는 무시 (이미 등록된 사용자)
+      if (insertError.message.includes('duplicate') || insertError.code === '23505') {
+        debugLog('이미 등록된 사용자', { userId: user.id });
+        return true;
+      }
+      
+      console.error('새 사용자 등록 오류:', insertError);
+      return false;
+    }
+    
+    debugLog('새 사용자 등록 완료', { userId: user.id });
+    
+    // 캐시에 기본 역할 저장
+    roleCache.set(user.id, {
+      isAdmin: false,
+      role: AUTH_CONFIG.DEFAULT_ROLE,
+      userId: user.id,
+      email: user.email,
+      timestamp: Date.now(),
+      source: 'database'
+    });
+    
+    return true;
+    
+  } catch (error) {
+    console.error('사용자 등록 중 예외:', error);
+    return false;
+  }
+}
+
+// =================================
 // 캐시 관리 함수들
 // =================================
 
@@ -483,19 +512,6 @@ export function getCacheInfo(): { size: number; duration: number } {
 // =================================
 
 /**
- * 관리자 이메일 목록에 이메일 추가 (런타임)
- * 주의: 이 함수는 개발/테스트 환경에서만 사용하세요
- */
-export function addAdminEmail(email: string): void {
-    if (process.env.NODE_ENV === 'development') {
-      (AUTH_CONFIG.ADMIN_EMAILS as string[]).push(email.toLowerCase());
-      debugLog('관리자 이메일 추가됨', { email });
-    } else {
-      console.warn('[AuthUtils] 프로덕션 환경에서는 관리자 이메일을 런타임에 추가할 수 없습니다.');
-    }
-  }
-
-/**
  * 현재 설정 정보 조회
  */
 export function getAuthConfig(): typeof AUTH_CONFIG {
@@ -528,7 +544,6 @@ export async function debugUserRole(
     // 각 단계별로 확인
     const steps = {
       cache: checkCache(user.id),
-      email: checkAdminEmail(user),
       database: await checkCustomersTable(supabase, user).catch(() => null),
       rpc: await checkRpcFunction(supabase, user).catch(() => null)
     };

@@ -12,6 +12,59 @@ const devLog = (message: string, data?: any) => {
   }
 };
 
+// DB 기반 권한 체크 함수
+async function checkUserRoleFromDB(supabase: any, userId: string): Promise<'admin' | 'customer' | null> {
+  try {
+    devLog('[미들웨어] DB 기반 권한 체크 시작', { userId });
+    
+    // 1차: customers 테이블에서 직접 조회
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (!error && customer) {
+      devLog('[미들웨어] customers 테이블에서 권한 확인', { 
+        userId, 
+        role: customer.role 
+      });
+      return customer.role;
+    }
+    
+    devLog('[미들웨어] customers 테이블 조회 실패', { 
+      error: error?.message,
+      code: error?.code
+    });
+    
+    // 2차: RPC 함수로 백업 시도
+    try {
+      const { data: roleData, error: roleError } = await supabase
+        .rpc('get_customer_role', { user_id: userId });
+        
+      if (!roleError && roleData) {
+        devLog('[미들웨어] RPC 함수에서 권한 확인', { 
+          userId, 
+          role: roleData 
+        });
+        return roleData;
+      }
+      
+      devLog('[미들웨어] RPC 함수 호출 실패', { 
+        error: roleError?.message 
+      });
+    } catch (rpcError) {
+      devLog('[미들웨어] RPC 함수 호출 예외', { error: rpcError });
+    }
+    
+    return null;
+    
+  } catch (error) {
+    console.error('[미들웨어] DB 권한 체크 중 예외:', error);
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   // URL에서 경로 가져오기 (예: /admin/reservations -> /admin)
   const { pathname } = request.nextUrl;
@@ -145,91 +198,43 @@ export async function middleware(request: NextRequest) {
       
       devLog(`[미들웨어] 사용자 확인됨, 이메일: ${user.email}`);
 
-      // 1. 알려진 어드민 이메일 목록 - AuthContext와 일관성 유지
-      const adminEmails = ['admin@pronto.com', 'henry.ympark@gmail.com'];
-      if (user.email && adminEmails.includes(user.email.toLowerCase())) {
-        devLog('[미들웨어] 알려진 어드민 이메일 확인됨:', user.email);
-        return response; // 어드민 이메일이면 접근 허용
+      // DB 기반 권한 체크
+      const userRole = await checkUserRoleFromDB(supabase, user.id);
+      
+      if (userRole === 'admin') {
+        devLog('[미들웨어] DB에서 관리자 권한 확인됨', { 
+          userId: user.id, 
+          email: user.email 
+        });
+        return response; // 어드민이면 접근 허용
       }
-
-      // 2. 사용자 역할 확인 - 더 안정적으로 처리
-      try {
-        devLog('[미들웨어] 사용자 역할 확인 시작');
-        
-        // 먼저 RPC 함수로 확인 시도 - 더 신뢰할 수 있는 방법
-        const { data: roleData, error: roleError } = await supabase
-          .rpc('get_customer_role', { user_id: user.id });
-          
-        devLog('[미들웨어] RPC 결과:', { roleData, hasError: !!roleError });
-          
-        if (!roleError && roleData === 'admin') {
-          devLog('[미들웨어] RPC에서 관리자 권한 확인됨');
-          return response; // 어드민 역할이면 접근 허용
-        }
-        
-        // RPC가 실패하면 직접 테이블 쿼리로 시도
-        devLog('[미들웨어] customers 테이블 직접 확인 시도');
-        const { data: customer, error } = await supabase
-          .from('customers')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-
-        devLog('[미들웨어] customers 쿼리 결과:', { 
-          role: customer?.role, 
-          hasError: !!error,
-          errorMessage: error?.message
-        });
-
-        if (!error && customer && customer.role === 'admin') {
-          devLog('[미들웨어] customers 테이블에서 관리자 권한 확인됨');
-          return response; // 어드민 역할이면 접근 허용
-        }
-        
-        // 개발 환경에서는 테이블이 없는 경우에도 접근 허용 (개발 편의성)
-        // 주의: 이 코드는 개발 환경에서만 사용됨. 프로덕션에서는 적절한 데이터베이스 설정 필요
-        if (process.env.NODE_ENV === 'development' && error?.code === 'PGRST116') {
-          console.log('[미들웨어] 개발 환경에서 customers 테이블이 없습니다. 접근을 허용합니다.');
-          return response;
-        }
-        
-        devLog('[미들웨어] 관리자 권한 없음, 홈페이지로 리디렉션');
-        // 관리자가 아닌 경우 홈페이지로 리디렉션
-        const redirectUrl = new URL('/', request.url);
-        const redirectResponse = NextResponse.redirect(redirectUrl);
-        
-        // 응답의 모든 쿠키를 리디렉션 응답으로 복사
-        response.cookies.getAll().forEach(cookie => {
-          redirectResponse.cookies.set(cookie);
-        });
-        
-        return redirectResponse;
-      } catch (roleCheckError) {
-        console.error('[미들웨어] 역할 확인 중 오류:', roleCheckError);
-        
-        // 개발 환경일 때는 오류가 있어도 접근 허용 - 개발 편의성
-        // 주의: 이 코드는 개발 환경에서만 사용됨. 프로덕션에서는 역할 확인 오류 시 접근 차단
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[미들웨어] 개발 환경에서 역할 확인 오류 발생. 접근을 허용합니다.');
-          return response;
-        }
-        
-        // 프로덕션 환경에서는 홈으로 리디렉션
-        const redirectUrl = new URL('/', request.url);
-        const redirectResponse = NextResponse.redirect(redirectUrl);
-        
-        // 응답의 모든 쿠키를 리디렉션 응답으로 복사
-        response.cookies.getAll().forEach(cookie => {
-          redirectResponse.cookies.set(cookie);
-        });
-        
-        return redirectResponse;
+      
+      // 개발 환경에서는 DB 오류가 있어도 접근 허용 (개발 편의성)
+      if (process.env.NODE_ENV === 'development' && userRole === null) {
+        console.log('[미들웨어] 개발 환경에서 DB 권한 체크 실패. 접근을 허용합니다.');
+        return response;
       }
+      
+      devLog('[미들웨어] 관리자 권한 없음, 홈페이지로 리디렉션', { 
+        userId: user.id, 
+        role: userRole || 'unknown' 
+      });
+      
+      // 관리자가 아닌 경우 홈페이지로 리디렉션
+      const redirectUrl = new URL('/', request.url);
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+      
+      // 응답의 모든 쿠키를 리디렉션 응답으로 복사
+      response.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie);
+      });
+      
+      return redirectResponse;
+      
     } catch (error) {
       console.error('[미들웨어] 인증 확인 오류:', error);
       
       // 개발 환경일 때는 오류가 있어도 접근 허용 - 개발 편의성
-      // 주의: 이 코드는 개발 환경에서만 사용됨. 프로덕션에서는 인증 오류 시 접근 차단
       if (process.env.NODE_ENV === 'development') {
         console.log('[미들웨어] 개발 환경에서 인증 오류 발생. 접근을 허용합니다.');
         return response;
@@ -254,4 +259,4 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // 미들웨어를 적용할 경로 패턴 지정
   matcher: ['/admin/:path*'],
-}
+};

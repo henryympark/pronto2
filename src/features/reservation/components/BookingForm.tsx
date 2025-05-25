@@ -20,7 +20,7 @@ interface BookingFormProps {
 export default function BookingForm({ serviceId }: BookingFormProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const supabase = useSupabase();
+  const supabase = useSupabase(); // ✅ 올바른 방식: useSupabase 훅 사용
   const { user } = useAuth();
   
   const { 
@@ -48,7 +48,8 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
 
     // 폼이 열릴 때 사용자의 가장 최근 예약 정보 가져오기
     if (!showBookingForm && user) {
-      await loadRecentBookingData(user.id);
+      console.log('[BookingForm] 최근 예약 정보 로딩 시작');
+      await loadRecentBookingData(supabase, user.id); // ✅ supabase 인스턴스 전달
     }
     
     toggleBookingForm();
@@ -57,6 +58,8 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
   // 예약 완료 및 결제하기 버튼 핸들러
   const handleCompleteBooking = async () => {
     try {
+      console.log('[BookingForm] 예약 완료 처리 시작');
+      
       // 입력 검증
       if (!formData.customerName.trim()) {
         toast({
@@ -132,7 +135,7 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
         return;
       }
 
-      console.log("예약 정보:", {
+      console.log("[BookingForm] 예약 정보:", {
         service_id: serviceId,
         customer_id: user.id,
         reservation_date: formattedDateStr,
@@ -147,6 +150,7 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
         privacy_agreed: formData.privacyAgreed
       });
 
+      // ✅ useSupabase 훅으로 받은 인스턴스 사용
       // 예약 정보 Supabase DB에 저장
       const { data, error } = await supabase
         .from("reservations")
@@ -170,7 +174,7 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
         .single();
 
       if (error) {
-        console.error("예약 생성 오류:", JSON.stringify(error, null, 2));
+        console.error("[BookingForm] 예약 생성 오류:", JSON.stringify(error, null, 2));
         toast({
           title: "예약 생성 실패",
           description: `예약 생성 오류: ${error.message || "예약을 생성하는 중 오류가 발생했습니다."}`,
@@ -180,7 +184,7 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
         return;
       }
 
-      console.log("예약 생성 성공:", data);
+      console.log("[BookingForm] 예약 생성 성공:", data);
 
       // 예약 성공 시 결제 완료 페이지로 이동
       toast({
@@ -192,7 +196,7 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
       router.push(`/payment/complete?reservationId=${data.id}`);
       
     } catch (err) {
-      console.error("예약 처리 중 오류:", err);
+      console.error("[BookingForm] 예약 처리 중 오류:", err);
       toast({
         title: "오류 발생",
         description: "예약 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
@@ -295,4 +299,4 @@ export default function BookingForm({ serviceId }: BookingFormProps) {
       )}
     </div>
   );
-} 
+}
