@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { useIsMounted } from "@/shared/hooks";
 import { usePathname } from "next/navigation";
-import { getUserRole } from "@/lib/auth-utils";
+import { getUserRole } from "../services/authUtils";
 
 interface HeaderAuthReturn {
   user: any;
