@@ -36,7 +36,7 @@ declare global {
   }
   
   // Node.js 전역 객체 확장
-  var __SUPABASE_SERVER_INSTANCE: SupabaseClient | null | undefined;
+  let __SUPABASE_SERVER_INSTANCE: SupabaseClient | null | undefined;
 }
 
 // =================================
@@ -83,8 +83,8 @@ export const createSupabaseServerClient = (): SupabaseClient => {
     
     // 경고 표시 후 새 인스턴스 생성
     console.error(
-      '클라이언트 컴포넌트에서는 반드시 useSupabase() 훅을 사용해야 합니다.\n' +
-      '예: const supabase = useSupabase();\n' +
+      '클라이언트 컴포넌트에서는 반드시 useSupabase() 훅을 사용해야 합니다.\\n' +
+      '예: const supabase = useSupabase();\\n' +
       '이 함수는 서버 컴포넌트에서만 사용해야 합니다.'
     );
     
