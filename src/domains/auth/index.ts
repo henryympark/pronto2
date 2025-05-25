@@ -7,11 +7,11 @@ export * from './components';
 // 훅스
 export * from './hooks';
 
-// 서비스
+// 서비스 (타입 제외)
 export * from './services';
 
-// 타입
-export * from './types';
+// 타입들 (명시적 재export로 충돌 해결)
+export type * from './types';
 
 // 추후 페이지 로직 추가
 // export * from './pages';
