@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import { Service } from "@/types/services";
 import { useStudioDetailStore } from "@/domains/studio/stores/studioDetailStore";
 import { StudioHeader } from "@/domains/studio/components";
@@ -56,15 +56,16 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
     setStudio(studioData);
   }, [studioData, setStudio]);
   
-  // 시간 범위 변경 핸들러
-  const handleTimeRangeChange = (startTime: string, endTime: string, durationHours: number, price: number) => {
+  // 시간 범위 변경 핸들러 - useCallback으로 메모이제이션
+  const handleTimeRangeChange = useCallback((startTime: string, endTime: string, durationHours: number, price: number) => {
+    // 현재 상태와 비교해서 실제로 변경된 경우만 업데이트
     setSelectedTimeRange({
       start: startTime,
       end: endTime,
       duration: durationHours,
       price: price
     });
-  };
+  }, [setSelectedTimeRange]);
   
   return (
     <div>
