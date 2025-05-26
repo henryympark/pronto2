@@ -145,6 +145,66 @@ export const validateBookingData = (
   return { isValid: true };
 };
 
+// 예약 시간 유효성 검사 (bookingValidation.ts에서 import하는 함수)
+export const validateBookingTime = (
+  startTime: string,
+  endTime: string,
+  date: string,
+  existingBookings: Booking[] = []
+): { isValid: boolean; error?: string } => {
+  // 시간 형식 검사
+  const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+  if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+    return { isValid: false, error: '올바른 시간 형식이 아닙니다 (HH:MM).' };
+  }
+  
+  // 시작 시간이 종료 시간보다 빠른지 확인
+  const start = parseISO(`2000-01-01T${startTime}`);
+  const end = parseISO(`2000-01-01T${endTime}`);
+  
+  if (start >= end) {
+    return { isValid: false, error: '시작 시간은 종료 시간보다 빨라야 합니다.' };
+  }
+  
+  // 최소 예약 시간 확인 (30분)
+  const duration = calculateBookingDuration(startTime, endTime);
+  if (duration < 0.5) {
+    return { isValid: false, error: '최소 예약 시간은 30분입니다.' };
+  }
+  
+  // 최대 예약 시간 확인 (12시간)
+  if (duration > 12) {
+    return { isValid: false, error: '최대 예약 시간은 12시간입니다.' };
+  }
+  
+  // 과거 시간 예약 방지
+  const now = new Date();
+  const bookingDateTime = parseISO(`${date}T${startTime}`);
+  
+  if (bookingDateTime <= now) {
+    return { isValid: false, error: '과거 시간은 예약할 수 없습니다.' };
+  }
+  
+  // 기존 예약과의 충돌 확인
+  const hasConflict = existingBookings.some(booking => {
+    if (booking.status === 'canceled') return false;
+    
+    const existingStart = parseISO(`${booking.reservation_date}T${booking.start_time}`);
+    const existingEnd = parseISO(`${booking.reservation_date}T${booking.end_time}`);
+    const newStart = parseISO(`${date}T${startTime}`);
+    const newEnd = parseISO(`${date}T${endTime}`);
+    
+    // 시간 범위 겹침 확인
+    return (newStart < existingEnd && newEnd > existingStart);
+  });
+  
+  if (hasConflict) {
+    return { isValid: false, error: '해당 시간대에 이미 예약이 있습니다.' };
+  }
+  
+  return { isValid: true };
+};
+
 // 가격 계산
 export const calculateBookingPrice = (
   startTime: string,
