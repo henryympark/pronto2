@@ -1,7 +1,14 @@
 // src/lib/supabase.ts
 // Supabase 클라이언트 관리 - TypeScript 에러 수정 완료
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
+
+// =================================
+// createClient export 추가 (domains 호환성)
+// =================================
+
+// domains에서 사용할 수 있도록 createClient export
+export { createClient } from '@supabase/supabase-js';
 
 // =================================
 // 환경 변수 및 백업 설정
@@ -89,7 +96,7 @@ export const createSupabaseServerClient = (): SupabaseClient => {
     );
     
     // 클라이언트용 인스턴스 생성
-    const clientInstance = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
+    const clientInstance = createSupabaseClient(finalSupabaseUrl, finalSupabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -111,7 +118,7 @@ export const createSupabaseServerClient = (): SupabaseClient => {
   }
 
   // 새 서버 사이드 인스턴스 생성
-  serverSideInstance = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
+  serverSideInstance = createSupabaseClient(finalSupabaseUrl, finalSupabaseAnonKey, {
     auth: {
       persistSession: false, // 서버에서는 세션 유지 안 함
       autoRefreshToken: false,
