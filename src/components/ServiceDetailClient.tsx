@@ -6,9 +6,9 @@ import { useStudioDetailStore } from "@/domains/studio/stores/studioDetailStore"
 import { StudioHeader } from "@/domains/studio/components";
 import { StudioImageGallery } from "@/domains/studio/components";
 import { StudioTabs } from "@/domains/studio/components";
+import { BookingForm } from "@/domains/booking/components";
+import { TimeRangeSelector } from "@/domains/booking/components";
 import type { Studio } from "@/domains/studio/types";
-// ReservationSidebar는 booking domain으로 이동했을 수 있음
-// import ReservationSidebar from "@/domains/booking/components/ReservationSidebar";
 
 interface ServiceDetailClientProps {
   service: Service;
@@ -72,9 +72,18 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
         
         {/* 오른쪽 영역 (예약) - lg 이상에서 1칸 차지, 스티키 */}
         <div className="lg:col-span-1">
-          {/* TODO: ReservationSidebar 컴포넌트 경로 확인 후 수정 */}
-          <div className="p-4 border rounded-md">
-            <p className="text-gray-500">예약 사이드바 구현 예정</p>
+          <div className="lg:sticky lg:top-6 space-y-6">
+            {/* 예약 시간 선택 */}
+            <div className="p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
+              <h3 className="text-lg font-semibold mb-4">예약 시간 선택</h3>
+              <TimeRangeSelector />
+            </div>
+            
+            {/* 예약 폼 */}
+            <div className="p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
+              <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
+              <BookingForm serviceId={service.id} />
+            </div>
           </div>
         </div>
       </div>
