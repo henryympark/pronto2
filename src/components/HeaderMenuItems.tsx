@@ -71,9 +71,9 @@ export function HeaderMenuItems({
 
   return (
     <>
-      {/* 관리자 페이지로 이동 버튼 (관리자만 표시) */}
+      {/* 관리자 페이지로 이동 버튼 (관리자만 표시) - 🔧 수정: /admin/reservations로 변경 */}
       {shouldShowAdminButton && (
-        <Link href="/admin" onClick={isMobile ? closeMenu : undefined}>
+        <Link href="/admin/reservations" onClick={isMobile ? closeMenu : undefined}>
           <Button 
             variant="outline" 
             className={cn(
