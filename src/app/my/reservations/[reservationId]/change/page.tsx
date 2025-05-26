@@ -10,8 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Loader2, ChevronLeft } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import TimeRangeSelector from "@/features/reservation/components/TimeRangeSelector";
+import { toast } from "@/shared/hooks/useToast";
+import { TimeRangeSelector } from "@/domains/booking";
 import PriceChangeInfo from "@/components/PriceChangeInfo";
 
 // 타임 슬롯 타입
