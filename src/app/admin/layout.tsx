@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LucideIcon, LayoutDashboard, Calendar, Settings, Users, LogOut } from "lucide-react";
-import { AuthGuard } from "@/components/auth/AuthGuard";
+import { AuthGuard } from "@/domains/auth";
 
 type SidebarItem = {
   name: string;
