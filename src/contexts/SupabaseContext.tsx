@@ -21,18 +21,33 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase URL 또는 anon key가 .env.local에 올바르게 설정되지 않았습니다. 백업 값을 사용합니다.');
 }
 
-// 쿠키 처리 유틸리티 함수 - 성능 및 안정성 개선
+// 🔧 개선된 쿠키 처리 유틸리티 함수 - 미들웨어 호환성 개선
 const getCookie = (name: string): string => {
   if (typeof document === 'undefined') return '';
   
   try {
-    // 쿠키 문자열을 배열로 분할하여 검색
+    // 🔍 디버깅 로그 추가
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[쿠키] ${name} 읽기 시도`);
+    }
+    
     const cookies = document.cookie.split(/;\s*/);
     for (const cookie of cookies) {
       if (cookie.indexOf(`${name}=`) === 0) {
-        return decodeURIComponent(cookie.substring(name.length + 1));
+        const value = decodeURIComponent(cookie.substring(name.length + 1));
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[쿠키] ${name} 읽기 성공, 길이: ${value.length}`);
+        }
+        
+        return value;
       }
     }
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[쿠키] ${name} 찾을 수 없음`);
+    }
+    
     return '';
   } catch (error) {
     console.error('쿠키 파싱 오류:', error);
@@ -44,15 +59,18 @@ const setCookie = (name: string, value: string, options: any = {}) => {
   if (typeof document === 'undefined') return;
   
   try {
+    // 🔧 미들웨어 호환성을 위한 쿠키 설정 개선
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
     const defaultOptions = {
       path: '/',
       maxAge: 60 * 60 * 24 * 365, // 1년
-      domain: window.location.hostname,
+      // 🔧 localhost에서는 domain 설정 안함, 프로덕션에서는 설정
+      ...(isLocalhost ? {} : { domain: window.location.hostname }),
       secure: window.location.protocol === 'https:',
-      sameSite: 'lax'
+      sameSite: 'lax' // 🔧 미들웨어 호환성을 위해 lax로 변경
     };
     
-    // 기본 옵션과 사용자 옵션 병합
     const finalOptions = { ...defaultOptions, ...options };
     let cookieString = `${name}=${encodeURIComponent(value)}`;
     
@@ -65,12 +83,16 @@ const setCookie = (name: string, value: string, options: any = {}) => {
     
     document.cookie = cookieString;
     
-    // 로컬 스토리지에도 백업 저장
-    try {
-      localStorage.setItem(`cookie_backup_${name}`, value);
-    } catch (e) {
-      // 로컬 스토리지 오류 무시
+    // 🔍 디버깅 로그
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[쿠키] ${name} 설정 완료:`, {
+        valueLength: value.length,
+        domain: finalOptions.domain || '(기본값)',
+        secure: finalOptions.secure,
+        sameSite: finalOptions.sameSite
+      });
     }
+    
   } catch (error) {
     console.error('쿠키 설정 오류:', error);
   }
@@ -80,31 +102,30 @@ const removeCookie = (name: string, options: any = {}) => {
   if (typeof document === 'undefined') return;
   
   try {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
     const defaultOptions = {
       path: '/',
-      domain: window.location.hostname,
+      ...(isLocalhost ? {} : { domain: window.location.hostname }),
     };
     
-    // 기본 옵션과 사용자 옵션 병합
     const finalOptions = { ...defaultOptions, ...options };
     
     // 쿠키 만료
     document.cookie = `${name}=; max-age=0${
       finalOptions.path ? `; path=${finalOptions.path}` : ''
-    }; domain=${finalOptions.domain || window.location.hostname}`;
+    }${finalOptions.domain ? `; domain=${finalOptions.domain}` : ''}`;
     
-    // 로컬 스토리지 백업도 제거
-    try {
-      localStorage.removeItem(`cookie_backup_${name}`);
-    } catch (e) {
-      // 로컬 스토리지 오류 무시
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[쿠키] ${name} 삭제 완료`);
     }
+    
   } catch (error) {
     console.error('쿠키 삭제 오류:', error);
   }
 };
 
-// 모듈 레벨에서 단일 인스턴스 생성
+// 🔧 미들웨어 호환성을 위한 Supabase 클라이언트 설정 개선
 const supabaseClient = createBrowserClient(
   finalSupabaseUrl, 
   finalSupabaseAnonKey,
@@ -119,12 +140,14 @@ const supabaseClient = createBrowserClient(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce',
-      debug: true,  // 디버깅 활성화
-      storageKey: 'supabase.auth.token',  // 토큰 저장 키 명시적 지정
+      debug: process.env.NODE_ENV === 'development',  // 개발환경에서만 디버깅
+      storageKey: 'supabase.auth.token',
+      // 🔧 SSR 호환성 개선
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },
     global: {
       headers: {
-        'X-Client-Info': `pronto-web/${'1.0.0'}`,
+        'X-Client-Info': `pronto-web/1.0.0`,
       },
     }
   }
@@ -151,22 +174,24 @@ export const SupabaseProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     const recoverSession = async () => {
       try {
+        // 🔍 쿠키 디버깅 정보 출력
+        if (process.env.NODE_ENV === 'development') {
+          const allCookies = document.cookie.split(';').map(c => c.trim().split('=')[0]);
+          const supabaseCookies = allCookies.filter(name => 
+            name.includes('sb-') || name.includes('supabase')
+          );
+          console.log('[SupabaseProvider] 현재 쿠키:', {
+            allCookies: allCookies.length,
+            supabaseCookies,
+            cookieString: document.cookie
+          });
+        }
+        
         // 세션 복구 시도
         const { data, error } = await supabaseClient.auth.getSession();
         
         if (error) {
           console.warn('SupabaseProvider: 세션 복구 오류', error);
-          
-          // 로컬 스토리지에서 토큰 정보 확인
-          try {
-            const hasTokenInStorage = localStorage.getItem('supabase.auth.token');
-            if (hasTokenInStorage) {
-              console.log('SupabaseProvider: 로컬 스토리지에 토큰 존재, 세션 복구 다시 시도');
-              await supabaseClient.auth.refreshSession();
-            }
-          } catch (storageErr) {
-            console.error('SupabaseProvider: 스토리지 확인 중 오류', storageErr);
-          }
         } else if (data.session) {
           console.log('SupabaseProvider: 세션 복구 성공');
         } else {
@@ -215,4 +240,4 @@ export const useSupabase = () => {
     throw new Error('useSupabase must be used within a SupabaseProvider');
   }
   return context.supabase;
-}; 
+};
