@@ -6,14 +6,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { createClient$ } from "@/lib/supabase";
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, Check, Phone } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const supabase = createClient$();
   
   const [formData, setFormData] = useState({

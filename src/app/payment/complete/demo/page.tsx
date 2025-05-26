@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 // 테스트용 더미 데이터 타입
 interface DummyReservation {
@@ -37,7 +37,6 @@ interface DummyReservation {
 
 export default function PaymentCompleteDemoPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   
   // 더미 예약 데이터
@@ -105,9 +104,8 @@ export default function PaymentCompleteDemoPage() {
       } else {
         // 클립보드에 복사
         await navigator.clipboard.writeText(window.location.href);
-        toast({
+        toast.success("예약 정보 링크가 클립보드에 복사되었습니다.", {
           title: "링크 복사 완료",
-          description: "예약 정보 링크가 클립보드에 복사되었습니다.",
         });
       }
     } catch (err) {

@@ -6,14 +6,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { createClient$ } from "@/lib/supabase";
 import { Lock, Eye, EyeOff, Check, ArrowRight } from "lucide-react";
 
 function PasswordResetContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
   const supabase = createClient$();
   
   const [formData, setFormData] = useState({
@@ -31,14 +30,12 @@ function PasswordResetContent() {
   useEffect(() => {
     // 토큰이 없으면 비밀번호 찾기 페이지로 리디렉션
     if (!searchParams.has("token")) {
-      toast({
+      toast.error("비밀번호 재설정 링크가 유효하지 않습니다.", {
         title: "유효하지 않은 접근",
-        description: "비밀번호 재설정 링크가 유효하지 않습니다.",
-        variant: "destructive",
       });
       router.push("/password/find");
     }
-  }, [searchParams, router, toast]);
+  }, [searchParams, router]);
   
   // 입력값 변경 핸들러
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,16 +95,13 @@ function PasswordResetContent() {
       if (error) throw error;
       
       setResetSucceeded(true);
-      toast({
+      toast.success("비밀번호가 성공적으로 변경되었습니다.", {
         title: "비밀번호 변경 완료",
-        description: "비밀번호가 성공적으로 변경되었습니다.",
       });
     } catch (error: any) {
       console.error("비밀번호 변경 오류:", error);
-      toast({
+      toast.error(error.message || "비밀번호 변경 중 오류가 발생했습니다.", {
         title: "비밀번호 변경 실패",
-        description: error.message || "비밀번호 변경 중 오류가 발생했습니다.",
-        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);

@@ -1,4 +1,4 @@
-import { toast as toastRadix } from '@radix-ui/react-toast';
+// import { toast as toastRadix } from '@radix-ui/react-toast';
 
 /**
  * Toast hook for Pronto2
@@ -15,7 +15,12 @@ export interface ToastOptions {
 // 전역 toast 상태 관리를 위한 간단한 이벤트 시스템
 const toastEvents = new EventTarget();
 
-export const toast = {
+// 기본 toast 함수 (호환성을 위해)
+function showToastCompat(options: ToastOptions) {
+  showToast(options);
+}
+
+export const toast = Object.assign(showToastCompat, {
   /**
    * 성공 메시지 표시
    */
@@ -55,7 +60,7 @@ export const toast = {
   custom: (options: ToastOptions) => {
     showToast(options);
   }
-};
+});
 
 function showToast(options: ToastOptions) {
   const event = new CustomEvent('toast', { detail: options });
@@ -90,8 +95,12 @@ export const useToastEvents = () => {
   return { addEventListener };
 };
 
+/**
+ * 기존 useToast 훅 호환성을 위한 함수
+ */
+export const useToast = () => {
+  return { toast };
+};
+
 // 기본 export
 export default toast;
-
-// 호환성을 위한 추가 export
-export { toast as useToast };

@@ -9,7 +9,7 @@ import { Reservation } from "@/types/reservation";
 import { useSupabase } from "@/contexts/SupabaseContext"; // ✅ 올바른 훅 사용
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 // Reservation에 customer_name이 포함된 확장 타입 정의
@@ -30,7 +30,6 @@ interface ReservationWithDetails extends Reservation {
 function PaymentCompleteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
   const reservationId = searchParams.get("reservationId");
   const [reservation, setReservation] = useState<ReservationWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,9 +156,8 @@ function PaymentCompleteContent() {
       } else {
         // 클립보드에 복사
         await navigator.clipboard.writeText(window.location.href);
-        toast({
+        toast.success("예약 정보 링크가 클립보드에 복사되었습니다.", {
           title: "링크 복사 완료",
-          description: "예약 정보 링크가 클립보드에 복사되었습니다.",
         });
       }
     } catch (err) {

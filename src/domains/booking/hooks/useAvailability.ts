@@ -4,8 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@/lib/supabase';
-import { AvailableTimesApiResponse } from '../types';
+import { createClient$ } from '@/lib/supabase';
+import { AvailableTimesApiResponse } from '../services/bookingApi';
 import { createBookingApiService } from '../services';
 
 interface UseAvailabilityReturn {
@@ -20,7 +20,7 @@ interface UseAvailabilityReturn {
  * 예약 가능성 관리 훅
  */
 export const useAvailability = (): UseAvailabilityReturn => {
-  const supabase = createClient();
+  const supabase = createClient$();
   const [availableTimes, setAvailableTimes] = useState<AvailableTimesApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
