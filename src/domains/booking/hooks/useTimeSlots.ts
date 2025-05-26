@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@/lib/supabase';
+import { createClient$ } from '@/lib/supabase';
 import { TimeSlot, Booking } from '../types';
 import { generateTimeSlots, createBookingApiService } from '../services';
 
@@ -24,7 +24,7 @@ export const useTimeSlots = (
   startHour: number = 9,
   endHour: number = 22
 ): UseTimeSlotsReturn => {
-  const supabase = createClient();
+  const supabase = createClient$();
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

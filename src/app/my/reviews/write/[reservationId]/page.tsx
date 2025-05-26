@@ -251,15 +251,58 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
             console.error("이미지 처리 중 오류:", imageError);
           }
         }
-        
-        toast({
-          title: "성공",
-          description: "소중한 리뷰를 작성해주셔서 감사합니다."
-        });
-        toast({
-          title: "적립 완료",
-          description: "리뷰 작성으로 10분의 적립 시간이 추가되었습니다."
-        });
+
+        // 적립시간 부여 로직 추가 (직접 데이터베이스 업데이트)
+        try {
+          // 현재 사용자의 적립시간 조회
+          const { data: currentUser, error: userError } = await supabase
+            .from('customers')
+            .select('accumulated_time_minutes')
+            .eq('id', user.id)
+            .single();
+
+          if (userError) {
+            console.error("사용자 정보 조회 오류:", userError);
+            throw userError;
+          }
+
+          // 적립시간 10분 추가
+          const newAccumulatedTime = (currentUser?.accumulated_time_minutes || 0) + 10;
+          
+          const { error: updateError } = await supabase
+            .from('customers')
+            .update({ 
+              accumulated_time_minutes: newAccumulatedTime,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+
+          if (updateError) {
+            console.error("적립시간 업데이트 오류:", updateError);
+            throw updateError;
+          }
+
+          toast({
+            title: "성공",
+            description: "소중한 리뷰를 작성해주셔서 감사합니다."
+          });
+          toast({
+            title: "적립 완료",
+            description: "리뷰 작성으로 10분의 적립 시간이 추가되었습니다."
+          });
+        } catch (rewardError) {
+          console.error("적립시간 부여 오류:", rewardError);
+          // 적립시간 부여 실패해도 리뷰 작성은 성공으로 처리
+          toast({
+            title: "성공",
+            description: "소중한 리뷰를 작성해주셔서 감사합니다."
+          });
+          toast({
+            title: "알림",
+            description: "적립 시간 부여 중 오류가 발생했습니다. 고객센터에 문의해주세요.",
+            variant: "destructive"
+          });
+        }
         
         router.push("/my");
       } catch (error: any) {
