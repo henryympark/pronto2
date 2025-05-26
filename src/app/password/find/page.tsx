@@ -6,13 +6,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { createClient$ } from "@/lib/supabase";
 import { Mail, ArrowLeft } from "lucide-react";
 
 export default function PasswordFindPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const supabase = createClient$();
   
   const [email, setEmail] = useState("");
@@ -41,18 +40,11 @@ export default function PasswordFindPage() {
       if (error) throw error;
       
       setSucceeded(true);
-      toast({
-        title: "이메일 발송 완료",
-        description: "비밀번호 재설정 링크가 이메일로 발송되었습니다.",
-      });
+      toast.success("비밀번호 재설정 링크가 이메일로 발송되었습니다.");
     } catch (error: any) {
       console.error("비밀번호 재설정 이메일 발송 오류:", error);
       setError(error.message || "비밀번호 재설정 이메일 발송에 실패했습니다.");
-      toast({
-        title: "이메일 발송 실패",
-        description: error.message || "이메일 발송 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "이메일 발송 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
