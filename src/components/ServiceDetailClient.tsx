@@ -8,6 +8,7 @@ import { StudioImageGallery } from "@/domains/studio/components";
 import { StudioTabs } from "@/domains/studio/components";
 import { BookingForm } from "@/domains/booking/components";
 import { TimeRangeSelector } from "@/domains/booking/components";
+import { useReservationStore } from "@/domains/booking/stores";
 import type { Studio } from "@/domains/studio/types";
 
 interface ServiceDetailClientProps {
@@ -16,6 +17,7 @@ interface ServiceDetailClientProps {
 
 export default function ServiceDetailClient({ service }: ServiceDetailClientProps) {
   const { setStudio } = useStudioDetailStore();
+  const { selectedDate, setSelectedTimeRange } = useReservationStore();
   
   // 서비스를 스튜디오 형태로 변환
   const studioData: Studio = useMemo(() => ({
@@ -54,6 +56,16 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
     setStudio(studioData);
   }, [studioData, setStudio]);
   
+  // 시간 범위 변경 핸들러
+  const handleTimeRangeChange = (startTime: string, endTime: string, durationHours: number, price: number) => {
+    setSelectedTimeRange({
+      start: startTime,
+      end: endTime,
+      duration: durationHours,
+      price: price
+    });
+  };
+  
   return (
     <div>
       {/* 반응형 레이아웃: lg 이상에서는 2단, 이하에서는 1단 */}
@@ -76,7 +88,12 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
             {/* 예약 시간 선택 */}
             <div className="p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
               <h3 className="text-lg font-semibold mb-4">예약 시간 선택</h3>
-              <TimeRangeSelector />
+              <TimeRangeSelector 
+                serviceId={service.id}
+                selectedDate={selectedDate}
+                onTimeRangeChange={handleTimeRangeChange}
+                pricePerHour={service.price_per_hour}
+              />
             </div>
             
             {/* 예약 폼 */}
