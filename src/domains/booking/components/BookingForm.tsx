@@ -46,8 +46,22 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
       return;
     }
 
+    // 로그인 상태 확인
+    if (!user) {
+      toast({
+        title: "로그인이 필요합니다",
+        description: "예약을 위해 먼저 로그인해주세요.",
+        variant: "default"
+      } as any);
+      
+      // 현재 페이지를 returnUrl로 설정하여 로그인 후 돌아올 수 있도록 함
+      const returnUrl = encodeURIComponent(window.location.href);
+      router.push(`/auth/login?returnUrl=${returnUrl}`);
+      return;
+    }
+
     // 폼이 열릴 때 사용자의 가장 최근 예약 정보 가져오기
-    if (!showBookingForm && user) {
+    if (!showBookingForm) {
       console.log('[BookingForm] 최근 예약 정보 로딩 시작');
       await loadRecentBookingData(supabase, user.id);
     }
@@ -79,12 +93,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
         return;
       }
 
+      // 로그인 상태 재확인 (보안상 필요)
       if (!user) {
         toast({
-          title: "로그인이 필요합니다",
-          description: "예약하려면 먼저 로그인해주세요.",
+          title: "세션 만료",
+          description: "다시 로그인해주세요.",
           variant: "destructive"
         } as any);
+        const returnUrl = encodeURIComponent(window.location.href);
+        router.push(`/auth/login?returnUrl=${returnUrl}`);
+        setIsSubmitting(false);
         return;
       }
 
@@ -270,7 +288,14 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
               className="w-full bg-pronto-primary hover:bg-pronto-primary/90"
               disabled={isSubmitting || !formData.privacyAgreed}
             >
-              {isSubmitting ? "처리 중..." : "예약 완료 및 결제하기"}
+              {isSubmitting ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>{user ? "예약 생성 중..." : "예약 정보 저장 중..."}</span>
+                </div>
+              ) : (
+                "예약 완료 및 결제하기"
+              )}
             </Button>
           </div>
           

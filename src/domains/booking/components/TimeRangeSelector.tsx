@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/shared/utils";
-import { useToast } from "@/shared/hooks/useToast";
+
 import { format } from "date-fns";
 import { DEFAULT_TIMEZONE } from "@/constants/region";
 import { TIME_SLOT_INTERVAL } from "@/constants/time";
@@ -41,7 +41,6 @@ export default function TimeRangeSelector({
   initialStartTime,
   initialEndTime
 }: TimeRangeSelectorProps) {
-  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
@@ -50,7 +49,7 @@ export default function TimeRangeSelector({
     start: "09:00",
     end: "22:00",
     isClosed: false,
-    message: null
+    message: null as string | null
   });
   const [cachedResults, setCachedResults] = useState<CachedTimeSlots[]>([]);
   const [initialTimeSet, setInitialTimeSet] = useState(false);
@@ -144,18 +143,13 @@ export default function TimeRangeSelector({
         });
       } catch (error) {
         console.error("예약 가능 시간 조회 오류:", error);
-        toast({
-          title: "시간 정보 조회 실패",
-          description: "예약 가능 시간을 불러오는데 문제가 발생했습니다. 다시 시도해주세요.",
-          variant: "destructive",
-        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchAvailableTimes();
-  }, [selectedDate, serviceId, toast]);
+  }, [selectedDate, serviceId]);
 
   // 시간 슬롯 클릭 핸들러
   const handleSlotClick = useCallback((slot: TimeSlot) => {
@@ -192,39 +186,64 @@ export default function TimeRangeSelector({
       };
 
       if (selectedSlots.length === 0) {
+        // 첫 번째 슬롯 선택 시 자동으로 1시간(2슬롯) 선택
         const slotMinutes = timeToMinutes(slot.time);
-        const nextSlotMinutes = slotMinutes + TIME_SLOT_INTERVAL;
+        const autoSelectSlots = [slot.time];
         
+        // 다음 슬롯 자동 선택 (1시간 완성)
+        const nextSlotMinutes = slotMinutes + TIME_SLOT_INTERVAL;
         const nextSlotHours = Math.floor(nextSlotMinutes / 60);
         const nextSlotMins = nextSlotMinutes % 60;
         const nextSlotTime = `${nextSlotHours.toString().padStart(2, '0')}:${nextSlotMins.toString().padStart(2, '0')}`;
         
         const nextSlot = timeSlots.find(s => s.time === nextSlotTime);
-        
         if (nextSlot && nextSlot.status === 'available') {
-          newSelectedSlots = [slot.time, nextSlotTime];
-        } else {
-          newSelectedSlots = [slot.time];
+          autoSelectSlots.push(nextSlotTime);
         }
+        
+        newSelectedSlots = autoSelectSlots;
       } else {
-        // 기존 선택 로직 (간소화)
-        newSelectedSlots = [...selectedSlots, slot.time].sort();
+        // 연속 슬롯 선택 로직 개선
+        const allSlots = [...selectedSlots, slot.time];
+        const sortedSlotMinutes = allSlots.map(timeToMinutes).sort((a, b) => a - b);
+        
+        // 연속성 확인
+        let isConsecutive = true;
+        for (let i = 1; i < sortedSlotMinutes.length; i++) {
+          if (sortedSlotMinutes[i] - sortedSlotMinutes[i - 1] !== TIME_SLOT_INTERVAL) {
+            isConsecutive = false;
+            break;
+          }
+        }
+        
+        if (isConsecutive) {
+          newSelectedSlots = allSlots.sort();
+        } else {
+          // 연속되지 않는 경우 새로운 시간부터 1시간 자동 선택
+          const autoSelectSlots = [slot.time];
+          const nextSlotMinutes = timeToMinutes(slot.time) + TIME_SLOT_INTERVAL;
+          const nextSlotHours = Math.floor(nextSlotMinutes / 60);
+          const nextSlotMins = nextSlotMinutes % 60;
+          const nextSlotTime = `${nextSlotHours.toString().padStart(2, '0')}:${nextSlotMins.toString().padStart(2, '0')}`;
+          
+          const nextSlot = timeSlots.find(s => s.time === nextSlotTime);
+          if (nextSlot && nextSlot.status === 'available') {
+            autoSelectSlots.push(nextSlotTime);
+          }
+          
+          newSelectedSlots = autoSelectSlots;
+        }
       }
     }
 
     if (newSelectedSlots.length > 48) {
-      toast({
-        title: "최대 시간 초과",
-        description: "최대 24시간까지만 예약 가능합니다.",
-        variant: "destructive"
-      });
       return;
     }
 
     setSelectedSlots(newSelectedSlots);
-  }, [selectedDate, selectedSlots, timeSlots, toast]);
+  }, [selectedDate, selectedSlots, timeSlots]);
 
-  // 선택된 시간이 변경될 때마다 부모 컴포넌트에 알림 - onTimeRangeChange 의존성 제거
+  // 선택된 시간이 변경될 때마다 부모 컴포넌트에 알림
   useEffect(() => {
     if (selectedSlots.length > 0) {
       const sortedSlots = [...selectedSlots].sort((a, b) => {
@@ -253,17 +272,29 @@ export default function TimeRangeSelector({
     } else {
       onTimeRangeChange("", "", 0, 0);
     }
-  }, [selectedSlots, pricePerHour]);
+  }, [selectedSlots, pricePerHour, onTimeRangeChange]);
 
   return (
     <div className="w-full">
+      {loading && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+            <span className="text-sm text-blue-700">시간 정보를 불러오는 중...</span>
+          </div>
+        </div>
+      )}
+      
       <div className="mb-3 text-sm text-pronto-gray-600">
         최소 1시간 ~ 최대 24시간 이용 가능
       </div>
       
       {operatingHours.isClosed && operatingHours.message && (
-        <div className="mb-3 p-3 bg-pronto-gray-100 border border-pronto-gray-300 rounded-md text-pronto-gray-700">
-          {operatingHours.message}
+        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
+          <div className="flex items-center">
+            <span className="text-red-600 mr-2">⚠️</span>
+            <span className="text-sm text-red-700">{operatingHours.message}</span>
+          </div>
         </div>
       )}
       
@@ -315,6 +346,17 @@ export default function TimeRangeSelector({
               (총 {selectedSlots.length * 30 / 60} 시간)
             </span>
           </div>
+        </div>
+      )}
+      
+      {!loading && timeSlots.length === 0 && selectedDate && (
+        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md text-center">
+          <p className="text-sm text-yellow-700">
+            선택하신 날짜에 대한 시간 정보를 불러올 수 없습니다.
+          </p>
+          <p className="text-xs text-yellow-600 mt-1">
+            잠시 후 다시 시도해주세요.
+          </p>
         </div>
       )}
     </div>
