@@ -21,14 +21,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase URL 또는 anon key가 .env.local에 올바르게 설정되지 않았습니다. 백업 값을 사용합니다.');
 }
 
-// 🔧 개선된 쿠키 처리 유틸리티 함수 - 미들웨어 호환성 개선
+// 🔧 미들웨어와 동일한 쿠키 이름 사용 - SSR 호환성 강화
+const SUPABASE_AUTH_TOKEN_KEY = 'supabase-auth-token';
+const SUPABASE_REFRESH_TOKEN_KEY = 'supabase-refresh-token';
+
+// 🔧 개선된 쿠키 처리 유틸리티 함수 - 미들웨어 완전 호환
 const getCookie = (name: string): string => {
   if (typeof document === 'undefined') return '';
   
   try {
     // 🔍 디버깅 로그 추가
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[쿠키] ${name} 읽기 시도`);
+      console.log(`[클라이언트 쿠키] ${name} 읽기 시도`);
     }
     
     const cookies = document.cookie.split(/;\s*/);
@@ -37,7 +41,7 @@ const getCookie = (name: string): string => {
         const value = decodeURIComponent(cookie.substring(name.length + 1));
         
         if (process.env.NODE_ENV === 'development') {
-          console.log(`[쿠키] ${name} 읽기 성공, 길이: ${value.length}`);
+          console.log(`[클라이언트 쿠키] ${name} 읽기 성공, 길이: ${value.length}`);
         }
         
         return value;
@@ -45,12 +49,12 @@ const getCookie = (name: string): string => {
     }
     
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[쿠키] ${name} 찾을 수 없음`);
+      console.log(`[클라이언트 쿠키] ${name} 찾을 수 없음`);
     }
     
     return '';
   } catch (error) {
-    console.error('쿠키 파싱 오류:', error);
+    console.error('[클라이언트 쿠키] 파싱 오류:', error);
     return '';
   }
 };
@@ -59,42 +63,52 @@ const setCookie = (name: string, value: string, options: any = {}) => {
   if (typeof document === 'undefined') return;
   
   try {
-    // 🔧 미들웨어 호환성을 위한 쿠키 설정 개선
+    // 🔧 미들웨어와 완전히 동일한 쿠키 설정
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     
     const defaultOptions = {
       path: '/',
       maxAge: 60 * 60 * 24 * 365, // 1년
-      // 🔧 localhost에서는 domain 설정 안함, 프로덕션에서는 설정
+      // 🔧 미들웨어와 동일: localhost에서는 domain 설정 안함
       ...(isLocalhost ? {} : { domain: window.location.hostname }),
       secure: window.location.protocol === 'https:',
-      sameSite: 'lax' // 🔧 미들웨어 호환성을 위해 lax로 변경
+      sameSite: 'lax', // 🔧 미들웨어와 동일: lax로 설정
+      httpOnly: false // 🔧 클라이언트에서 접근 가능하도록 설정
     };
     
     const finalOptions = { ...defaultOptions, ...options };
     let cookieString = `${name}=${encodeURIComponent(value)}`;
     
-    // 모든 옵션 추가
+    // 모든 옵션 추가 (미들웨어와 동일한 순서)
     if (finalOptions.path) cookieString += `; path=${finalOptions.path}`;
     if (finalOptions.maxAge) cookieString += `; max-age=${finalOptions.maxAge}`;
     if (finalOptions.domain) cookieString += `; domain=${finalOptions.domain}`;
     if (finalOptions.secure) cookieString += '; secure';
     if (finalOptions.sameSite) cookieString += `; samesite=${finalOptions.sameSite}`;
+    if (finalOptions.httpOnly) cookieString += '; httponly';
     
     document.cookie = cookieString;
     
-    // 🔍 디버깅 로그
+    // 🔍 디버깅 로그 - 미들웨어와 동일한 형식
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[쿠키] ${name} 설정 완료:`, {
+      console.log(`[클라이언트 쿠키] ${name} 설정 완료:`, {
         valueLength: value.length,
         domain: finalOptions.domain || '(기본값)',
         secure: finalOptions.secure,
-        sameSite: finalOptions.sameSite
+        sameSite: finalOptions.sameSite,
+        httpOnly: finalOptions.httpOnly
+      });
+      
+      // 🔍 설정 후 즉시 읽기 테스트
+      const readBack = getCookie(name);
+      console.log(`[클라이언트 쿠키] ${name} 읽기 테스트:`, {
+        success: readBack.length > 0,
+        length: readBack.length
       });
     }
     
   } catch (error) {
-    console.error('쿠키 설정 오류:', error);
+    console.error('[클라이언트 쿠키] 설정 오류:', error);
   }
 };
 
@@ -111,21 +125,21 @@ const removeCookie = (name: string, options: any = {}) => {
     
     const finalOptions = { ...defaultOptions, ...options };
     
-    // 쿠키 만료
+    // 쿠키 만료 (미들웨어와 동일한 방식)
     document.cookie = `${name}=; max-age=0${
       finalOptions.path ? `; path=${finalOptions.path}` : ''
     }${finalOptions.domain ? `; domain=${finalOptions.domain}` : ''}`;
     
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[쿠키] ${name} 삭제 완료`);
+      console.log(`[클라이언트 쿠키] ${name} 삭제 완료`);
     }
     
   } catch (error) {
-    console.error('쿠키 삭제 오류:', error);
+    console.error('[클라이언트 쿠키] 삭제 오류:', error);
   }
 };
 
-// 🔧 미들웨어 호환성을 위한 Supabase 클라이언트 설정 개선
+// 🔧 미들웨어와 완전히 호환되는 Supabase 클라이언트 설정
 const supabaseClient = createBrowserClient(
   finalSupabaseUrl, 
   finalSupabaseAnonKey,
@@ -140,14 +154,35 @@ const supabaseClient = createBrowserClient(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce',
-      debug: process.env.NODE_ENV === 'development',  // 개발환경에서만 디버깅
+      debug: process.env.NODE_ENV === 'development',
+      // 🔧 미들웨어와 동일한 storage key 사용
       storageKey: 'supabase.auth.token',
-      // 🔧 SSR 호환성 개선
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      // 🔧 SSR 호환성 강화 - localStorage와 쿠키 병행 사용
+      storage: typeof window !== 'undefined' ? {
+        getItem: (key: string) => {
+          // 먼저 쿠키에서 시도, 없으면 localStorage에서
+          const cookieValue = getCookie(key);
+          if (cookieValue) {
+            return cookieValue;
+          }
+          return window.localStorage.getItem(key);
+        },
+        setItem: (key: string, value: string) => {
+          // localStorage와 쿠키 모두에 저장
+          window.localStorage.setItem(key, value);
+          setCookie(key, value);
+        },
+        removeItem: (key: string) => {
+          // localStorage와 쿠키 모두에서 제거
+          window.localStorage.removeItem(key);
+          removeCookie(key);
+        },
+      } : undefined,
     },
     global: {
       headers: {
         'X-Client-Info': `pronto-web/1.0.0`,
+        'X-Client-Platform': 'browser',
       },
     }
   }

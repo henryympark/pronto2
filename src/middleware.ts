@@ -128,29 +128,71 @@ export async function middleware(request: NextRequest) {
               return cookie?.value;
             },
             set(name, value, options) {
-              // 디버깅용 로그
-              devLog(`[미들웨어] 🍪 쿠키 SET: ${name}`);
+              // 🔧 클라이언트와 동일한 옵션 적용
+              devLog(`[미들웨어] 🍪 쿠키 SET: ${name}`, {
+                valueLength: value?.length || 0,
+                options: options || {}
+              });
+              
+              // 🔧 클라이언트와 동일한 기본 옵션 설정
+              const isLocalhost = request.nextUrl.hostname === 'localhost' || request.nextUrl.hostname === '127.0.0.1';
+              
+              const defaultOptions = {
+                path: '/',
+                maxAge: 60 * 60 * 24 * 365, // 1년
+                // 🔧 클라이언트와 동일: localhost에서는 domain 설정 안함
+                ...(isLocalhost ? {} : { domain: request.nextUrl.hostname }),
+                secure: request.nextUrl.protocol === 'https:',
+                sameSite: 'lax' as const, // 🔧 클라이언트와 동일: lax로 설정
+                httpOnly: false // 🔧 클라이언트에서도 읽을 수 있도록
+              };
+              
+              const finalOptions = { ...defaultOptions, ...options };
               
               // NextResponse.cookies에 쿠키 설정
               response.cookies.set({
                 name,
                 value,
-                ...options,
+                ...finalOptions,
               });
             },
             remove(name, options) {
-              // 디버깅용 로그
+              // 🔧 클라이언트와 동일한 삭제 로직
               devLog(`[미들웨어] 🍪 쿠키 REMOVE: ${name}`);
+              
+              const isLocalhost = request.nextUrl.hostname === 'localhost' || request.nextUrl.hostname === '127.0.0.1';
+              
+              const defaultOptions = {
+                path: '/',
+                ...(isLocalhost ? {} : { domain: request.nextUrl.hostname }),
+              };
+              
+              const finalOptions = { ...defaultOptions, ...options };
               
               // NextResponse.cookies에서 쿠키 제거
               response.cookies.set({
                 name,
                 value: '',
-                ...options,
+                ...finalOptions,
                 maxAge: 0,
               });
             },
           },
+          auth: {
+            // 🔧 클라이언트와 동일한 auth 설정
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: false, // 서버사이드에서는 URL 감지 비활성화
+            flowType: 'pkce',
+            debug: process.env.NODE_ENV === 'development',
+            storageKey: 'supabase.auth.token', // 🔧 클라이언트와 동일한 키
+          },
+          global: {
+            headers: {
+              'X-Client-Info': `pronto-web/1.0.0`,
+              'X-Client-Platform': 'server',
+            },
+          }
         }
       );
       
@@ -171,35 +213,65 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
-      // 세션 확인 전에 추가 로깅
+      // 🔍 세션 확인 전 상세 쿠키 분석
       devLog('[미들웨어] 🔑 세션 확인 시작');
+      
+      // 🔍 Supabase 관련 모든 쿠키 상세 분석
+      const supabaseAuthCookies = allCookies.filter(cookie => 
+        cookie.name.includes('supabase') || 
+        cookie.name.includes('sb-') ||
+        cookie.name === 'supabase.auth.token'
+      );
+      
+      devLog('[미들웨어] 🔍 Supabase 인증 쿠키 상세 분석:', 
+        supabaseAuthCookies.map(c => ({
+          name: c.name,
+          valueLength: c.value?.length || 0,
+          valuePreview: c.value?.substring(0, 50) + '...' || 'empty'
+        }))
+      );
       
       // 세션 가져오기 (여기서 내부적으로 쿠키 처리가 이루어짐)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      // 🔍 세션 에러 확인 (디버깅 용)
+      // 🔍 세션 에러 상세 분석
       if (sessionError) {
-        console.error('[미들웨어] ❌ 세션 가져오기 오류:', sessionError);
+        console.error('[미들웨어] ❌ 세션 가져오기 오류:', {
+          message: sessionError.message,
+          name: sessionError.name,
+          status: sessionError.status || 'unknown',
+          details: sessionError
+        });
       }
       
-      // 🔍 세션 상태 확인
-      devLog('[미들웨어] 🔑 세션 상태:', {
+      // 🔍 세션 상태 상세 확인
+      devLog('[미들웨어] 🔑 세션 상태 상세:', {
         hasSession: !!session,
         hasUser: !!session?.user,
         userId: session?.user?.id,
         email: session?.user?.email,
-        expiresAt: session?.expires_at
+        expiresAt: session?.expires_at,
+        tokenType: session?.token_type,
+        accessTokenLength: session?.access_token?.length || 0,
+        refreshTokenLength: session?.refresh_token?.length || 0
       });
       
       if (!session) {
-        devLog('[미들웨어] ❌ 세션 없음, 로그인 페이지로 리디렉션');
+        devLog('[미들웨어] ❌ 세션 없음 - 상세 진단:', {
+          cookieCount: allCookies.length,
+          supabaseCookieCount: supabaseAuthCookies.length,
+          hasAuthToken: allCookies.some(c => c.name === 'supabase.auth.token'),
+          requestUrl: request.url,
+          userAgent: request.headers.get('user-agent')?.substring(0, 100)
+        });
         
         // 응답 쿠키 확인 (디버깅 용)
         devLog('[미들웨어] 🍪 응답에 설정될 쿠키:', 
-          Array.from(response.cookies.getAll()).map(c => c.name));
+          Array.from(response.cookies.getAll()).map(c => ({ name: c.name, valueLength: c.value?.length || 0 })));
         
         // 로그인되지 않은 경우 로그인 페이지로 리디렉션
         const redirectUrl = new URL('/auth/login', request.url);
+        redirectUrl.searchParams.set('redirect', pathname); // 🔧 리디렉션 후 돌아올 경로 저장
         const redirectResponse = NextResponse.redirect(redirectUrl);
         
         // 응답의 모든 쿠키를 리디렉션 응답으로 복사
