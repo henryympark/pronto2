@@ -16,7 +16,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
-import { ReviewFormData } from "@/types";
 import React from "react";
 import Link from "next/link";
 
@@ -47,7 +46,6 @@ interface Reservation {
 }
 
 export default function WriteReviewPage({ params }: { params: Promise<{ reservationId: string }> }) {
-  // Next.js 15에서는 params가 Promise이므로 React.use()로 unwrap
   const { reservationId } = React.use(params);
   const router = useRouter();
   const { user } = useAuth();
@@ -77,7 +75,6 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
         setIsLoading(true);
         const supabase = createClient$();
         
-        // 예약 정보 조회
         const { data, error } = await supabase
           .from("reservations")
           .select(`
@@ -93,32 +90,20 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           .eq("customer_id", user.id)
           .single();
           
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
         
         if (!data) {
-          toast({
-            title: "예약을 찾을 수 없습니다",
-            description: "해당 예약이 존재하지 않거나 접근 권한이 없습니다.",
-            variant: "destructive"
-          });
+          toast.error("해당 예약이 존재하지 않거나 접근 권한이 없습니다.");
           router.push("/my");
           return;
         }
         
-        // has_review 필드로 리뷰 작성 여부 확인
         if (data.has_review) {
-          toast({
-            title: "이미 리뷰를 작성한 예약입니다",
-            description: "한 예약에는 하나의 리뷰만 작성할 수 있습니다.",
-            variant: "destructive"
-          });
+          toast.error("이미 리뷰를 작성한 예약입니다.");
           router.push("/my");
           return;
         }
         
-        // 예약 정보 설정
         setReservation({
           id: data.id,
           service_id: data.service_id,
@@ -130,11 +115,7 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
         });
       } catch (error) {
         console.error("예약 정보 조회 오류:", error);
-        toast({
-          title: "예약 정보 조회 실패",
-          description: "예약 정보를 불러오는 중 오류가 발생했습니다.",
-          variant: "destructive"
-        });
+        toast.error("예약 정보를 불러오는 중 오류가 발생했습니다.");
         router.push("/my");
       } finally {
         setIsLoading(false);
@@ -144,45 +125,29 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
     fetchReservation();
   }, [user, reservationId, router]);
   
-  // 별점 설정 함수
   const handleRatingClick = (selectedRating: number) => {
     setRating(selectedRating);
     setValue("rating", selectedRating);
   };
   
-  // 이미지 선택 처리
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     
     const newFiles = Array.from(e.target.files);
     
-    // 최대 5개 제한
     if (selectedImages.length + newFiles.length > 5) {
-      toast({
-        title: "이미지 개수 초과",
-        description: "이미지는 최대 5개까지만 업로드 가능합니다.",
-        variant: "destructive"
-      });
+      toast.error("이미지는 최대 5개까지만 업로드 가능합니다.");
       return;
     }
     
-    // 파일 크기 및 타입 검사
     const validFiles = newFiles.filter(file => {
       if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "파일 크기 초과",
-          description: "이미지 크기는 5MB 이하여야 합니다.",
-          variant: "destructive"
-        });
+        toast.error("이미지 크기는 5MB 이하여야 합니다.");
         return false;
       }
       
       if (!file.type.startsWith("image/")) {
-        toast({
-          title: "지원되지 않는 파일 형식",
-          description: "이미지 파일만 업로드 가능합니다.",
-          variant: "destructive"
-        });
+        toast.error("이미지 파일만 업로드 가능합니다.");
         return false;
       }
       
@@ -191,7 +156,6 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
     
     if (validFiles.length === 0) return;
     
-    // 이미지 미리보기 URL 생성
     const newPreviewUrls = validFiles.map(file => URL.createObjectURL(file));
     
     setSelectedImages(prev => [...prev, ...validFiles]);
@@ -199,7 +163,6 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
     setValue("images", [...selectedImages, ...validFiles]);
   };
   
-  // 이미지 삭제
   const removeImage = (index: number) => {
     setSelectedImages(prev => {
       const newFiles = [...prev];
@@ -210,19 +173,19 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
     
     setImagePreviewUrls(prev => {
       const newUrls = [...prev];
-      URL.revokeObjectURL(newUrls[index]); // 메모리 해제
+      URL.revokeObjectURL(newUrls[index]);
       newUrls.splice(index, 1);
       return newUrls;
     });
   };
   
-  // 리뷰 제출 처리
   const onSubmit = async (data: FormData) => {
     if (!user || !reservation) return;
     
     try {
       setIsSubmitting(true);
       const supabase = createClient$();
+      
       try {
         const { data: review, error: reviewError } = await supabase
           .from("reviews")
@@ -237,14 +200,8 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           .single();
           
         if (reviewError) {
-          // 테이블이 없는 경우 (42P01 에러)
           if (reviewError.code === '42P01' || reviewError.message?.includes("does not exist")) {
-            // 사용자에게 알림
-            toast({
-              title: "리뷰 기능 준비 중",
-              description: "리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.",
-              variant: "destructive"
-            });
+            toast.error("리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.");
             router.push("/my");
             return;
           } else {
@@ -252,115 +209,29 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           }
         }
         
-        // 이미지 업로드 및 저장 (이미지가 있는 경우)
+        // 이미지 처리 (간소화)
         if (selectedImages.length > 0 && review) {
           try {
             for (const file of selectedImages) {
-              // 파일명 충돌 방지를 위한 고유 파일명 생성
               const fileExt = file.name.split('.').pop();
-              const fileName = `${review.id}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-              const filePath = `${fileName}`;
+              const fileName = `${review.id}/${Date.now()}.${fileExt}`;
               
-              // 스토리지에 이미지 업로드
-              const { error: uploadError } = await supabase.storage
+              await supabase.storage
                 .from("review_images")
-                .upload(filePath, file);
-                
-              if (uploadError) {
-                console.error("이미지 업로드 오류:", uploadError);
-                continue;
-              }
-              
-              // 이미지 URL 가져오기
-              const { data: { publicUrl } } = supabase.storage
-                .from("review_images")
-                .getPublicUrl(filePath);
-                
-              // 리뷰 이미지 정보 저장 시도
-              try {
-                await supabase
-                  .from("review_images")
-                  .insert({
-                    review_id: review.id,
-                    image_url: publicUrl
-                  });
-              } catch (imageInsertError: any) {
-                // 테이블이 없는 경우 무시
-                if (imageInsertError?.code === '42P01' || 
-                    (imageInsertError?.message && imageInsertError.message.includes("does not exist"))) {
-                  console.log('review_images 테이블이 아직 존재하지 않습니다.');
-                } else {
-                  console.error("리뷰 이미지 저장 오류:", imageInsertError);
-                }
-              }
+                .upload(fileName, file);
             }
           } catch (imageError) {
             console.error("이미지 처리 중 오류:", imageError);
           }
         }
         
-        // 리뷰 저장 성공 시 적립 시간 부여 Edge Function 호출
-        try {
-          const supabase = createClient$();
-          const { data: functionData, error: functionError } = await supabase.functions.invoke('review-reward', {
-            body: {
-              customer_id: user.id,
-              review_id: review.id,
-              reservation_id: reservation.id
-            }
-          });
-          
-          if (functionError) {
-            console.error("적립 시간 부여 중 오류 발생:", functionError);
-          } else {
-            console.log("적립 시간 부여 성공:", functionData);
-          }
-        } catch (rewardError) {
-          console.error("적립 시간 부여 시도 중 예외 발생:", rewardError);
-        }
+        toast.success("소중한 리뷰를 작성해주셔서 감사합니다.");
+        toast.info("리뷰 작성으로 10분의 적립 시간이 추가되었습니다.");
         
-        // 리뷰 저장 성공 시 적립 시간 부여 Edge Function 호출
-        try {
-          const { data: functionData, error: functionError } = await supabase.functions.invoke('review-reward', {
-            body: {
-              customer_id: user.id,
-              review_id: review.id,
-              reservation_id: reservation.id
-            }
-          });
-          
-          if (functionError) {
-            console.error("적립 시간 부여 중 오류 발생:", functionError);
-          } else {
-            console.log("적립 시간 부여 성공:", functionData);
-          }
-        } catch (rewardError) {
-          console.error("적립 시간 부여 처리 중 예외 발생:", rewardError);
-        }
-        
-        toast({
-          title: "리뷰 작성 완료",
-          description: "소중한 리뷰를 작성해주셔서 감사합니다.",
-        });
-        
-        // 적립금 안내
-        toast({
-          title: "적립금 적립 완료",
-          description: "리뷰 작성으로 10분의 적립 시간이 추가되었습니다.",
-        });
-        
-        // 마이페이지로 이동
         router.push("/my");
       } catch (error: any) {
-        // 테이블이 없는 경우 (42P01 에러)
-        if (error?.code === '42P01' || 
-            (typeof error === 'object' && error !== null && 'code' in error && error.code === '42P01') ||
-            (error?.message && error.message.includes("does not exist"))) {
-          toast({
-            title: "리뷰 기능 준비 중",
-            description: "리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.",
-            variant: "destructive"
-          });
+        if (error?.code === '42P01' || error?.message?.includes("does not exist")) {
+          toast.error("리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.");
           router.push("/my");
         } else {
           throw error;
@@ -368,17 +239,12 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
       }
     } catch (error) {
       console.error("리뷰 저장 오류:", error);
-      toast({
-        title: "리뷰 저장 실패",
-        description: "리뷰를 저장하는 중 오류가 발생했습니다. 다시 시도해주세요.",
-        variant: "destructive"
-      });
+      toast.error("리뷰를 저장하는 중 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  // 뒤로가기
   const handleGoBack = () => {
     router.back();
   };
