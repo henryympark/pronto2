@@ -9,7 +9,10 @@ import { StudioTabs } from "@/domains/studio/components";
 import { BookingForm } from "@/domains/booking/components";
 import { TimeRangeSelector } from "@/domains/booking/components";
 import { useReservationStore } from "@/domains/booking/stores";
+import { Calendar } from "@/components/ui/calendar";
 import type { Studio } from "@/domains/studio/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/shared/hooks/useToast";
 
 interface ServiceDetailClientProps {
   service: Service;
@@ -17,7 +20,11 @@ interface ServiceDetailClientProps {
 
 export default function ServiceDetailClient({ service }: ServiceDetailClientProps) {
   const { setStudio } = useStudioDetailStore();
-  const { selectedDate, setSelectedTimeRange } = useReservationStore();
+  const { selectedDate, setSelectedDate, setSelectedTimeRange } = useReservationStore();
+  const { toast } = useToast();
+  
+  // 🚀 NEW: 임시 저장 복원을 위한 AuthContext 훅 추가
+  const { user } = useAuth();
   
   // 서비스를 스튜디오 형태로 변환
   const studioData: Studio = useMemo(() => ({
@@ -55,7 +62,21 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   useEffect(() => {
     setStudio(studioData);
   }, [studioData, setStudio]);
+
+  // 초기 날짜 설정 (오늘 날짜)
+  useEffect(() => {
+    if (!selectedDate) {
+      setSelectedDate(new Date());
+    }
+  }, [selectedDate, setSelectedDate]);
+
+  // 로그인된 사용자만 예약 가능한 간단한 UX
   
+  // 날짜 선택 핸들러
+  const handleDateSelect = useCallback((date: Date | undefined) => {
+    setSelectedDate(date || null);
+  }, [setSelectedDate]);
+
   // 시간 범위 변경 핸들러 - useCallback으로 메모이제이션
   const handleTimeRangeChange = useCallback((startTime: string, endTime: string, durationHours: number, price: number) => {
     // 현재 상태와 비교해서 실제로 변경된 경우만 업데이트
@@ -85,10 +106,24 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
         
         {/* 오른쪽 영역 (예약) - lg 이상에서 1칸 차지, 스티키 */}
         <div className="lg:col-span-1">
-          <div className="lg:sticky lg:top-6 space-y-6">
+          <div className="lg:sticky lg:top-6 space-y-4 lg:space-y-6">
+            {/* 날짜 선택 */}
+            <div className="p-4 lg:p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
+              <h3 className="text-lg font-semibold mb-3 lg:mb-4">날짜 선택</h3>
+              <div className="flex justify-center">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate || undefined}
+                  onSelect={handleDateSelect}
+                  className="rounded-md w-full max-w-sm"
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                />
+              </div>
+            </div>
+
             {/* 예약 시간 선택 */}
-            <div className="p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
-              <h3 className="text-lg font-semibold mb-4">예약 시간 선택</h3>
+            <div className="p-4 lg:p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
+              <h3 className="text-lg font-semibold mb-3 lg:mb-4">시간 선택</h3>
               <TimeRangeSelector 
                 serviceId={service.id}
                 selectedDate={selectedDate}
@@ -98,8 +133,8 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
             </div>
             
             {/* 예약 폼 */}
-            <div className="p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
-              <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
+            <div data-section="reservation" className="p-4 lg:p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
+              <h3 className="text-lg font-semibold mb-3 lg:mb-4">예약 정보</h3>
               <BookingForm serviceId={service.id} />
             </div>
           </div>

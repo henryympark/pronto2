@@ -138,11 +138,11 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
 
   return (
     <div className="relative">
-      {/* 좌우 스크롤 버튼 */}
+      {/* 좌우 스크롤 버튼 - 모바일에서 더 큰 터치 영역 */}
       <Button
         variant="outline"
         size="icon"
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-white/90 shadow-md"
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 lg:h-8 lg:w-8 sm:h-10 sm:w-10 rounded-full bg-white/90 shadow-md touch-manipulation"
         onClick={() => handleScroll('left')}
       >
         <ChevronLeft className="h-4 w-4" />
@@ -151,7 +151,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
       <Button
         variant="outline"
         size="icon"
-        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-white/90 shadow-md"
+        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 lg:h-8 lg:w-8 sm:h-10 sm:w-10 rounded-full bg-white/90 shadow-md touch-manipulation"
         onClick={() => handleScroll('right')}
       >
         <ChevronRight className="h-4 w-4" />
@@ -218,9 +218,9 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
                   onClick={() => onSlotClick(slot)}
                   disabled={slot.status === 'unavailable'}
                   className={cn(
-                    "h-16 transition-colors",
+                    "h-16 transition-colors touch-manipulation active:scale-95",
                     getSlotClass(slot),
-                    slot.status === 'available' && !selectedSlots.includes(slot.time) ? "hover:bg-pronto-gray-200 cursor-pointer" : ""
+                    slot.status === 'available' && !selectedSlots.includes(slot.time) ? "hover:bg-pronto-gray-200 cursor-pointer active:bg-pronto-gray-300" : ""
                   )}
                   title={slot.time}
                 ></button>
