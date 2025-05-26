@@ -22,52 +22,51 @@ export * from './stores';
 // export * from './pages';
 
 // === 메인 도메인 기능들 ===
-// 가장 자주 사용되는 기능들을 명시적으로 export
-export {
-  // 컴포넌트
-  BookingForm,
-  
-  // 훅
-  useBooking,
-  useBookings,
-  useBookingForm,
-  useTimeSlots,
-  useAvailability,
-  
-  // 서비스
-  createBookingApiService,
-  
-  // 스토어
-  useBookingFormStore,
-  useReservationStore,
-  
-  // 타입
-  type Booking,
-  type BookingStatus,
-  type BookingFormData,
-  type TimeRange
-} from './components';
+// 실제로 존재하는 기능들만 명시적으로 export
 
+// 훅 - 실제 존재하는 것들만
 export {
-  useBooking,
-  useBookings,
-  useBookingForm,
   useTimeSlots,
   useAvailability
 } from './hooks';
 
-export {
-  createBookingApiService
-} from './services';
+// TODO: 추후 구현될 예정인 exports들
+// export {
+//   // 컴포넌트
+//   BookingForm,
+//   
+//   // 훅
+//   useBooking,
+//   useBookings,
+//   useBookingForm,
+//   
+//   // 서비스
+//   createBookingApiService,
+//   
+//   // 스토어
+//   useBookingFormStore,
+//   useReservationStore,
+//   
+//   // 타입
+//   type Booking,
+//   type BookingStatus,
+//   type BookingFormData,
+//   type TimeRange
+// } from './components';
 
-export {
-  useBookingFormStore,
-  useReservationStore
-} from './stores';
+// TODO: 각 모듈이 구현되면 아래 exports들을 활성화
+// export {
+//   createBookingApiService
+// } from './services';
 
-export type {
-  Booking,
-  BookingStatus,
-  BookingFormData,
-  TimeRange
-} from './types';
+// export {
+//   useBookingFormStore,
+//   useReservationStore
+// } from './stores';
+
+// export type {
+//   Booking,
+//   BookingStatus,
+//   BookingFormData,
+//   TimeRange
+// } from './types';
