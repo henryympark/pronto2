@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Star, ArrowLeft, Upload, Loader2, X } from "lucide-react";
 import Image from "next/image";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,6 +49,7 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
   const { reservationId } = React.use(params);
   const router = useRouter();
   const { user } = useAuth();
+  const supabase = useSupabase(); // useSupabase 훅 사용
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reservation, setReservation] = useState<Reservation | null>(null);
@@ -73,7 +74,6 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
       
       try {
         setIsLoading(true);
-        const supabase = createClient$();
         
         const { data, error } = await supabase
           .from("reservations")
@@ -93,13 +93,21 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
         if (error) throw error;
         
         if (!data) {
-          toast.error("해당 예약이 존재하지 않거나 접근 권한이 없습니다.");
+          toast({
+            title: "오류",
+            description: "해당 예약이 존재하지 않거나 접근 권한이 없습니다.",
+            variant: "destructive"
+          });
           router.push("/my");
           return;
         }
         
         if (data.has_review) {
-          toast.error("이미 리뷰를 작성한 예약입니다.");
+          toast({
+            title: "알림",
+            description: "이미 리뷰를 작성한 예약입니다.",
+            variant: "destructive"
+          });
           router.push("/my");
           return;
         }
@@ -115,7 +123,11 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
         });
       } catch (error) {
         console.error("예약 정보 조회 오류:", error);
-        toast.error("예약 정보를 불러오는 중 오류가 발생했습니다.");
+        toast({
+          title: "오류",
+          description: "예약 정보를 불러오는 중 오류가 발생했습니다.",
+          variant: "destructive"
+        });
         router.push("/my");
       } finally {
         setIsLoading(false);
@@ -123,7 +135,7 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
     };
     
     fetchReservation();
-  }, [user, reservationId, router]);
+  }, [user, reservationId, router, supabase]);
   
   const handleRatingClick = (selectedRating: number) => {
     setRating(selectedRating);
@@ -136,18 +148,30 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
     const newFiles = Array.from(e.target.files);
     
     if (selectedImages.length + newFiles.length > 5) {
-      toast.error("이미지는 최대 5개까지만 업로드 가능합니다.");
+      toast({
+        title: "알림",
+        description: "이미지는 최대 5개까지만 업로드 가능합니다.",
+        variant: "destructive"
+      });
       return;
     }
     
     const validFiles = newFiles.filter(file => {
       if (file.size > 5 * 1024 * 1024) {
-        toast.error("이미지 크기는 5MB 이하여야 합니다.");
+        toast({
+          title: "알림",
+          description: "이미지 크기는 5MB 이하여야 합니다.",
+          variant: "destructive"
+        });
         return false;
       }
       
       if (!file.type.startsWith("image/")) {
-        toast.error("이미지 파일만 업로드 가능합니다.");
+        toast({
+          title: "알림",
+          description: "이미지 파일만 업로드 가능합니다.",
+          variant: "destructive"
+        });
         return false;
       }
       
@@ -184,7 +208,6 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
     
     try {
       setIsSubmitting(true);
-      const supabase = createClient$();
       
       try {
         const { data: review, error: reviewError } = await supabase
@@ -201,7 +224,11 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           
         if (reviewError) {
           if (reviewError.code === '42P01' || reviewError.message?.includes("does not exist")) {
-            toast.error("리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.");
+            toast({
+              title: "알림",
+              description: "리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.",
+              variant: "destructive"
+            });
             router.push("/my");
             return;
           } else {
@@ -225,13 +252,23 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           }
         }
         
-        toast.success("소중한 리뷰를 작성해주셔서 감사합니다.");
-        toast.info("리뷰 작성으로 10분의 적립 시간이 추가되었습니다.");
+        toast({
+          title: "성공",
+          description: "소중한 리뷰를 작성해주셔서 감사합니다."
+        });
+        toast({
+          title: "적립 완료",
+          description: "리뷰 작성으로 10분의 적립 시간이 추가되었습니다."
+        });
         
         router.push("/my");
       } catch (error: any) {
         if (error?.code === '42P01' || error?.message?.includes("does not exist")) {
-          toast.error("리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.");
+          toast({
+            title: "알림",
+            description: "리뷰 기능이 아직 준비 중입니다. 나중에 다시 시도해주세요.",
+            variant: "destructive"
+          });
           router.push("/my");
         } else {
           throw error;
@@ -239,7 +276,11 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
       }
     } catch (error) {
       console.error("리뷰 저장 오류:", error);
-      toast.error("리뷰를 저장하는 중 오류가 발생했습니다. 다시 시도해주세요.");
+      toast({
+        title: "오류",
+        description: "리뷰를 저장하는 중 오류가 발생했습니다. 다시 시도해주세요.",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
