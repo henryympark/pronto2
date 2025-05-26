@@ -21,17 +21,26 @@ export const StudioImageGallery = React.memo(({
 }: StudioImageGalleryProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  
+  // 기본 플레이스홀더 이미지 URL
+  const getPlaceholderImage = (width: number = 600) => 
+    `https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=${width}&h=${Math.floor(width * 0.6)}&fit=crop&crop=center`;
 
   const images = useMemo(() => {
     if (!studio.images || studio.images.length === 0) {
-      // 기본 이미지 사용
-      return [getStudioImageUrl(studio.id)];
+      // 기본 플레이스홀더 이미지 사용
+      return [getPlaceholderImage(600)];
     }
     
     return studio.images
       .slice(0, maxImages)
-      .map(imageId => getStudioImageUrl(studio.id, imageId, 'large'));
-  }, [studio.id, studio.images, maxImages]);
+      .map(imageId => {
+        const imageUrl = getStudioImageUrl(studio.id, imageId, 'large');
+        // 실패한 이미지는 플레이스홀더로 대체
+        return failedImages.has(imageUrl) ? getPlaceholderImage(1200) : imageUrl;
+      });
+  }, [studio.id, studio.images, maxImages, failedImages]);
 
   const nextImage = () => {
     setCurrentIndex((prev) => (prev + 1) % images.length);
@@ -59,7 +68,16 @@ export const StudioImageGallery = React.memo(({
             className="w-full h-full object-cover"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
-              target.src = getStudioImageUrl(studio.id); // 기본 이미지로 대체
+              const originalSrc = target.src;
+              
+              // 이미 플레이스홀더 이미지인 경우 추가 처리 방지
+              if (originalSrc.includes('unsplash.com')) {
+                return;
+              }
+              
+              // 실패한 이미지를 Set에 추가하고 플레이스홀더로 대체
+              setFailedImages(prev => new Set(prev).add(originalSrc));
+              target.src = getPlaceholderImage(600);
             }}
           />
           
@@ -121,9 +139,23 @@ export const StudioImageGallery = React.memo(({
                   }`}
                 >
                   <img
-                    src={getStudioImageUrl(studio.id, studio.images?.[index], 'thumbnail')}
+                    src={(() => {
+                      const thumbnailUrl = getStudioImageUrl(studio.id, studio.images?.[index], 'thumbnail');
+                      return failedImages.has(thumbnailUrl) ? getPlaceholderImage(300) : thumbnailUrl;
+                    })()}
                     alt={`썸네일 ${index + 1}`}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      const originalSrc = target.src;
+                      
+                      if (originalSrc.includes('unsplash.com')) {
+                        return;
+                      }
+                      
+                      setFailedImages(prev => new Set(prev).add(originalSrc));
+                      target.src = getPlaceholderImage(300);
+                    }}
                   />
                 </button>
               ))}
@@ -150,6 +182,17 @@ export const StudioImageGallery = React.memo(({
               src={images[currentIndex]}
               alt={`${studio.name} - 이미지 ${currentIndex + 1}`}
               className="max-w-full max-h-full object-contain"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                const originalSrc = target.src;
+                
+                if (originalSrc.includes('unsplash.com')) {
+                  return;
+                }
+                
+                setFailedImages(prev => new Set(prev).add(originalSrc));
+                target.src = getPlaceholderImage(1200);
+              }}
             />
             
             {/* 모달 네비게이션 */}
