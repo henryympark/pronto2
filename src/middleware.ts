@@ -1,6 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
+// 🔧 환경 변수 백업 처리 개선
+const getSupabaseUrl = () => {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://plercperpovsdoprkyow.supabase.co';
+};
+
+const getSupabaseAnonKey = () => {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsZXJjcGVycG92c2RvcHJreW93Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2MDgxMDgsImV4cCI6MjA2MjE4NDEwOH0.kwEENt9W15rNM1DMTznbhyB6RPObgY6YmwvUdTk6xUw';
+};
+
 // 개발 환경에서만 로그를 출력하는 유틸리티 함수
 const devLog = (message: string, data?: any) => {
   if (process.env.NODE_ENV === 'development') {
@@ -71,86 +80,122 @@ export async function middleware(request: NextRequest) {
   
   // 관리자 페이지 접근 시 권한 확인
   if (pathname.startsWith('/admin')) {
-    devLog(`[미들웨어] 관리자 경로 접근 감지: ${pathname}`);
+    devLog(`[미들웨어] 🔍 관리자 경로 접근 감지: ${pathname}`);
+    
+    // 🔧 환경 변수 디버깅
+    const supabaseUrl = getSupabaseUrl();
+    const supabaseAnonKey = getSupabaseAnonKey();
+    
+    devLog('[미들웨어] 🔑 Supabase 설정 확인:', {
+      hasUrl: !!supabaseUrl,
+      urlLength: supabaseUrl?.length || 0,
+      hasKey: !!supabaseAnonKey,
+      keyLength: supabaseAnonKey?.length || 0,
+      isBackupUrl: supabaseUrl?.includes('plercperpovsdoprkyow'),
+    });
     
     // Next.js 응답 객체 생성 - 여기서 쿠키를 설정할 수 있음
     const response = NextResponse.next();
     
-    // 디버깅을 위해 요청 시 가져온 모든 쿠키를 로깅
+    // 🔍 디버깅을 위해 요청 시 가져온 모든 쿠키를 로깅
     const allCookies = request.cookies.getAll();
     const cookieNames = allCookies.map(cookie => cookie.name);
-    devLog('[미들웨어] 요청에 포함된 쿠키:', cookieNames);
+    devLog('[미들웨어] 🍪 요청에 포함된 모든 쿠키:', cookieNames);
     
-    // Supabase 관련 쿠키가 있는지 확인
+    // 🔍 Supabase 관련 쿠키가 있는지 확인
     const supabaseCookies = allCookies.filter(cookie => 
       cookie.name.includes('supabase') || 
       cookie.name.includes('sb-')
     );
     if (supabaseCookies.length > 0) {
-      devLog('[미들웨어] Supabase 관련 쿠키 발견:', 
-        supabaseCookies.map(c => c.name));
+      devLog('[미들웨어] ✅ Supabase 관련 쿠키 발견:', 
+        supabaseCookies.map(c => ({ name: c.name, valueLength: c.value?.length || 0 })));
     } else {
-      devLog('[미들웨어] 요청에 Supabase 관련 쿠키가 없음');
+      devLog('[미들웨어] ❌ 요청에 Supabase 관련 쿠키가 없음');
     }
 
-    // Supabase 클라이언트 생성 - @supabase/ssr 최신 권장 방식 적용
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name) {
-            const cookie = request.cookies.get(name);
-            return cookie?.value;
+    // 🔧 안전한 Supabase 클라이언트 생성
+    let supabase;
+    try {
+      supabase = createServerClient(
+        supabaseUrl,
+        supabaseAnonKey,
+        {
+          cookies: {
+            get(name) {
+              const cookie = request.cookies.get(name);
+              devLog(`[미들웨어] 🍪 쿠키 GET: ${name} = ${cookie?.value ? '존재' : '없음'}`);
+              return cookie?.value;
+            },
+            set(name, value, options) {
+              // 디버깅용 로그
+              devLog(`[미들웨어] 🍪 쿠키 SET: ${name}`);
+              
+              // NextResponse.cookies에 쿠키 설정
+              response.cookies.set({
+                name,
+                value,
+                ...options,
+              });
+            },
+            remove(name, options) {
+              // 디버깅용 로그
+              devLog(`[미들웨어] 🍪 쿠키 REMOVE: ${name}`);
+              
+              // NextResponse.cookies에서 쿠키 제거
+              response.cookies.set({
+                name,
+                value: '',
+                ...options,
+                maxAge: 0,
+              });
+            },
           },
-          set(name, value, options) {
-            // 디버깅용 로그
-            if (process.env.NODE_ENV === 'development' && (name.includes('sb-') || name.includes('supabase'))) {
-              console.log(`[미들웨어] 쿠키 설정: ${name}`);
-            }
-            
-            // NextResponse.cookies에 쿠키 설정
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-            });
-          },
-          remove(name, options) {
-            // 디버깅용 로그
-            if (process.env.NODE_ENV === 'development' && (name.includes('sb-') || name.includes('supabase'))) {
-              console.log(`[미들웨어] 쿠키 제거: ${name}`);
-            }
-            
-            // NextResponse.cookies에서 쿠키 제거
-            response.cookies.set({
-              name,
-              value: '',
-              ...options,
-              maxAge: 0,
-            });
-          },
-        },
+        }
+      );
+      
+      devLog('[미들웨어] ✅ Supabase 클라이언트 생성 성공');
+      
+    } catch (clientError) {
+      console.error('[미들웨어] ❌ Supabase 클라이언트 생성 실패:', clientError);
+      
+      // 개발 환경에서는 접근 허용
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[미들웨어] ⚠️ 개발 환경에서 Supabase 클라이언트 오류 발생. 접근을 허용합니다.');
+        return response;
       }
-    );
+      
+      // 프로덕션에서는 로그인 페이지로 리디렉션
+      const redirectUrl = new URL('/auth/login', request.url);
+      return NextResponse.redirect(redirectUrl);
+    }
 
     try {
       // 세션 확인 전에 추가 로깅
-      devLog('[미들웨어] 세션 확인 시작');
+      devLog('[미들웨어] 🔑 세션 확인 시작');
       
       // 세션 가져오기 (여기서 내부적으로 쿠키 처리가 이루어짐)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      // 세션 에러 확인 (디버깅 용)
+      // 🔍 세션 에러 확인 (디버깅 용)
       if (sessionError) {
-        console.error('[미들웨어] 세션 가져오기 오류:', sessionError);
+        console.error('[미들웨어] ❌ 세션 가져오기 오류:', sessionError);
       }
       
+      // 🔍 세션 상태 확인
+      devLog('[미들웨어] 🔑 세션 상태:', {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+        expiresAt: session?.expires_at
+      });
+      
       if (!session) {
-        devLog('[미들웨어] 세션 없음, 로그인 페이지로 리디렉션');
+        devLog('[미들웨어] ❌ 세션 없음, 로그인 페이지로 리디렉션');
         
         // 응답 쿠키 확인 (디버깅 용)
-        devLog('[미들웨어] 응답에 설정될 쿠키:', 
+        devLog('[미들웨어] 🍪 응답에 설정될 쿠키:', 
           Array.from(response.cookies.getAll()).map(c => c.name));
         
         // 로그인되지 않은 경우 로그인 페이지로 리디렉션
@@ -165,13 +210,13 @@ export async function middleware(request: NextRequest) {
         return redirectResponse;
       }
 
-      devLog(`[미들웨어] 세션 확인됨, 사용자 ID: ${session.user?.id}`);
+      devLog(`[미들웨어] ✅ 세션 확인됨, 사용자 ID: ${session.user?.id}`);
       
       // 서버로부터 안전하게 사용자 정보 가져오기 (보안 강화)
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError) {
-        console.error('[미들웨어] 사용자 정보 가져오기 오류:', userError);
+        console.error('[미들웨어] ❌ 사용자 정보 가져오기 오류:', userError);
         // 사용자 정보 검증 실패시 로그인 페이지로 리디렉션
         const redirectUrl = new URL('/auth/login', request.url);
         const redirectResponse = NextResponse.redirect(redirectUrl);
@@ -185,7 +230,7 @@ export async function middleware(request: NextRequest) {
 
       // 사용자 정보 null 체크 추가
       if (!user) {
-        console.log('[미들웨어] 사용자 정보 없음, 로그인 페이지로 리디렉션');
+        console.log('[미들웨어] ❌ 사용자 정보 없음, 로그인 페이지로 리디렉션');
         const redirectUrl = new URL('/auth/login', request.url);
         const redirectResponse = NextResponse.redirect(redirectUrl);
         
@@ -196,26 +241,27 @@ export async function middleware(request: NextRequest) {
         return redirectResponse;
       }
       
-      devLog(`[미들웨어] 사용자 확인됨, 이메일: ${user.email}`);
+      devLog(`[미들웨어] ✅ 사용자 확인됨, 이메일: ${user.email}`);
 
       // DB 기반 권한 체크
       const userRole = await checkUserRoleFromDB(supabase, user.id);
       
       if (userRole === 'admin') {
-        devLog('[미들웨어] DB에서 관리자 권한 확인됨', { 
+        devLog('[미들웨어] ✅ DB에서 관리자 권한 확인됨', { 
           userId: user.id, 
           email: user.email 
         });
+        devLog(`[미들웨어] 🎉 관리자 접근 허용: ${pathname}`);
         return response; // 어드민이면 접근 허용
       }
       
       // 개발 환경에서는 DB 오류가 있어도 접근 허용 (개발 편의성)
       if (process.env.NODE_ENV === 'development' && userRole === null) {
-        console.log('[미들웨어] 개발 환경에서 DB 권한 체크 실패. 접근을 허용합니다.');
+        console.log('[미들웨어] ⚠️ 개발 환경에서 DB 권한 체크 실패. 접근을 허용합니다.');
         return response;
       }
       
-      devLog('[미들웨어] 관리자 권한 없음, 홈페이지로 리디렉션', { 
+      devLog('[미들웨어] ❌ 관리자 권한 없음, 홈페이지로 리디렉션', { 
         userId: user.id, 
         role: userRole || 'unknown' 
       });
@@ -232,11 +278,11 @@ export async function middleware(request: NextRequest) {
       return redirectResponse;
       
     } catch (error) {
-      console.error('[미들웨어] 인증 확인 오류:', error);
+      console.error('[미들웨어] ❌ 인증 확인 오류:', error);
       
       // 개발 환경일 때는 오류가 있어도 접근 허용 - 개발 편의성
       if (process.env.NODE_ENV === 'development') {
-        console.log('[미들웨어] 개발 환경에서 인증 오류 발생. 접근을 허용합니다.');
+        console.log('[미들웨어] ⚠️ 개발 환경에서 인증 오류 발생. 접근을 허용합니다.');
         return response;
       }
       
