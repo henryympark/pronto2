@@ -203,13 +203,25 @@ export default function AdminServicesPage() {
           });
         } else {
           // 기본값: 06:00-23:30, 일요일은 휴무
-          defaultOperatingHours.push({
-            service_id: serviceId,
-            day_of_week: day,
-            start_time: '06:00',
-            end_time: '23:30',
-            is_closed: day === 0 // 일요일 휴무
-          });
+          if (day === 0) {
+            // 일요일 휴무일 - 시간은 빈 값으로 설정
+            defaultOperatingHours.push({
+              service_id: serviceId,
+              day_of_week: day,
+              start_time: '00:00',
+              end_time: '00:00',
+              is_closed: true
+            });
+          } else {
+            // 평일 운영시간
+            defaultOperatingHours.push({
+              service_id: serviceId,
+              day_of_week: day,
+              start_time: '06:00',
+              end_time: '23:30',
+              is_closed: false
+            });
+          }
         }
       }
       
@@ -445,11 +457,30 @@ export default function AdminServicesPage() {
   // 운영시간 업데이트 함수
   const handleOperatingHourChange = (dayOfWeek: number, field: 'start_time' | 'end_time' | 'is_closed', value: string | boolean) => {
     setOperatingHours(prev => 
-      prev.map(hour => 
-        hour.day_of_week === dayOfWeek 
-          ? { ...hour, [field]: value }
-          : hour
-      )
+      prev.map(hour => {
+        if (hour.day_of_week === dayOfWeek) {
+          if (field === 'is_closed' && value === true) {
+            // 휴무일로 설정할 때 시간을 00:00으로 설정
+            return { 
+              ...hour, 
+              [field]: value,
+              start_time: '00:00',
+              end_time: '00:00'
+            };
+          } else if (field === 'is_closed' && value === false) {
+            // 휴무일 해제할 때 기본 운영시간으로 설정
+            return { 
+              ...hour, 
+              [field]: value,
+              start_time: '06:00',
+              end_time: '23:30'
+            };
+          } else {
+            return { ...hour, [field]: value };
+          }
+        }
+        return hour;
+      })
     );
   };
 
