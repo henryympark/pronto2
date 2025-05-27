@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { format, parseISO, addMinutes, isBefore } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -47,6 +47,7 @@ export default function ChangeReservationPage() {
   const router = useRouter();
   const params = useParams();
   const reservationId = params.reservationId as string;
+  const supabase = useSupabase();
 
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [service, setService] = useState<Service | null>(null);
@@ -85,7 +86,6 @@ export default function ChangeReservationPage() {
 
       try {
         setIsLoading(true);
-        const supabase = createClient$();
 
         // 예약 정보 조회
         const { data: reservationData, error: reservationError } = await supabase
@@ -270,7 +270,7 @@ export default function ChangeReservationPage() {
         // pending_refund_amount: priceChange.isRefund ? priceChange.difference : 0
       });
 
-      const supabase = createClient$();
+
 
       // 예약 정보 업데이트
       const { error } = await supabase

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { formatTimeDisplay } from "@/lib/date-utils";
@@ -38,7 +38,7 @@ export default function AdminCustomersPage() {
     memo: ""
   });
   const customersPerPage = 10;
-  const supabase = createClient$();
+  const supabase = useSupabase();
   const { user } = useAuth();
   
   useEffect(() => {

@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, Check, Phone } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export default function SignupPage() {
   const router = useRouter();
-  const supabase = createClient$();
+  const supabase = useSupabase();
   
   const [formData, setFormData] = useState({
     email: "",

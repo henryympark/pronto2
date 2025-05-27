@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { Mail, ArrowLeft } from "lucide-react";
 
 export default function PasswordFindPage() {
   const router = useRouter();
-  const supabase = createClient$();
+  const supabase = useSupabase();
   
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

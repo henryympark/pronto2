@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, User, Phone, Mail } from "lucide-react";
 import { toast } from "@/shared/hooks";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import Link from "next/link";
 
 export default function MyInfoPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const supabase = useSupabase();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [userInfo, setUserInfo] = useState({
@@ -46,7 +47,6 @@ export default function MyInfoPage() {
         
         // Supabase에서 customers 테이블 정보 가져오기 시도
         try {
-          const supabase = createClient$();
           console.log("Supabase 클라이언트 생성 완료");
           
           const { data, error } = await supabase
@@ -204,8 +204,7 @@ export default function MyInfoPage() {
       setIsSaving(true);
       console.log("사용자 정보 저장 시작");
       
-      // Supabase 클라이언트 생성
-      const supabase = createClient$();
+      // Supabase 클라이언트 사용
       
       try {
         // 먼저 사용자 데이터 존재하는지 확인

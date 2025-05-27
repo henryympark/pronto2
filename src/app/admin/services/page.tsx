@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -58,7 +58,7 @@ export default function AdminServicesPage() {
   const [savingHoliday, setSavingHoliday] = useState(false);
   
   // 일반 클라이언트와 어드민 클라이언트 둘 다 준비
-  const supabase = createClient$();
+  const supabase = useSupabase();
   const supabaseAdmin = createAdminClient();
   
   useEffect(() => {

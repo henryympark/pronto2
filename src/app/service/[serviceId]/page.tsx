@@ -4,7 +4,6 @@ import { supabaseServer } from "@/lib/supabase";
 import { Service } from "@/types/services";
 import ServiceDetailClient from "@/components/ServiceDetailClient";
 import { format } from "date-fns";
-import { createClient$ } from "@/lib/supabase";
 
 // 메타데이터 동적 생성
 export async function generateMetadata({ params }: { params: Promise<{ serviceId: string }> }): Promise<Metadata> {

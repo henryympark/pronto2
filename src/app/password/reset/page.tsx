@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { createClient$ } from "@/lib/supabase";
+import { useSupabase } from "@/contexts/SupabaseContext";
 import { Lock, Eye, EyeOff, Check, ArrowRight } from "lucide-react";
 
 function PasswordResetContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClient$();
+  const supabase = useSupabase();
   
   const [formData, setFormData] = useState({
     password: "",
