@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DayPicker } from "react-day-picker";
 import { format, isSameDay, isToday } from "date-fns";
 import { ko } from "date-fns/locale";
-import "react-day-picker/dist/style.css";
+import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { X } from "lucide-react";
 
@@ -362,18 +361,7 @@ export default function AdminServicesPage() {
     return {};
   };
   
-  // 캘린더에서 날짜 선택 처리
-  const handleDateSelect = (date: Date) => {
-    setSelectedDates(current => {
-      // 이미 선택된 날짜면 제거
-      const isSelected = current.some(d => isSameDay(d, date));
-      if (isSelected) {
-        return current.filter(d => !isSameDay(d, date));
-      }
-      // 아니면 추가
-      return [...current, date];
-    });
-  };
+
   
   return (
     <div className="container py-8">
@@ -562,40 +550,37 @@ export default function AdminServicesPage() {
                         </Alert>
                       )}
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* 모바일 우선 1열 레이아웃 */}
+                      <div className="space-y-8">
+                        {/* 휴무일 설정 섹션 */}
                         <div className="space-y-4">
-                          <div className="font-medium">휴무일 설정</div>
+                          <div className="font-medium text-lg">휴무일 설정</div>
                           <p className="text-sm text-gray-500">
                             캘린더에서 휴무일로 지정할 날짜를 선택해주세요. 이미 등록된 휴무일은 빨간색으로 표시됩니다.
                             여러 날짜를 한 번에 선택할 수 있습니다.
                           </p>
+                          
+                          {/* 캘린더 */}
                           <div className="p-4 border rounded-md bg-white">
-                            <DayPicker
-                              mode="multiple"
-                              selected={selectedDates}
-                              onDayClick={handleDateSelect}
-                              modifiers={{
-                                holidays: holidays.map(h => new Date(h.holiday_date))
-                              }}
-                              modifiersStyles={{
-                                holidays: {
-                                  backgroundColor: '#FEE2E2',
-                                  color: '#EF4444',
-                                  fontWeight: 'bold'
-                                }
-                              }}
-                              locale={ko}
-                              fromDate={new Date()}
-                              styles={{
-                                caption: {
-                                  fontSize: '1.1rem',
-                                  fontWeight: 'bold',
-                                  marginBottom: '1rem',
-                                }
-                              }}
-                            />
+                            <div className="flex justify-center">
+                              <Calendar
+                                mode="multiple"
+                                required={false}
+                                selected={selectedDates}
+                                onSelect={(dates) => setSelectedDates(dates || [])}
+                                className="rounded-md"
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                modifiers={{
+                                  holidays: holidays.map(h => new Date(h.holiday_date))
+                                }}
+                                modifiersClassNames={{
+                                  holidays: "bg-red-100 text-red-600 font-bold"
+                                }}
+                              />
+                            </div>
                           </div>
                           
+                          {/* 설명 입력 및 등록 버튼 */}
                           <div className="space-y-3">
                             <Label htmlFor="holiday-description">휴무일 설명 (선택사항)</Label>
                             <Input
@@ -620,8 +605,9 @@ export default function AdminServicesPage() {
                           </div>
                         </div>
                         
+                        {/* 등록된 휴무일 목록 섹션 */}
                         <div className="space-y-4">
-                          <div className="font-medium">등록된 휴무일 목록</div>
+                          <div className="font-medium text-lg">등록된 휴무일 목록</div>
                           {loadingHolidays ? (
                             <div className="flex justify-center p-4">
                               <div className="w-6 h-6 border-2 border-t-pronto-primary rounded-full animate-spin"></div>
@@ -631,50 +617,50 @@ export default function AdminServicesPage() {
                               <p className="text-gray-500">등록된 휴무일이 없습니다.</p>
                             </div>
                           ) : (
-                            <div className="max-h-[400px] overflow-y-auto border rounded-md">
-                              <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50 sticky top-0">
-                                  <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">날짜</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">설명</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">관리</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                  {holidays.map((holiday) => {
-                                    const date = new Date(holiday.holiday_date);
-                                    const isToday = new Date().toDateString() === date.toDateString();
-                                    const isPast = date < new Date(new Date().toDateString());
-                                    
-                                    return (
-                                      <tr 
-                                        key={holiday.id || holiday.holiday_date}
-                                        className={`
-                                          ${isToday ? 'bg-blue-50' : ''} 
-                                          ${isPast ? 'text-gray-400' : ''}
-                                        `}
-                                      >
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="space-y-2">
+                              {holidays.map((holiday) => {
+                                const date = new Date(holiday.holiday_date);
+                                const isToday = new Date().toDateString() === date.toDateString();
+                                const isPast = date < new Date(new Date().toDateString());
+                                
+                                return (
+                                  <div 
+                                    key={holiday.id || holiday.holiday_date}
+                                    className={`
+                                      p-4 border rounded-lg flex items-center justify-between
+                                      ${isToday ? 'bg-blue-50 border-blue-200' : 'bg-white'} 
+                                      ${isPast ? 'text-gray-400 bg-gray-50' : ''}
+                                    `}
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-medium">
                                           {format(date, 'yyyy년 MM월 dd일 (E)', { locale: ko })}
-                                          {isToday && <span className="ml-2 text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">오늘</span>}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{holiday.description || '-'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                          <Button
-                                            variant="ghost" 
-                                            size="sm"
-                                            onClick={() => handleDeleteHoliday(holiday.holiday_date)}
-                                            title="휴무일 삭제"
-                                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                          >
-                                            <X size={16} />
-                                          </Button>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
+                                        </span>
+                                        {isToday && (
+                                          <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                                            오늘
+                                          </span>
+                                        )}
+                                      </div>
+                                      {holiday.description && (
+                                        <p className="text-sm text-gray-600 truncate">
+                                          {holiday.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Button
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => handleDeleteHoliday(holiday.holiday_date)}
+                                      title="휴무일 삭제"
+                                      className="text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                                    >
+                                      <X size={16} />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

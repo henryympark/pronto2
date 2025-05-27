@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { Service } from "@/types/services";
 import { useStudioDetailStore } from "@/domains/studio/stores/studioDetailStore";
 import { StudioHeader } from "@/domains/studio/components";
@@ -13,9 +13,20 @@ import { Calendar } from "@/components/ui/calendar";
 import type { Studio } from "@/domains/studio/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/shared/hooks/useToast";
+import { useQuery } from "@tanstack/react-query";
 
 interface ServiceDetailClientProps {
   service: Service;
+}
+
+// 휴무일 타입 정의
+interface Holiday {
+  id: string;
+  service_id: string;
+  holiday_date: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function ServiceDetailClient({ service }: ServiceDetailClientProps) {
@@ -25,6 +36,26 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   
   // 🚀 NEW: 임시 저장 복원을 위한 AuthContext 훅 추가
   const { user } = useAuth();
+  
+  // 현재 표시 중인 월 상태
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  
+  // 휴무일 정보 로드
+  const { data: holidaysData } = useQuery({
+    queryKey: ['holidays', service.id, currentMonth.getFullYear(), currentMonth.getMonth() + 1],
+    queryFn: async () => {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      const response = await fetch(`/api/services/${service.id}/holidays?year=${year}&month=${month}`);
+      if (!response.ok) {
+        throw new Error('휴무일 정보를 가져오는데 실패했습니다.');
+      }
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5분간 캐시
+  });
+  
+  const holidays = holidaysData?.holidays || [];
   
   // 서비스를 스튜디오 형태로 변환
   const studioData: Studio = useMemo(() => ({
@@ -72,10 +103,28 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
 
   // 로그인된 사용자만 예약 가능한 간단한 UX
   
-  // 날짜 선택 핸들러
+  // 날짜 선택 핸들러 - 휴무일 체크 추가
   const handleDateSelect = useCallback((date: Date | undefined) => {
-    setSelectedDate(date || null);
-  }, [setSelectedDate]);
+    if (!date) {
+      setSelectedDate(null);
+      return;
+    }
+    
+    // 휴무일인지 확인
+    const dateString = date.toISOString().split('T')[0];
+    const isHoliday = holidays.some((holiday: Holiday) => holiday.holiday_date === dateString);
+    
+    if (isHoliday) {
+      toast({
+        title: "휴무일입니다",
+        description: "선택하신 날짜는 휴무일로 지정되어 예약이 불가능합니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setSelectedDate(date);
+  }, [setSelectedDate, holidays, toast]);
 
   // 시간 범위 변경 핸들러 - useCallback으로 메모이제이션
   const handleTimeRangeChange = useCallback((startTime: string, endTime: string, durationHours: number, price: number) => {
@@ -115,10 +164,36 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
                   mode="single"
                   selected={selectedDate || undefined}
                   onSelect={handleDateSelect}
+                  onMonthChange={setCurrentMonth}
                   className="rounded-md w-full max-w-sm"
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  disabled={(date) => {
+                    // 과거 날짜 비활성화
+                    if (date < new Date(new Date().setHours(0, 0, 0, 0))) {
+                      return true;
+                    }
+                    
+                    // 휴무일 비활성화
+                    const dateString = date.toISOString().split('T')[0];
+                    return holidays.some((holiday: Holiday) => holiday.holiday_date === dateString);
+                  }}
+                  modifiers={{
+                    holiday: holidays.map((holiday: Holiday) => new Date(holiday.holiday_date))
+                  }}
+                  modifiersClassNames={{
+                    holiday: "bg-gray-100 text-gray-400 line-through"
+                  }}
                 />
               </div>
+              
+              {/* 휴무일 안내 */}
+              {holidays.length > 0 && (
+                <div className="mt-3 text-sm text-gray-500 text-center">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-3 h-3 bg-gray-100 border rounded"></span>
+                    휴무일 (예약 불가)
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* 예약 시간 선택 */}
