@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { format, isSameDay, isToday } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -35,7 +36,18 @@ type Holiday = {
   id: string;
   service_id: string;
   holiday_date: string;
-  description: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type OperatingHours = {
+  id?: string;
+  service_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_closed: boolean;
 };
 
 export default function AdminServicesPage() {
@@ -56,9 +68,18 @@ export default function AdminServicesPage() {
   const [loadingHolidays, setLoadingHolidays] = useState(false);
   const [savingHoliday, setSavingHoliday] = useState(false);
   
+  // 운영시간 관련 상태
+  const [operatingHours, setOperatingHours] = useState<OperatingHours[]>([]);
+  const [loadingOperatingHours, setLoadingOperatingHours] = useState(false);
+  const [savingOperatingHours, setSavingOperatingHours] = useState(false);
+  const [operatingHoursMessage, setOperatingHoursMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
+  
   // 일반 클라이언트와 어드민 클라이언트 둘 다 준비
   const supabase = useSupabase();
   const supabaseAdmin = createAdminClient();
+  
+  // 요일 라벨
+  const dayLabels = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   
   useEffect(() => {
     async function fetchServices() {
@@ -88,10 +109,11 @@ export default function AdminServicesPage() {
     fetchServices();
   }, [supabase]);
   
-  // 선택된 서비스 변경 시 해당 서비스의 휴무일 조회
+  // 선택된 서비스 변경 시 해당 서비스의 휴무일과 운영시간 조회
   useEffect(() => {
     if (selectedService) {
       fetchHolidays(selectedService.id);
+      fetchOperatingHours(selectedService.id);
     }
   }, [selectedService]);
 
@@ -130,6 +152,56 @@ export default function AdminServicesPage() {
     }
   };
 
+  // 운영시간 조회 함수 - 관리자 권한으로 접근
+  const fetchOperatingHours = async (serviceId: string) => {
+    setLoadingOperatingHours(true);
+    try {
+      console.log('운영시간 조회 시작:', serviceId);
+      
+      // 관리자 권한으로 운영시간 조회 (RLS 우회)
+      const { data, error } = await supabaseAdmin
+        .from('service_operating_hours')
+        .select('*')
+        .eq('service_id', serviceId)
+        .order('day_of_week', { ascending: true });
+        
+      if (error) {
+        console.error('운영시간 조회 에러:', error);
+        throw error;
+      }
+      
+      console.log('운영시간 조회 결과:', data);
+      
+      // 7일치 데이터가 없으면 기본값으로 초기화
+      const defaultOperatingHours: OperatingHours[] = [];
+      for (let day = 0; day < 7; day++) {
+        const existingHour = data?.find(h => h.day_of_week === day);
+        if (existingHour) {
+          defaultOperatingHours.push(existingHour);
+        } else {
+          // 기본값: 06:00-23:30, 일요일은 휴무
+          defaultOperatingHours.push({
+            service_id: serviceId,
+            day_of_week: day,
+            start_time: '06:00',
+            end_time: '23:30',
+            is_closed: day === 0 // 일요일 휴무
+          });
+        }
+      }
+      
+      setOperatingHours(defaultOperatingHours);
+    } catch (err: any) {
+      console.error('운영시간 조회 오류:', err);
+      setOperatingHoursMessage({
+        type: 'error',
+        text: err.message || '운영시간 정보를 불러오는데 실패했습니다.'
+      });
+    } finally {
+      setLoadingOperatingHours(false);
+    }
+  };
+
   const handleServiceChange = (serviceId: string) => {
     const service = services.find(s => s.id === serviceId);
     if (service) {
@@ -139,6 +211,8 @@ export default function AdminServicesPage() {
       // 휴무일 관련 상태 초기화
       setHolidayDescription("");
       setHolidayMessage(null);
+      // 운영시간 관련 상태 초기화
+      setOperatingHoursMessage(null);
     }
   };
 
@@ -161,75 +235,75 @@ export default function AdminServicesPage() {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setImageFile(file);
-    
-    // 이미지 미리보기 생성
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService) return;
-    
+
     setSaving(true);
     setSaveMessage(null);
-    
+
     try {
+      const formData = new FormData(e.target as HTMLFormElement);
+      
       let imageUrl = selectedService.image_url;
       
-      // 이미지 파일이 있으면 업로드
+      // 이미지 업로드 처리
       if (imageFile) {
-        const fileName = `service-${selectedService.slug}-${Date.now()}`;
+        const fileName = `${selectedService.id}-${Date.now()}.${imageFile.name.split('.').pop()}`;
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('services')
           .upload(fileName, imageFile, {
             cacheControl: '3600',
-            upsert: true
+            upsert: false
           });
-          
+
         if (uploadError) {
-          throw new Error(`이미지 업로드 실패: ${uploadError.message}`);
+          throw uploadError;
         }
-        
-        // 업로드된 이미지의 공개 URL 가져오기
-        const { data: publicUrlData } = supabase.storage
+
+        const { data: { publicUrl } } = supabase.storage
           .from('services')
           .getPublicUrl(fileName);
-          
-        imageUrl = publicUrlData.publicUrl;
+        
+        imageUrl = publicUrl;
       }
-      
+
       // 서비스 정보 업데이트
       const { error: updateError } = await supabase
         .from('services')
         .update({
-          name: selectedService.name,
-          description: selectedService.description,
-          price_per_hour: selectedService.price_per_hour,
-          location: selectedService.location,
+          name: formData.get('name') as string,
+          description: formData.get('description') as string,
+          price_per_hour: parseInt(formData.get('price_per_hour') as string),
+          location: formData.get('location') as string,
           image_url: imageUrl,
-          notice: selectedService.notice,
-          refund_policy: selectedService.refund_policy
+          notice: formData.get('notice') as string,
+          refund_policy: formData.get('refund_policy') as string,
+          updated_at: new Date().toISOString()
         })
         .eq('id', selectedService.id);
-        
+
       if (updateError) {
-        throw new Error(`서비스 정보 업데이트 실패: ${updateError.message}`);
+        throw updateError;
       }
-      
-      // 성공 메시지 표시
+
       setSaveMessage({
         type: 'success',
         text: '서비스 정보가 성공적으로 저장되었습니다.'
       });
-      
-      // 서비스 목록 갱신
+
+      // 서비스 목록 새로고침
       const { data: updatedServices, error: fetchError } = await supabase
         .from('services')
         .select('*')
@@ -344,6 +418,62 @@ export default function AdminServicesPage() {
       });
     }
   };
+
+  // 운영시간 업데이트 함수
+  const handleOperatingHourChange = (dayOfWeek: number, field: 'start_time' | 'end_time' | 'is_closed', value: string | boolean) => {
+    setOperatingHours(prev => 
+      prev.map(hour => 
+        hour.day_of_week === dayOfWeek 
+          ? { ...hour, [field]: value }
+          : hour
+      )
+    );
+  };
+
+  // 운영시간 저장 함수
+  const handleSaveOperatingHours = async () => {
+    if (!selectedService) return;
+    
+    setSavingOperatingHours(true);
+    setOperatingHoursMessage(null);
+    
+    try {
+      // 기존 운영시간 데이터 삭제 후 새로 삽입
+      const { error: deleteError } = await supabaseAdmin
+        .from('service_operating_hours')
+        .delete()
+        .eq('service_id', selectedService.id);
+        
+      if (deleteError) {
+        throw deleteError;
+      }
+      
+      // 새 운영시간 데이터 삽입
+      const { error: insertError } = await supabaseAdmin
+        .from('service_operating_hours')
+        .insert(operatingHours);
+        
+      if (insertError) {
+        throw insertError;
+      }
+      
+      setOperatingHoursMessage({
+        type: 'success',
+        text: '운영시간이 성공적으로 저장되었습니다.'
+      });
+      
+      // 운영시간 목록 갱신
+      await fetchOperatingHours(selectedService.id);
+    } catch (err: any) {
+      console.error('운영시간 저장 오류:', err);
+      setOperatingHoursMessage({
+        type: 'error',
+        text: err.message || '운영시간 저장 중 오류가 발생했습니다.'
+      });
+    } finally {
+      setSavingOperatingHours(false);
+    }
+  };
   
   // 캘린더에 휴무일 표시를 위한 스타일
   const holidayStyle = (date: Date) => {
@@ -384,7 +514,8 @@ export default function AdminServicesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <Card className="lg:col-span-1">
+          {/* 서비스 목록 */}
+          <Card>
             <CardHeader>
               <CardTitle className="text-lg">서비스 목록</CardTitle>
             </CardHeader>
@@ -393,14 +524,17 @@ export default function AdminServicesPage() {
                 {services.map((service) => (
                   <button
                     key={service.id}
-                    className={`w-full px-4 py-2 text-left rounded-md transition-colors ${
-                      selectedService?.id === service.id
-                        ? 'bg-pronto-primary text-white'
-                        : 'hover:bg-gray-100'
-                    }`}
                     onClick={() => handleServiceChange(service.id)}
+                    className={`w-full text-left p-3 rounded-md border transition-colors ${
+                      selectedService?.id === service.id
+                        ? 'bg-pronto-primary text-white border-pronto-primary'
+                        : 'bg-white hover:bg-gray-50 border-gray-200'
+                    }`}
                   >
-                    {service.name}
+                    <div className="font-medium">{service.name}</div>
+                    <div className="text-sm opacity-75">
+                      {service.price_per_hour?.toLocaleString()}원/시간
+                    </div>
                   </button>
                 ))}
               </div>
@@ -417,6 +551,7 @@ export default function AdminServicesPage() {
                   <TabsList className="mb-4">
                     <TabsTrigger value="info">서비스 정보</TabsTrigger>
                     <TabsTrigger value="holidays">휴무일 설정</TabsTrigger>
+                    <TabsTrigger value="operating-hours">예약 가능 시간 설정</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="info">
@@ -431,12 +566,11 @@ export default function AdminServicesPage() {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label htmlFor="name">서비스 이름</Label>
+                          <Label htmlFor="name">서비스명</Label>
                           <Input
                             id="name"
                             name="name"
-                            value={selectedService.name}
-                            onChange={handleInputChange}
+                            defaultValue={selectedService.name}
                             required
                           />
                         </div>
@@ -447,8 +581,7 @@ export default function AdminServicesPage() {
                             id="price_per_hour"
                             name="price_per_hour"
                             type="number"
-                            value={selectedService.price_per_hour}
-                            onChange={handleInputChange}
+                            defaultValue={selectedService.price_per_hour}
                             required
                           />
                         </div>
@@ -458,8 +591,7 @@ export default function AdminServicesPage() {
                           <Textarea
                             id="description"
                             name="description"
-                            value={selectedService.description}
-                            onChange={handleInputChange}
+                            defaultValue={selectedService.description || ''}
                             rows={4}
                           />
                         </div>
@@ -469,19 +601,17 @@ export default function AdminServicesPage() {
                           <Input
                             id="location"
                             name="location"
-                            value={selectedService.location}
-                            onChange={handleInputChange}
+                            defaultValue={selectedService.location || ''}
                           />
                         </div>
                         
                         <div className="space-y-2 md:col-span-2">
-                          <Label htmlFor="notice">주의사항</Label>
+                          <Label htmlFor="notice">주의사항/약관</Label>
                           <Textarea
                             id="notice"
                             name="notice"
-                            value={selectedService.notice || ''}
-                            onChange={handleInputChange}
-                            rows={3}
+                            defaultValue={selectedService.notice || ''}
+                            rows={4}
                           />
                         </div>
                         
@@ -490,9 +620,8 @@ export default function AdminServicesPage() {
                           <Textarea
                             id="refund_policy"
                             name="refund_policy"
-                            value={selectedService.refund_policy || ''}
-                            onChange={handleInputChange}
-                            rows={3}
+                            defaultValue={selectedService.refund_policy || ''}
+                            rows={4}
                           />
                         </div>
                         
@@ -664,6 +793,105 @@ export default function AdminServicesPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="operating-hours">
+                    <div className="space-y-6">
+                      {operatingHoursMessage && (
+                        <Alert 
+                          className={`${
+                            operatingHoursMessage.type === 'success' ? 'bg-green-100 text-green-800' : 
+                            operatingHoursMessage.type === 'error' ? 'bg-red-100 text-red-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          <AlertDescription>{operatingHoursMessage.text}</AlertDescription>
+                        </Alert>
+                      )}
+                      
+                      <div className="space-y-4">
+                        <div className="font-medium text-lg">예약 가능 시간 설정</div>
+                        <p className="text-sm text-gray-500">
+                          요일별로 예약 가능한 시간을 설정하세요. 휴무일로 설정하면 해당 요일에는 예약을 받지 않습니다.
+                        </p>
+                        
+                        {loadingOperatingHours ? (
+                          <div className="flex justify-center p-4">
+                            <div className="w-6 h-6 border-2 border-t-pronto-primary rounded-full animate-spin"></div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {operatingHours.map((hour) => (
+                              <div key={hour.day_of_week} className="p-4 border rounded-lg bg-white">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="font-medium">{dayLabels[hour.day_of_week]}</div>
+                                  <div className="flex items-center space-x-2">
+                                    <Label htmlFor={`closed-${hour.day_of_week}`} className="text-sm">
+                                      휴무일
+                                    </Label>
+                                    <Switch
+                                      id={`closed-${hour.day_of_week}`}
+                                      checked={hour.is_closed}
+                                      onCheckedChange={(checked: boolean) => 
+                                        handleOperatingHourChange(hour.day_of_week, 'is_closed', checked)
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                                
+                                {!hour.is_closed && (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`start-${hour.day_of_week}`}>시작 시간</Label>
+                                      <Input
+                                        id={`start-${hour.day_of_week}`}
+                                        type="time"
+                                        value={hour.start_time}
+                                        onChange={(e) => 
+                                          handleOperatingHourChange(hour.day_of_week, 'start_time', e.target.value)
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`end-${hour.day_of_week}`}>종료 시간</Label>
+                                      <Input
+                                        id={`end-${hour.day_of_week}`}
+                                        type="time"
+                                        value={hour.end_time}
+                                        onChange={(e) => 
+                                          handleOperatingHourChange(hour.day_of_week, 'end_time', e.target.value)
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {hour.is_closed && (
+                                  <div className="text-center py-4 text-gray-500">
+                                    휴무일로 설정되었습니다.
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            
+                            <div className="flex justify-end">
+                              <Button
+                                onClick={handleSaveOperatingHours}
+                                disabled={savingOperatingHours}
+                                className="px-6"
+                              >
+                                {savingOperatingHours ? (
+                                  <>
+                                    <span className="mr-2">저장 중...</span>
+                                    <div className="w-4 h-4 border-2 border-t-white rounded-full animate-spin"></div>
+                                  </>
+                                ) : '운영시간 저장'}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </TabsContent>
