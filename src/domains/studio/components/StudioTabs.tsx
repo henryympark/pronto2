@@ -5,10 +5,15 @@
 
 "use client";
 
-import React, { useState } from 'react';
-import { MapPin, Clock, Phone, Mail, Globe, Users, Music, Camera } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Clock, Phone, Mail, Globe, Users, Music, Camera, Star } from 'lucide-react';
 import { formatOperatingHours, getServiceCategoryLabel, getAmenityIcon } from '../services/studioUtils';
 import type { Studio, StudioService } from '../types';
+import { Review } from '@/types';
+import { useSupabase } from '@/contexts/SupabaseContext';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
+import Image from 'next/image';
 
 interface StudioTabsProps {
   studio: Studio;
@@ -19,13 +24,80 @@ type TabType = 'overview' | 'services' | 'amenities' | 'location' | 'reviews';
 
 export const StudioTabs = React.memo(({ studio, services = [] }: StudioTabsProps) => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const supabase = useSupabase();
+
+  // 리뷰 데이터 가져오기
+  const fetchReviews = async () => {
+    try {
+      setReviewsLoading(true);
+      
+      // 먼저 리뷰와 이미지 조회 (customer는 수동 조인)
+      const { data: reviewsData, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          images:review_images(id, image_url)
+        `)
+        .eq('service_id', studio.id)
+        .eq('is_hidden', false)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('리뷰 조회 오류:', error);
+        return;
+      }
+
+      // 고객 정보 별도 조회
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('id, nickname, email');
+
+      if (customersError) {
+        console.error('고객 조회 오류:', customersError);
+        return;
+      }
+
+      // 수동으로 고객 정보 조인
+      const reviewsWithCustomers = (reviewsData || []).map((review: any) => {
+        const customer = (customersData || []).find((c: any) => c.id === review.customer_id);
+        return {
+          ...review,
+          customer: customer ? {
+            id: customer.id,
+            name: customer.nickname, // nickname을 name으로 매핑
+            email: customer.email
+          } : {
+            id: review.customer_id,
+            name: '알 수 없는 사용자',
+            email: ''
+          }
+        };
+      });
+
+      setReviews(reviewsWithCustomers);
+    } catch (error) {
+      console.error('리뷰 조회 오류:', error);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  // 리뷰 탭이 활성화될 때 리뷰 데이터 가져오기
+  useEffect(() => {
+    if (activeTab === 'reviews') {
+      fetchReviews();
+    }
+  }, [activeTab, studio.id]);
 
   const tabs = [
     { id: 'overview', label: '개요', icon: null },
     { id: 'services', label: '서비스', icon: Music },
     { id: 'amenities', label: '편의시설', icon: Users },
     { id: 'location', label: '위치/교통', icon: MapPin },
-    { id: 'reviews', label: '리뷰', icon: null },
+    { id: 'reviews', label: `리뷰 (${reviews.length})`, icon: null },
   ] as const;
 
   const renderOverview = () => (
@@ -194,12 +266,101 @@ export const StudioTabs = React.memo(({ studio, services = [] }: StudioTabsProps
     </div>
   );
 
+  // 별점 렌더링 함수
+  const renderStars = (rating: number) => {
+    return (
+      <div className="flex items-center">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-4 w-4 ${
+              star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+            }`}
+          />
+        ))}
+        <span className="ml-1 text-sm text-gray-600">({rating})</span>
+      </div>
+    );
+  };
+
   const renderReviews = () => (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">이용 후기</h3>
-      <div className="text-center py-8 text-gray-500">
-        <p>리뷰 시스템은 추후 구현 예정입니다.</p>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">이용 후기</h3>
+        {reviews.length > 0 && (
+          <div className="text-sm text-gray-500">
+            총 {reviews.length}개의 리뷰
+          </div>
+        )}
       </div>
+      
+      {reviewsLoading ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">리뷰를 불러오는 중...</p>
+        </div>
+      ) : reviews.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p>아직 작성된 리뷰가 없습니다.</p>
+          <p className="text-sm mt-1">첫 번째 리뷰를 남겨보세요!</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {reviews.map((review) => (
+            <div key={review.id} className="border-b border-gray-200 pb-6 last:border-b-0">
+              {/* 리뷰 헤더 */}
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-medium">
+                      {review.customer?.name?.substring(0, 1) || "익명"}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="font-medium">{review.customer?.name || "익명"}</div>
+                    <div className="flex items-center space-x-2">
+                      {renderStars(review.rating)}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {format(new Date(review.created_at), "yyyy.MM.dd", { locale: ko })}
+                </div>
+              </div>
+              
+              {/* 리뷰 내용 */}
+              <div className="mb-3">
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {review.content}
+                </p>
+              </div>
+              
+              {/* 리뷰 이미지 */}
+              {review.images && review.images.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {review.images.slice(0, 6).map((image, index) => (
+                    <div key={image.id} className="relative aspect-square">
+                      <Image
+                        src={image.image_url}
+                        alt={`리뷰 이미지 ${index + 1}`}
+                        fill
+                        className="object-cover rounded-lg"
+                      />
+                    </div>
+                  ))}
+                  {review.images.length > 6 && (
+                    <div className="relative aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                      <span className="text-gray-600 font-medium">
+                        +{review.images.length - 6}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 

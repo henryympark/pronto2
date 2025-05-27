@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LucideIcon, LayoutDashboard, Calendar, Settings, Users, LogOut } from "lucide-react";
+import { LucideIcon, LayoutDashboard, Calendar, Settings, Users, LogOut, MessageSquare } from "lucide-react";
 import { AuthGuard } from "@/domains/auth";
 
 type SidebarItem = {
@@ -26,6 +26,11 @@ const sidebarItems: SidebarItem[] = [
     name: "고객 관리",
     href: "/admin/customers", 
     icon: Users,
+  },
+  {
+    name: "리뷰 관리",
+    href: "/admin/reviews",
+    icon: MessageSquare,
   },
 ];
 
