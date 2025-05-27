@@ -43,28 +43,41 @@ const fetchAvailableTimes = async (serviceId: string, dateString: string): Promi
   const allTimeSlots: TimeSlot[] = [];
   const isToday = data.isToday === true;
   
-  for (let hour = 0; hour <= 23; hour++) {
-    for (let minute = 0; minute < 60; minute += TIME_SLOT_INTERVAL) {
-      const timeString = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
-      
-      let status: TimeSlot['status'] = 'available';
-      
-      if (data.isClosed) {
-        status = 'unavailable';
-      }
-      else if (
-        timeString < data.operatingStartTime || 
-        timeString >= data.operatingEndTime || 
-        data.unavailableSlots.includes(timeString)
-      ) {
-        status = 'unavailable';
-      }
-      else if (isToday && data.currentTime && timeString < data.currentTime) {
-        status = 'unavailable';
-      }
-      
-      allTimeSlots.push({ time: timeString, status });
+  // 휴무일인 경우 빈 배열 반환
+  if (data.isClosed) {
+    return {
+      timeSlots: allTimeSlots,
+      operatingHours,
+      currentTime: data.currentTime,
+      isToday
+    };
+  }
+  
+  // 운영시간 파싱
+  const [startHour, startMinute] = data.operatingStartTime.split(':').map(Number);
+  const [endHour, endMinute] = data.operatingEndTime.split(':').map(Number);
+  
+  const startTotalMinutes = startHour * 60 + startMinute;
+  const endTotalMinutes = endHour * 60 + endMinute;
+  
+  // 운영시간 내의 슬롯만 생성 (30분 단위)
+  for (let totalMinutes = startTotalMinutes; totalMinutes < endTotalMinutes; totalMinutes += TIME_SLOT_INTERVAL) {
+    const hour = Math.floor(totalMinutes / 60);
+    const minute = totalMinutes % 60;
+    const timeString = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+    
+    let status: TimeSlot['status'] = 'available';
+    
+    // 예약 불가능한 슬롯 체크
+    if (data.unavailableSlots.includes(timeString)) {
+      status = 'unavailable';
     }
+    // 오늘 날짜이고 현재 시간 이전인 경우
+    else if (isToday && data.currentTime && timeString < data.currentTime) {
+      status = 'unavailable';
+    }
+    
+    allTimeSlots.push({ time: timeString, status });
   }
   
   return {

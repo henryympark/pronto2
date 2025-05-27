@@ -177,7 +177,12 @@ export default function AdminServicesPage() {
       for (let day = 0; day < 7; day++) {
         const existingHour = data?.find(h => h.day_of_week === day);
         if (existingHour) {
-          defaultOperatingHours.push(existingHour);
+          // 데이터베이스에서 가져온 시간 형식을 HH:MM으로 변환
+          defaultOperatingHours.push({
+            ...existingHour,
+            start_time: existingHour.start_time.substring(0, 5), // HH:MM:SS -> HH:MM
+            end_time: existingHour.end_time.substring(0, 5)       // HH:MM:SS -> HH:MM
+          });
         } else {
           // 기본값: 06:00-23:30, 일요일은 휴무
           defaultOperatingHours.push({
