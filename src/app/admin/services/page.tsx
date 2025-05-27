@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, isSameDay, isToday } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -80,6 +81,23 @@ export default function AdminServicesPage() {
   
   // 요일 라벨
   const dayLabels = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+  
+  // 30분 단위 시간 옵션 생성 함수
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        options.push({
+          value: timeString,
+          label: timeString
+        });
+      }
+    }
+    return options;
+  };
+  
+  const timeOptions = generateTimeOptions();
   
   useEffect(() => {
     async function fetchServices() {
@@ -850,25 +868,43 @@ export default function AdminServicesPage() {
                                   <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                       <Label htmlFor={`start-${hour.day_of_week}`}>시작 시간</Label>
-                                      <Input
-                                        id={`start-${hour.day_of_week}`}
-                                        type="time"
+                                      <Select
                                         value={hour.start_time}
-                                        onChange={(e) => 
-                                          handleOperatingHourChange(hour.day_of_week, 'start_time', e.target.value)
+                                        onValueChange={(value) => 
+                                          handleOperatingHourChange(hour.day_of_week, 'start_time', value)
                                         }
-                                      />
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="시작 시간 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {timeOptions.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                              {option.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
                                     </div>
                                     <div className="space-y-2">
                                       <Label htmlFor={`end-${hour.day_of_week}`}>종료 시간</Label>
-                                      <Input
-                                        id={`end-${hour.day_of_week}`}
-                                        type="time"
+                                      <Select
                                         value={hour.end_time}
-                                        onChange={(e) => 
-                                          handleOperatingHourChange(hour.day_of_week, 'end_time', e.target.value)
+                                        onValueChange={(value) => 
+                                          handleOperatingHourChange(hour.day_of_week, 'end_time', value)
                                         }
-                                      />
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="종료 시간 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {timeOptions.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                              {option.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
                                     </div>
                                   </div>
                                 )}
