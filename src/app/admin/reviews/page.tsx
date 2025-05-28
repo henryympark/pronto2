@@ -10,7 +10,6 @@ import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -254,15 +253,15 @@ export default function AdminReviewsPage() {
     );
   });
 
-  // 리뷰 상태 표시
-  const getStatusBadge = (review: ReviewWithDetails) => {
+  // 리뷰 상태 텍스트 표시
+  const getStatusText = (review: ReviewWithDetails) => {
     if (review.deleted_at) {
-      return <Badge className="bg-red-100 text-red-800 border-red-200">삭제됨</Badge>;
+      return "삭제됨";
     }
     if (review.is_hidden) {
-      return <Badge className="bg-gray-100 text-gray-800 border-gray-200">숨김</Badge>;
+      return "숨김";
     }
-    return <Badge className="bg-green-100 text-green-800 border-green-200">표시</Badge>;
+    return "표시";
   };
 
   // 별점 표시
@@ -432,7 +431,7 @@ export default function AdminReviewsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {getStatusBadge(review)}
+                        {getStatusText(review)}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
