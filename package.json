@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:extension": "node tests/extension-integration-test.js",
+    "test:extension:watch": "nodemon tests/extension-integration-test.js",
     "apply-reviews-migration": "node scripts/apply-reviews-migration.js"
   },
   "dependencies": {

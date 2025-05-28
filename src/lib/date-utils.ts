@@ -136,4 +136,71 @@ export const formatTimeDisplay = (minutes: number): string => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return `${hours}시간 ${mins}분`;
+};
+
+// ======= 예약 연장 관련 함수들 =======
+
+/**
+ * Grace Period (10분) 내에 연장 가능한지 확인
+ * @param reservationEndDateTime 예약 종료 시간 (Date 객체)
+ * @returns 연장 가능 여부
+ */
+export const isWithinGracePeriod = (reservationEndDateTime: Date): boolean => {
+  const now = new Date();
+  const gracePeriodEnd = addMinutes(reservationEndDateTime, 10); // 예약 종료 후 10분까지
+  
+  return isBefore(now, gracePeriodEnd) && isAfter(now, reservationEndDateTime);
+};
+
+/**
+ * 연장할 수 있는 최대 시간 계산 (Grace Period 내에서)
+ * @param reservationEndDateTime 예약 종료 시간
+ * @returns 연장 가능한 남은 분 수
+ */
+export const getRemainingGracePeriodMinutes = (reservationEndDateTime: Date): number => {
+  const now = new Date();
+  const gracePeriodEnd = addMinutes(reservationEndDateTime, 10);
+  
+  if (isAfter(now, gracePeriodEnd)) {
+    return 0; // Grace Period 종료
+  }
+  
+  if (isBefore(now, reservationEndDateTime)) {
+    return 10; // 아직 예약 시간 중이므로 전체 Grace Period 가용
+  }
+  
+  // 예약 종료 후 Grace Period 내
+  const diffMs = gracePeriodEnd.getTime() - now.getTime();
+  return Math.floor(diffMs / (1000 * 60)); // 분 단위로 변환
+};
+
+/**
+ * 예약 날짜와 시간으로 Date 객체 생성
+ * @param reservationDate 예약 날짜 (YYYY-MM-DD)
+ * @param timeString 시간 문자열 (HH:MM)
+ * @returns Date 객체
+ */
+export const createReservationDateTime = (reservationDate: string, timeString: string): Date => {
+  const [hours, minutes] = timeString.split(':').map(Number);
+  const date = new Date(reservationDate);
+  return setMinutes(setHours(date, hours), minutes);
+};
+
+/**
+ * 연장된 종료 시간 계산
+ * @param currentEndDateTime 현재 종료 시간
+ * @param extensionMinutes 연장할 분 수 (30의 배수)
+ * @returns 연장된 종료 시간
+ */
+export const calculateExtendedEndTime = (currentEndDateTime: Date, extensionMinutes: number): Date => {
+  return addMinutes(currentEndDateTime, extensionMinutes);
+};
+
+/**
+ * 연장 시간이 30분 단위인지 검증
+ * @param extensionMinutes 연장할 분 수
+ * @returns 유효성 여부
+ */
+export const isValidExtensionTime = (extensionMinutes: number): boolean => {
+  return extensionMinutes > 0 && extensionMinutes % 30 === 0;
 }; 

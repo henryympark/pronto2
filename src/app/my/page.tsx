@@ -21,32 +21,9 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Link from "next/link";
 import { useReservationHistory } from "@/hooks/useReservationHistory";
 import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
-
-// 타입 정의
-interface Service {
-  id: string;
-  name: string;
-}
-
-interface Reservation {
-  id: string;
-  service_id: string;
-  customer_id?: string;
-  reservation_date: string;
-  start_time: string;
-  end_time: string;
-  total_hours: number;
-  total_price: number;
-  status: string;
-  customer_name?: string;
-  created_at: string;
-  updated_at: string;
-  service?: Service;
-  company_name?: string;
-  purpose?: string;
-  car_number?: string;
-  has_review?: boolean;
-}
+// 예약 연장 관련 컴포넌트 import
+import { ExtensionButton, ExtensionModal } from "@/components/reservation";
+import type { Reservation, ReservationHistory } from '@/types/reservation';
 
 type FilterType = 'upcoming' | 'completed' | 'cancelled';
 
@@ -74,6 +51,10 @@ export default function MyPage() {
   const [cancelingReservation, setCancelingReservation] = useState<Reservation | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // 예약 연장 관련 상태
+  const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
+  const [extendingReservation, setExtendingReservation] = useState<Reservation | null>(null);
+
   // 예약 이력 조회 훅
   const { history, loading: historyLoading, error: historyError } = useReservationHistory(
     selectedReservation?.id || null
@@ -100,6 +81,8 @@ export default function MyPage() {
     if (!user?.id) return;
     
     try {
+      console.log('[MyPage] 예약 조회 시작 - 사용자 ID:', user.id);
+      
       const { data, error } = await supabase
         .from('reservations')
         .select(`
@@ -108,6 +91,8 @@ export default function MyPage() {
         `)
         .eq('customer_id', user.id)
         .order('reservation_date', { ascending: false });
+
+      console.log('[MyPage] 예약 조회 결과:', { data, error });
 
       if (error) throw error;
       
@@ -119,6 +104,8 @@ export default function MyPage() {
         car_number: item.vehicle_number || '',
         has_review: item.has_review === true
       }));
+      
+      console.log('[MyPage] 포맷된 예약 데이터:', formattedData);
       
       setReservations(formattedData);
       applyFilter(formattedData, activeFilter);
@@ -255,13 +242,54 @@ export default function MyPage() {
       setIsCancelModalOpen(false);
       setCancelingReservation(null);
       fetchReservations();
-      toast.success("예약이 성공적으로 취소되었습니다.");
+      toast({
+        title: "예약 취소 완료",
+        description: "예약이 성공적으로 취소되었습니다.",
+      });
     } catch (error) {
       console.error('예약 취소 실패:', error);
-      toast.error("예약 취소 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+      toast({
+        title: "예약 취소 실패", 
+        description: "예약 취소 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
+        variant: "destructive",
+      });
     } finally {
       setIsCancelling(false);
     }
+  };
+
+  // 예약 연장 관련 핸들러들
+  const handleExtensionClick = (reservation: Reservation) => {
+    setExtendingReservation(reservation);
+    setIsExtensionModalOpen(true);
+  };
+
+  const handleExtensionSuccess = (updatedReservation: Reservation) => {
+    // 예약 목록에서 해당 예약 업데이트
+    setReservations(prevReservations => 
+      prevReservations.map(res => 
+        res.id === updatedReservation.id ? updatedReservation : res
+      )
+    );
+    
+    // 필터링된 예약 목록도 업데이트
+    setFilteredReservations(prevFiltered => 
+      prevFiltered.map(res => 
+        res.id === updatedReservation.id ? updatedReservation : res
+      )
+    );
+
+    // 상세 모달이 열려있다면 업데이트
+    if (selectedReservation?.id === updatedReservation.id) {
+      setSelectedReservation(updatedReservation);
+    }
+
+    // 연장 모달 닫기
+    setIsExtensionModalOpen(false);
+    setExtendingReservation(null);
+
+    // 간단한 데이터도 새로고침 (적립 시간 등이 변경될 수 있음)
+    fetchSimplifiedData();
   };
 
   // 초기 로드
@@ -518,6 +546,16 @@ export default function MyPage() {
                             </div>
                             
                             <div className="flex gap-2">
+                              {/* 예약 연장 버튼 - 이용 예정 탭의 active 예약에만 표시 */}
+                              {activeFilter === 'upcoming' && 
+                                (reservation.status === 'confirmed' || reservation.status === 'modified') && (
+                                <ExtensionButton
+                                  reservation={reservation}
+                                  onExtensionClick={() => handleExtensionClick(reservation)}
+                                  disabled={false}
+                                />
+                              )}
+                              
                               {activeFilter === 'completed' && 
                                 (reservation.status === 'completed' || 
                                 ((reservation.status === 'confirmed' || reservation.status === 'modified') && 
@@ -649,6 +687,16 @@ export default function MyPage() {
               
               <DialogFooter className="flex justify-between">
                 <div className="flex gap-2">
+                  {/* 예약 연장 버튼 - 상세 모달에서 */}
+                  {selectedReservation && 
+                    (selectedReservation.status === 'confirmed' || selectedReservation.status === 'modified') && (
+                    <ExtensionButton
+                      reservation={selectedReservation}
+                      onExtensionClick={() => handleExtensionClick(selectedReservation)}
+                      disabled={false}
+                    />
+                  )}
+                  
                   {selectedReservation && canCancelReservation(selectedReservation) && (
                     <Button 
                       variant="destructive"
@@ -694,6 +742,21 @@ export default function MyPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* 예약 연장 모달 */}
+          {extendingReservation && (
+            <ExtensionModal
+              reservation={extendingReservation}
+              open={isExtensionModalOpen}
+              onOpenChange={(open) => {
+                setIsExtensionModalOpen(open);
+                if (!open) {
+                  setExtendingReservation(null);
+                }
+              }}
+              onSuccess={handleExtensionSuccess}
+            />
+          )}
         </div>
       </div>
     </ErrorBoundary>
