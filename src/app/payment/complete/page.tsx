@@ -9,7 +9,7 @@ import { Reservation } from "@/types/reservation";
 import { useSupabase } from "@/contexts/SupabaseContext"; // ✅ 올바른 훅 사용
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 // Reservation에 customer_name이 포함된 확장 타입 정의
@@ -40,6 +40,7 @@ function PaymentCompleteContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const supabase = useSupabase(); // ✅ 올바른 훅 사용
+  const { toast } = useToast(); // ✅ useToast 훅 사용
 
   useEffect(() => {
     // ✅ URL 파라미터 검증 강화
@@ -161,8 +162,10 @@ function PaymentCompleteContent() {
       } else {
         // 클립보드에 복사
         await navigator.clipboard.writeText(window.location.href);
-        toast.success("예약 정보 링크가 클립보드에 복사되었습니다.", {
+        toast({
           title: "링크 복사 완료",
+          description: "예약 정보 링크가 클립보드에 복사되었습니다.",
+          variant: "default"
         });
       }
     } catch (err) {
