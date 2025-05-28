@@ -280,6 +280,52 @@ export default function MyPage() {
     }
   }, [user, loading, initialDataLoaded, router]);
 
+  // 실시간 쿠폰 업데이트 구독
+  useEffect(() => {
+    if (!user?.id || !supabase) return;
+
+    console.log('[MyPage] 실시간 쿠폰 업데이트 구독 시작:', user.id);
+
+    // customer_coupons 테이블의 변경사항을 실시간으로 감지
+    const channel = supabase
+      .channel('customer_coupons_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE 모든 이벤트
+          schema: 'public',
+          table: 'customer_coupons',
+          filter: `customer_id=eq.${user.id}` // 현재 사용자의 쿠폰만 감지
+        },
+        (payload) => {
+          console.log('[MyPage] 쿠폰 변경 감지:', payload);
+          
+          // 쿠폰 데이터가 변경되면 대시보드 데이터 새로고침
+          fetchSimplifiedData();
+          
+          // 변경 유형에 따른 토스트 메시지
+          if (payload.eventType === 'INSERT') {
+            toast({
+              title: "🎉 새로운 쿠폰이 지급되었습니다!",
+              description: "보유 쿠폰이 업데이트되었습니다.",
+            });
+          } else if (payload.eventType === 'UPDATE' && payload.new?.is_used === true) {
+            toast({
+              title: "쿠폰이 사용되었습니다",
+              description: "보유 쿠폰이 업데이트되었습니다.",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    // 컴포넌트 언마운트 시 구독 해제
+    return () => {
+      console.log('[MyPage] 실시간 쿠폰 업데이트 구독 해제');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, supabase]);
+
   // 로딩 화면
   if (loading) {
     return (

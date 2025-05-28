@@ -50,46 +50,64 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
   
   // 예약하기 버튼 클릭 핸들러
   const handleBookingClick = async () => {
-    if (!selectedTimeRange.start || !selectedTimeRange.end) {
+    try {
+      if (!selectedTimeRange.start || !selectedTimeRange.end) {
+        toast({
+          title: "시간 선택 필요",
+          description: "예약 시간을 선택해주세요.",
+          variant: "destructive"
+        } as any);
+        return;
+      }
+
+      // 로그인 상태 확인
+      if (!user) {
+        toast({
+          title: "로그인이 필요합니다",
+          description: "예약을 위해 먼저 로그인해주세요.",
+          variant: "default"
+        } as any);
+        
+        // 현재 페이지를 returnUrl로 설정하여 로그인 후 돌아올 수 있도록 함
+        const returnUrl = encodeURIComponent(window.location.href);
+        router.push(`/auth/login?returnUrl=${returnUrl}`);
+        return;
+      }
+
+      // 폼이 열릴 때 사용자의 가장 최근 예약 정보와 적립/쿠폰 정보 가져오기
+      if (!showBookingForm) {
+        console.log('[BookingForm] 최근 예약 정보 로딩 시작');
+        try {
+          await Promise.all([
+            loadRecentBookingData(supabase, user.id),
+            loadTimeUsageData(supabase, user.id)
+          ]);
+
+          // 초기 할인 계산
+          if (selectedTimeRange.duration && selectedTimeRange.price) {
+            const totalMinutes = selectedTimeRange.duration * 60;
+            const hourlyRate = selectedTimeRange.price / selectedTimeRange.duration;
+            calculateDiscount(totalMinutes, hourlyRate);
+          }
+        } catch (error) {
+          console.error('[BookingForm] 데이터 로딩 오류:', error);
+          toast({
+            title: "데이터 로딩 실패",
+            description: "사용자 정보를 불러오는 중 오류가 발생했습니다.",
+            variant: "destructive"
+          } as any);
+        }
+      }
+      
+      toggleBookingForm();
+    } catch (error) {
+      console.error('[BookingForm] handleBookingClick 오류:', error);
       toast({
-        title: "시간 선택 필요",
-        description: "예약 시간을 선택해주세요.",
+        title: "오류 발생",
+        description: "예약 폼을 여는 중 오류가 발생했습니다.",
         variant: "destructive"
       } as any);
-      return;
     }
-
-    // 로그인 상태 확인
-    if (!user) {
-      toast({
-        title: "로그인이 필요합니다",
-        description: "예약을 위해 먼저 로그인해주세요.",
-        variant: "default"
-      } as any);
-      
-      // 현재 페이지를 returnUrl로 설정하여 로그인 후 돌아올 수 있도록 함
-      const returnUrl = encodeURIComponent(window.location.href);
-      router.push(`/auth/login?returnUrl=${returnUrl}`);
-      return;
-    }
-
-    // 폼이 열릴 때 사용자의 가장 최근 예약 정보와 적립/쿠폰 정보 가져오기
-    if (!showBookingForm) {
-      console.log('[BookingForm] 최근 예약 정보 로딩 시작');
-      await Promise.all([
-        loadRecentBookingData(supabase, user.id),
-        loadTimeUsageData(supabase, user.id)
-      ]);
-
-      // 초기 할인 계산
-      if (selectedTimeRange.duration && selectedTimeRange.price) {
-        const totalMinutes = selectedTimeRange.duration * 60;
-        const hourlyRate = selectedTimeRange.price / selectedTimeRange.duration;
-        calculateDiscount(totalMinutes, hourlyRate);
-      }
-    }
-    
-    toggleBookingForm();
   };
   
   // 예약 완료 및 결제하기 버튼 핸들러

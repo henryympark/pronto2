@@ -175,19 +175,21 @@ export default function AdminCustomersPage() {
     try {
       const couponMinutes = parseInt(couponCount) * 30; // 30분 단위
 
-      // customer_coupons 테이블에 쿠폰 추가
+      // customer_coupons 테이블에 쿠폰 추가 (올바른 스키마 사용)
       const { error } = await supabase
         .from('customer_coupons')
         .insert({
           customer_id: selectedCustomer.id,
-          coupon_type: 'time_bonus',
-          time_minutes: couponMinutes,
-          description: `관리자 부여 ${couponCount}개 (${couponMinutes}분)`,
+          minutes: couponMinutes,
           is_used: false,
-          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1년 후 만료
+          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1년 후 만료
+          granted_by: null, // 관리자 ID를 넣을 수 있지만 현재는 null로 설정
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
 
       if (error) {
+        console.error('쿠폰 부여 상세 오류:', error);
         throw error;
       }
 
@@ -198,6 +200,10 @@ export default function AdminCustomersPage() {
 
       setCouponDialogOpen(false);
       setSelectedCustomer(null);
+      setCouponCount('1'); // 쿠폰 개수 초기화
+      
+      // 고객 목록 새로고침
+      fetchCustomers();
     } catch (error: any) {
       console.error('쿠폰 부여 오류:', error);
       toast({
