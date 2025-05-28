@@ -10,9 +10,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Calendar } from "@/components/ui/calendar";
 import { TimeRangeSelector } from "@/domains/booking";
 import { toast } from "@/shared/hooks/useToast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { useReservationHistory } from "@/hooks/useReservationHistory";
 import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
+import { useRouter } from "next/navigation";
 
 type Reservation = {
   id: string;
@@ -73,6 +74,7 @@ export default function AdminReservationsPage() {
   
   const supabase = useSupabase();
   const { isAdmin, loading: authLoading } = useAuth();
+  const router = useRouter();
   
   useEffect(() => {
     console.log("[어드민 예약 페이지] 데이터 로드 시작");
@@ -358,7 +360,16 @@ export default function AdminReservationsPage() {
 
   return (
     <div className="container py-8">
-      <h1 className="text-2xl font-bold mb-6">예약 현황</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">예약 현황</h1>
+        <Button 
+          onClick={() => router.push('/admin/reservations/create')}
+          className="flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          예약등록
+        </Button>
+      </div>
       
       {loading ? (
         <div className="flex justify-center">

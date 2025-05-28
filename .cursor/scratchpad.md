@@ -214,36 +214,6 @@ Pronto 스튜디오 예약 서비스의 데이터베이스 구조 재설계 프�
 - ✅ 원격 저장소와 동기화 완료
 - ✅ 다음 작업을 위한 깨끗한 상태 준비 완료
 
-## Executor's Feedback or Assistance Requests
-
-### ✅ 작업 완료 보고
-관리자 페이지 로딩 최적화 작업을 성공적으로 완료하고 메인 브랜치에 병합했습니다.
-
-**완료된 최적화 내용**:
-
-1. **AuthContext 최적화**
-   - JWT metadata 기반 권한 관리로 전환
-   - 불필요한 customers 테이블 조회 제거
-   - 로딩 상태 최적화
-
-2. **관리자 페이지별 최적화**
-   - 초기 로딩 상태 제거 (false로 설정)
-   - 권한 확인과 데이터 로딩 병렬 처리
-   - AuthContext 로딩과 중복 제거
-
-3. **CSS 클래스 오류 수정**
-   - 모든 `pronto-primary` 클래스를 표준 `blue-600`으로 변경
-
-4. **깃허브 작업 완료**
-   - 커밋 메시지: "feat: 관리자 페이지 로딩 최적화 완료"
-   - feature/db-redesign → main 브랜치 병합
-   - 작업 브랜치 정리 및 원격 저장소 동기화
-
-**다음 작업 준비 상태**:
-- ✅ 현재 main 브랜치에서 작업 가능
-- ✅ 깨끗한 working tree 상태
-- ✅ 모든 변경사항이 원격 저장소에 반영됨
-
 이제 메인 브랜치에서 새로운 작업을 시작할 수 있습니다!
 
 ## Lessons
@@ -256,7 +226,7 @@ Pronto 스튜디오 예약 서비스의 데이터베이스 구조 재설계 프�
 
 ### 깃허브 작업 교훈
 1. **체계적인 커밋**: 상세한 커밋 메시지로 변경사항을 명확히 기록
-2. **브랜치 관리**: 작업 완료 후 불필요한 브랜치는 정리하여 깔끔한 상태 유지
+2. **브랜치 관리**: 작업 완료 후 불필요한 브랜치는 정리하여 깔끗한 상태 유지
 3. **원격 동기화**: 로컬과 원격 저장소의 일관성 유지 중요
 
 # Pronto 스튜디오 예약 서비스 - 서비스 페이지 리뷰 갯수 표시 개선 (완료)
@@ -306,7 +276,7 @@ Pronto 스튜디오 예약 서비스의 데이터베이스 구조 재설계 프�
 - ✅ **리뷰 갯수 별도 관리**: `reviewCount` 상태 추가로 탭 라벨에 즉시 반영
 - ✅ **효율적인 데이터 로딩**: 
   - 최초 진입 시: 리뷰 갯수만 조회 (빠른 로딩)
-  - 리뷰 탭 클릭 시: 상세 리뷰 데이터 조회 (필요할 때만)
+  - 리뷰 탭 클릭 시: 상세 리뷰 데이터 조회 (필요시에만)
 - ✅ **타입 안정성**: customer 속성 매핑 오류 수정
 - ✅ **사용자 경험 개선**: 최초 진입 시부터 정확한 리뷰 갯수 표시
 
@@ -402,3 +372,105 @@ Pronto 스튜디오 예약 서비스의 데이터베이스 구조 재설계 프�
 1. **즉시 피드백**: 사용자가 기대하는 정보는 최대한 빠르게 제공
 2. **예측 가능한 동작**: 페이지 로드 시 모든 기본 정보가 표시되어야 함
 3. **불필요한 상호작용 제거**: 기본 정보 확인을 위한 추가 클릭 최소화
+
+# Pronto 서비스 - Unhandled Promise Rejection 에러 해결 (진행중)
+
+## Background and Motivation
+
+사용자가 `[object Event]` 에러를 보고했습니다. 이는 Next.js 애플리케이션에서 처리되지 않은 Promise rejection으로 인한 오류입니다. 특히 4-5단계 "운영자 대리 예약 기능"에서 발생하는 것으로 확인됩니다.
+
+## Key Challenges and Analysis
+
+### 🔍 문제 분석 결과
+
+1. **Unhandled Promise Rejection**
+   - `onUnhandledRejection` 이벤트가 발생하여 `[object Event]` 에러 표시
+   - async 함수에서 적절한 에러 처리가 부족
+   - useEffect 내부의 async 함수 호출에서 catch 처리 누락
+
+2. **예약 등록 페이지의 에러 처리 문제**
+   - `searchCustomers` 함수에서 Promise rejection 처리 부족
+   - `handleSubmit` 함수의 에러 핸들링 불완전
+   - `useEffect` 내부 async 함수 호출 시 catch 처리 누락
+
+3. **TimeRangeSelector 컴포넌트 관련 이슈**
+   - `useAvailableTimes` 훅에서 API 에러 처리 부족
+   - 프리로딩 과정에서 Promise rejection 처리 미흡
+
+## High-level Task Breakdown
+
+- [x] **Task 1**: 예약 등록 페이지 에러 처리 개선
+  - [x] `searchCustomers` 함수 에러 처리 강화
+  - [x] `handleSubmit` 함수 에러 처리 개선
+  - [x] `useEffect` 내부 async 함수 안전 호출
+  - [x] 초기화 함수들 에러 처리 개선
+
+- [x] **Task 2**: useAvailableTimes 훅 에러 처리 개선
+  - [x] `fetchAvailableTimes` 함수 try-catch 추가
+  - [x] 프리로딩 과정의 Promise rejection 처리
+  - [x] 개별 API 호출 실패 시 적절한 로깅
+
+- [ ] **Task 3**: 전역 에러 처리 개선 (필요시)
+  - [ ] 전역 unhandled rejection 핸들러 추가
+  - [ ] 에러 모니터링 시스템 구축
+
+## Project Status Board
+
+### ✅ 완료된 작업
+- ✅ 예약 등록 페이지 에러 처리 강화
+  - `searchCustomers` 함수에 포괄적인 try-catch 추가
+  - `handleSubmit` 함수의 웹훅 실패 처리 개선
+  - `useEffect`에서 async 함수 안전 호출 구현
+  - 모든 async 함수에서 unhandled promise rejection 방지
+
+- ✅ useAvailableTimes 훅 최적화
+  - `fetchAvailableTimes` API 호출 함수 에러 처리 강화
+  - 프리로딩 과정에서 개별 실패 처리
+  - Promise.allSettled 사용으로 안전한 병렬 처리
+
+### 🔧 기술적 개선 사항
+- **에러 처리 패턴 표준화**: 모든 async 함수에 try-catch 적용
+- **사용자 친화적 메시지**: console.error 대신 toast 알림 사용
+- **안전한 Promise 처리**: useEffect 내부 async 함수 .catch() 체인 추가
+- **프리로딩 최적화**: 개별 실패가 전체 프로세스를 방해하지 않도록 개선
+
+## Current Status / Progress Tracking
+
+**현재 상태**: 🔧 에러 처리 개선 진행 중 (95% 완료)
+**다음 단계**: 사용자 테스트 및 추가 에러 확인
+
+### 개선된 에러 처리 포인트
+1. **예약 등록 페이지** (`/admin/reservations/create`)
+   - 고객 검색 함수 에러 처리 강화
+   - 예약 등록 프로세스 에러 처리 개선
+   - 초기화 과정 안전 처리
+
+2. **시간 선택 컴포넌트** (`TimeRangeSelector`)
+   - API 호출 에러 처리 강화
+   - 프리로딩 실패 처리 개선
+
+## Executor's Feedback or Assistance Requests
+
+### 🎯 테스트 요청
+사용자께서는 다음 기능을 테스트해보시기 바랍니다:
+
+1. **예약 등록 기능**: http://localhost:3000/admin/reservations/create
+   - 고객 검색 기능 테스트
+   - 예약 등록 프로세스 테스트
+   - 브라우저 콘솔에서 `[object Event]` 에러 확인
+
+2. **시간 선택 기능**
+   - 날짜 변경 시 에러 발생 여부 확인
+   - 시간 슬롯 선택 시 오류 확인
+
+### ❓ 추가 정보 필요
+만약 여전히 `[object Event]` 에러가 발생한다면:
+- 브라우저 개발자 도구 콘솔의 전체 에러 스택을 공유해주세요
+- 어떤 특정 액션에서 에러가 발생하는지 알려주세요
+
+## Lessons
+1. **async 함수는 반드시 에러 처리**: 모든 async 함수에 try-catch 적용 필수
+2. **useEffect 내부 async 호출 주의**: .catch() 체인으로 unhandled rejection 방지
+3. **사용자 친화적 에러 메시지**: console.error보다 toast 알림이 효과적
+4. **Promise.allSettled 활용**: 병렬 처리에서 개별 실패가 전체를 망치지 않도록
+5. **프리로딩 에러는 치명적이지 않음**: 백그라운드 작업 실패는 무시 가능
