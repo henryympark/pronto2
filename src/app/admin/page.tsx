@@ -3,46 +3,29 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSupabase } from "@/contexts/SupabaseContext";
-import { getUserRole } from "@/domains/auth";
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
-  const supabase = useSupabase();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { authUser, isAdmin, loading } = useAuth();
 
   useEffect(() => {
-    async function checkAdminAccess() {
-      if (loading) return;
-      
-      if (!user) {
-        router.push('/auth/login');
-        return;
-      }
-
-      try {
-        const userRole = await getUserRole(supabase, user);
-        setIsAdmin(userRole.isAdmin);
-        
-        if (userRole.isAdmin === true) {
-          // 관리자 확인됨 - 페이지 표시
-          setIsLoading(false);
-        } else {
-          // 관리자 아님 - 메인 페이지로 리디렉션
-          router.push('/');
-        }
-      } catch (error) {
-        console.error('권한 확인 중 오류:', error);
-        router.push('/');
-      }
+    // AuthContext 로딩이 완료된 후에만 권한 확인
+    if (loading) return;
+    
+    if (!authUser) {
+      router.push('/auth/login');
+      return;
     }
 
-    checkAdminAccess();
-  }, [user, loading, router, supabase]);
+    if (!isAdmin) {
+      // 관리자가 아닌 경우 메인 페이지로 리디렉션
+      router.push('/');
+      return;
+    }
+  }, [authUser, isAdmin, loading, router]);
 
-  if (loading || isLoading) {
+  // AuthContext 로딩 중이거나 권한 확인 중일 때만 로딩 표시
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
@@ -53,8 +36,9 @@ export default function AdminPage() {
     );
   }
 
-  if (isAdmin !== true) {
-    return null; // 리디렉션 중
+  // 권한이 없는 경우 리디렉션 중
+  if (!authUser || !isAdmin) {
+    return null;
   }
 
   return (
@@ -92,6 +76,17 @@ export default function AdminPage() {
             className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           >
             고객 관리
+          </button>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">리뷰 관리</h2>
+          <p className="text-gray-600">고객 리뷰를 관리하세요.</p>
+          <button 
+            onClick={() => router.push('/admin/reviews')}
+            className="mt-4 bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
+          >
+            리뷰 관리
           </button>
         </div>
       </div>

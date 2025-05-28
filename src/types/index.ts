@@ -35,37 +35,89 @@ export interface TimeSlot {
 }
 
 /**
- * 고객 정보 타입
+ * 사용자 역할 타입
+ */
+export type UserRole = 'customer' | 'admin';
+
+/**
+ * 권한 타입
+ */
+export type Permission = 'read' | 'write' | 'delete' | 'admin';
+
+/**
+ * 리소스 타입
+ */
+export type Resource = 'customers' | 'reviews' | 'reservations' | 'services';
+
+/**
+ * 인증된 사용자 정보 타입 (JWT metadata 기반)
+ */
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  nickname?: string;
+}
+
+/**
+ * JWT 페이로드 타입
+ */
+export interface JWTPayload {
+  aud: string;
+  exp: number;
+  iat: number;
+  iss: string;
+  sub: string;
+  email: string;
+  phone: string;
+  app_metadata: {
+    provider: string;
+    providers: string[];
+  };
+  user_metadata: {
+    role?: UserRole;
+  };
+  role: string;
+}
+
+/**
+ * 고객 정보 타입 (수정됨 - 새로운 DB 구조 반영)
  * 
- * @property id - 고객 ID (UUID)
+ * @property id - 고객 ID (UUID, auth.users.id와 동일한 값)
  * @property email - 이메일 주소
+ * @property role - 사용자 역할 (customer, admin)
  * @property nickname - 닉네임
  * @property phone - 전화번호
- * @property auth_provider - 인증 제공자 (email, kakao, naver 등)
- * @property role - 사용자 역할 (customer, admin 등)
- * @property is_active - 활성 상태 여부
- * @property accumulated_time_minutes - 적립된 시간 (분 단위)
+ * @property profile_image - 프로필 이미지 URL
  * @property created_at - 생성 일시
+ * @property updated_at - 수정 일시
+ * @property accumulated_time_minutes - 적립된 시간 (분 단위)
+ * @property memo - 관리자 메모
+ * @property is_active - 활성 상태 여부
  */
 export interface Customer {
-  /** 고객 ID (UUID) */
+  /** 고객 ID (UUID, auth.users.id와 동일한 값) */
   id: string;
   /** 이메일 주소 */
-  email?: string;
+  email: string;
+  /** 사용자 역할 */
+  role: UserRole;
   /** 닉네임 */
   nickname?: string;
   /** 전화번호 */
   phone?: string;
-  /** 인증 제공자 (email, kakao, naver 등) */
-  auth_provider: string;
-  /** 사용자 역할 (customer, admin 등) */
-  role: string;
-  /** 활성 상태 여부 */
-  is_active: boolean;
-  /** 적립된 시간 (분 단위) */
-  accumulated_time_minutes: number;
+  /** 프로필 이미지 URL */
+  profile_image?: string;
   /** 생성 일시 */
   created_at: string;
+  /** 수정 일시 */
+  updated_at: string;
+  /** 적립된 시간 (분 단위) */
+  accumulated_time_minutes: number;
+  /** 관리자 메모 */
+  memo?: string;
+  /** 활성 상태 여부 */
+  is_active: boolean;
 }
 
 /**
@@ -190,8 +242,26 @@ export interface ReviewImage {
   created_at: string;
 }
 
+/**
+ * 리뷰 타입 (수정됨 - 새로운 외래키 관계 반영)
+ * 
+ * @property id - 리뷰 ID
+ * @property customer_id - 고객 ID (customers.id를 참조하도록 명확화)
+ * @property service_id - 서비스 ID
+ * @property reservation_id - 예약 ID
+ * @property rating - 별점 (1-5)
+ * @property content - 리뷰 내용
+ * @property is_hidden - 숨김 여부
+ * @property created_at - 생성 일시
+ * @property updated_at - 수정 일시
+ * @property deleted_at - 삭제 일시 (소프트 삭제)
+ * @property customer - 조인된 고객 정보 (옵셔널)
+ * @property service - 조인된 서비스 정보 (옵셔널)
+ * @property images - 조인된 이미지 정보 (옵셔널)
+ */
 export interface Review {
   id: string;
+  /** 고객 ID (customers.id를 참조하도록 명확화) */
   customer_id: string;
   service_id: string;
   reservation_id: string;
@@ -201,10 +271,12 @@ export interface Review {
   created_at: string;
   updated_at: string | null;
   deleted_at: string | null;
-  // 조인 관계
+  
+  // 조인된 데이터 (옵셔널)
   customer?: {
     id: string;
-    name: string;
+    nickname: string;
+    email: string;
   };
   service?: {
     id: string;

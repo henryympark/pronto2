@@ -4,16 +4,20 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { Session, User, Provider } from "@supabase/supabase-js";
 import { useSupabase } from "./SupabaseContext";
 import { clearRoleCache } from "@/domains/auth";
+import { AuthUser, UserRole } from "@/types";
 
-// ✅ 단순화된 타입 정의
+// ✅ JWT metadata 기반 권한 관리를 포함한 타입 정의
 type AuthContextType = {
   session: Session | null;
   user: User | null;
+  authUser: AuthUser | null;
+  isAdmin: boolean;
   loading: boolean;
   error: Error | null;
   signInWithKakao: () => Promise<any>;
   signInWithNaver: () => Promise<any>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,11 +25,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   
   const mountedRef = useRef(true);
   const supabase = useSupabase();
+  
+  // 관리자 권한 확인 (JWT metadata 기반)
+  const isAdmin = authUser?.role === 'admin';
   
   // 디버깅 로그
   const debugLog = useCallback((action: string, data?: any) => {
@@ -37,8 +45,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
   }, []);
+
+  // ✅ 최적화된 사용자 정보 새로고침 (JWT metadata만 사용)
+  const refreshUser = useCallback(async () => {
+    if (!mountedRef.current) return;
+    
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      setUser(currentUser);
+
+      if (currentUser) {
+        // JWT 토큰에서 모든 정보 추출 (DB 조회 없음)
+        const role = currentUser.user_metadata?.role || 'customer';
+        const nickname = currentUser.user_metadata?.name || currentUser.user_metadata?.nickname;
+
+        const authUserData: AuthUser = {
+          id: currentUser.id,
+          email: currentUser.email || '',
+          role: role as UserRole,
+          nickname: nickname,
+        };
+
+        setAuthUser(authUserData);
+        debugLog('사용자 정보 새로고침 완료 (JWT만 사용)', { 
+          userId: currentUser.id, 
+          role: role,
+          nickname: nickname,
+          source: 'JWT_metadata'
+        });
+      } else {
+        setAuthUser(null);
+      }
+    } catch (error) {
+      debugLog('사용자 정보 새로고침 오류', { error });
+      setUser(null);
+      setAuthUser(null);
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [supabase, debugLog]);
   
-  // ✅ 단순화된 세션 가져오기
+  // ✅ 빠른 세션 가져오기
   const getSession = useCallback(async () => {
     if (!mountedRef.current) return;
     
@@ -54,8 +103,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (mountedRef.current) {
         setSession(currentSession);
-        setUser(currentSession?.user || null);
-        setLoading(false); // ✅ 명시적으로 로딩 해제
+        
+        if (currentSession?.user) {
+          // JWT에서 즉시 사용자 정보 추출 (비동기 없음)
+          const role = currentSession.user.user_metadata?.role || 'customer';
+          const nickname = currentSession.user.user_metadata?.name || currentSession.user.user_metadata?.nickname;
+
+          const authUserData: AuthUser = {
+            id: currentSession.user.id,
+            email: currentSession.user.email || '',
+            role: role as UserRole,
+            nickname: nickname,
+          };
+
+          setUser(currentSession.user);
+          setAuthUser(authUserData);
+          setLoading(false);
+          
+          debugLog('즉시 사용자 정보 설정 완료', { 
+            userId: currentSession.user.id, 
+            role: role,
+            source: 'session_JWT'
+          });
+        } else {
+          setUser(null);
+          setAuthUser(null);
+          setLoading(false);
+        }
       }
       
     } catch (err) {
@@ -64,7 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setError(err instanceof Error ? err : new Error(String(err)));
         setSession(null);
         setUser(null);
-        setLoading(false); // ✅ 에러 시에도 로딩 해제
+        setAuthUser(null);
+        setLoading(false);
       }
     }
   }, [supabase.auth, debugLog]);
@@ -77,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 상태 먼저 클리어
       setSession(null);
       setUser(null);
+      setAuthUser(null);
       setLoading(false);
       
       // 권한 캐시 클리어
@@ -144,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase.auth, debugLog]);
 
-  // ✅ 개선된 초기화 및 상태 변경 감지
+  // ✅ 최적화된 초기화 및 상태 변경 감지
   useEffect(() => {
     debugLog('AuthProvider 마운트');
     mountedRef.current = true;
@@ -162,51 +238,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         switch (event) {
           case 'SIGNED_IN':
             setSession(newSession);
-            setUser(newSession?.user || null);
-            setLoading(false); // ✅ 명시적으로 로딩 해제
+            if (newSession?.user) {
+              // JWT에서 즉시 사용자 정보 추출
+              const role = newSession.user.user_metadata?.role || 'customer';
+              const nickname = newSession.user.user_metadata?.name || newSession.user.user_metadata?.nickname;
+
+              const authUserData: AuthUser = {
+                id: newSession.user.id,
+                email: newSession.user.email || '',
+                role: role as UserRole,
+                nickname: nickname,
+              };
+
+              setUser(newSession.user);
+              setAuthUser(authUserData);
+              setLoading(false);
+            }
             break;
             
           case 'SIGNED_OUT':
             setSession(null);
             setUser(null);
-            setLoading(false); // ✅ 명시적으로 로딩 해제
-            clearRoleCache(); // 로그아웃 시 권한 캐시 클리어
+            setAuthUser(null);
+            setLoading(false);
+            clearRoleCache();
             break;
             
           case 'TOKEN_REFRESHED':
             if (newSession) {
               setSession(newSession);
+              // 토큰 갱신 시에도 즉시 정보 추출
+              const role = newSession.user.user_metadata?.role || 'customer';
+              const nickname = newSession.user.user_metadata?.name || newSession.user.user_metadata?.nickname;
+
+              const authUserData: AuthUser = {
+                id: newSession.user.id,
+                email: newSession.user.email || '',
+                role: role as UserRole,
+                nickname: nickname,
+              };
+
               setUser(newSession.user);
+              setAuthUser(authUserData);
+              setLoading(false);
             }
-            setLoading(false); // ✅ TOKEN_REFRESHED에서도 로딩 해제
             break;
             
-          case 'INITIAL_SESSION': // ✅ 초기 세션 이벤트 처리
+          case 'INITIAL_SESSION':
             setSession(newSession);
-            setUser(newSession?.user || null);
-            setLoading(false);
+            if (newSession?.user) {
+              // 초기 세션에서도 즉시 정보 추출
+              const role = newSession.user.user_metadata?.role || 'customer';
+              const nickname = newSession.user.user_metadata?.name || newSession.user.user_metadata?.nickname;
+
+              const authUserData: AuthUser = {
+                id: newSession.user.id,
+                email: newSession.user.email || '',
+                role: role as UserRole,
+                nickname: nickname,
+              };
+
+              setUser(newSession.user);
+              setAuthUser(authUserData);
+              setLoading(false);
+            } else {
+              setLoading(false);
+            }
             break;
             
           case 'PASSWORD_RECOVERY':
-            // 비밀번호 복구 시에도 로딩 해제
             setLoading(false);
             break;
             
           default:
             debugLog('알 수 없는 인증 이벤트', { event });
-            setLoading(false); // ✅ 모든 경우에 로딩 해제
+            setLoading(false);
         }
       }
     );
 
+    // 컴포넌트 언마운트 시 정리
     return () => {
       debugLog('AuthProvider 언마운트');
       mountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [getSession, supabase.auth, debugLog]);
+  }, [supabase.auth, debugLog, getSession]);
 
-  // ✅ 로딩 타임아웃 (최대 10초 후 강제 해제)
+  // ✅ 로딩 타임아웃 (최대 3초 후 강제 해제)
   useEffect(() => {
     if (loading) {
       const timeoutId = setTimeout(() => {
@@ -214,7 +333,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           debugLog('로딩 타임아웃 - 강제 해제');
           setLoading(false);
         }
-      }, 10000); // 10초 타임아웃
+      }, 3000); // 3초 타임아웃으로 단축
 
       return () => clearTimeout(timeoutId);
     }
@@ -223,11 +342,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     session,
     user,
+    authUser,
+    isAdmin,
     loading,
     error,
     signInWithKakao,
     signInWithNaver,
     signOut,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

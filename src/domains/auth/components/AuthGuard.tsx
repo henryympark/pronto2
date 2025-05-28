@@ -6,8 +6,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSupabase } from '@/contexts/SupabaseContext';
-import { getUserRole, clearUserCache, type UserRole } from '../services/authUtils';
 import { Loader2 } from 'lucide-react';
 
 // =================================
@@ -40,7 +38,7 @@ export interface AuthGuardProps {
 export interface AuthGuardState {
   isLoading: boolean;
   isAuthorized: boolean | null;
-  userRole: UserRole | null;
+  userRole: 'admin' | 'customer' | null;
   error: string | null;
   checkCompleted: boolean;
 }
@@ -163,8 +161,7 @@ export function AuthGuard({
   // 훅 및 참조
   // =================================
   
-  const { user, loading: authLoading } = useAuth();
-  const supabase = useSupabase();
+  const { authUser, isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
   
   // 중복 실행 방지
@@ -180,7 +177,7 @@ export function AuthGuard({
   };
   
   // =================================
-  // 권한 체크 로직
+  // 권한 체크 로직 (JWT metadata 기반)
   // =================================
   
   const performAuthCheck = async (): Promise<void> => {
@@ -193,97 +190,77 @@ export function AuthGuard({
     checkInProgress.current = true;
     log('권한 체크 시작', { 
       requiredRole, 
-      hasUser: !!user, 
+      hasUser: !!authUser, 
+      isAdmin,
       authLoading 
     });
     
     try {
-      // AuthContext 로딩 대기
+      // 인증 로딩 중이면 대기
       if (authLoading) {
-        log('AuthContext 로딩 중, 대기');
+        log('인증 로딩 중, 대기');
         return;
       }
       
-      // 권한별 체크 로직
-      switch (requiredRole) {
-        case 'guest':
-          // guest는 누구나 접근 가능
-          log('게스트 권한 - 접근 허용');
-          setState(prev => ({
-            ...prev,
-            isLoading: false,
-            isAuthorized: true,
-            checkCompleted: true
-          }));
-          break;
-          
-        case 'user':
-          // 로그인된 사용자만 접근 가능
-          if (!user) {
-            log('로그인 필요 - 권한 없음');
-            await handleUnauthorized('로그인이 필요합니다');
-          } else {
-            log('로그인된 사용자 - 접근 허용', { userId: user.id });
-            setState(prev => ({
-              ...prev,
-              isLoading: false,
-              isAuthorized: true,
-              checkCompleted: true
-            }));
-          }
-          break;
-          
-        case 'admin':
-          // 관리자만 접근 가능
-          if (!user) {
-            log('관리자 권한 필요하지만 로그인되지 않음');
-            await handleUnauthorized('로그인이 필요합니다');
-          } else {
-            // 통합 권한 유틸리티로 관리자 확인
-            log('관리자 권한 확인 시작');
-            const userRole = await getUserRole(supabase, user);
-            
-            log('관리자 권한 확인 완료', {
-              isAdmin: userRole.isAdmin,
-              role: userRole.role,
-              source: userRole.source
-            });
-            
-            setState(prev => ({
-              ...prev,
-              userRole,
-              isLoading: false,
-              checkCompleted: true
-            }));
-            
-            if (userRole.isAdmin) {
-              log('관리자 권한 확인됨 - 접근 허용');
-              setState(prev => ({
-                ...prev,
-                isAuthorized: true
-              }));
-            } else {
-              log('관리자 권한 없음');
-              await handleUnauthorized('관리자 권한이 필요합니다');
-            }
-          }
-          break;
-          
-        default:
-          log('알 수 없는 권한 레벨', { requiredRole });
-          await handleUnauthorized('잘못된 권한 설정입니다');
+      let isAuthorized = false;
+      let userRole: 'admin' | 'customer' | null = null;
+      
+      // 권한 확인 (JWT metadata 기반)
+      if (authUser) {
+        userRole = authUser.role;
+        
+        switch (requiredRole) {
+          case 'admin':
+            isAuthorized = isAdmin;
+            break;
+          case 'user':
+            isAuthorized = true; // 로그인한 사용자면 접근 가능
+            break;
+          case 'guest':
+            isAuthorized = true; // 게스트는 항상 접근 가능
+            break;
+          default:
+            isAuthorized = false;
+        }
+      } else {
+        // 로그인하지 않은 경우
+        isAuthorized = requiredRole === 'guest';
       }
       
-    } catch (error) {
-      log('권한 체크 중 오류 발생', { error });
+      log('권한 체크 완료', { 
+        isAuthorized, 
+        userRole,
+        requiredRole 
+      });
+      
       setState(prev => ({
         ...prev,
         isLoading: false,
+        isAuthorized,
+        userRole,
+        checkCompleted: true,
+        error: null
+      }));
+      
+      // 권한이 없고 리디렉션이 필요한 경우
+      if (!isAuthorized && !noRedirect && !hasRedirected.current) {
+        await handleUnauthorized('권한 부족');
+      }
+      
+    } catch (error) {
+      log('권한 체크 오류', error);
+      
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        isAuthorized: false,
         error: error instanceof Error ? error.message : '권한 확인 중 오류가 발생했습니다',
         checkCompleted: true
       }));
       
-      await handleUnauthorized('권한 확인 중 오류가 발생했습니다');
+      if (!noRedirect && !hasRedirected.current) {
+        await handleUnauthorized('권한 체크 오류');
+      }
     } finally {
       checkInProgress.current = false;
     }
@@ -294,133 +271,91 @@ export function AuthGuard({
   // =================================
   
   const handleUnauthorized = async (reason: string): Promise<void> => {
-    log('권한 없음 처리', { reason, noRedirect });
-    
-    setState(prev => ({
-      ...prev,
-      isLoading: false,
-      isAuthorized: false,
-      error: reason,
-      checkCompleted: true
-    }));
-    
-    // 리디렉션이 비활성화된 경우 여기서 중단
-    if (noRedirect || hasRedirected.current) {
+    if (hasRedirected.current) {
+      log('이미 리디렉션됨, 스킵');
       return;
     }
     
-    // 리디렉션 처리
     hasRedirected.current = true;
-    const redirectPath = getFallbackPath(requiredRole, fallback);
+    log('권한 없음 처리', { reason, requiredRole });
     
-    log('리디렉션 실행', { path: redirectPath });
+    const redirectPath = getFallbackPath(requiredRole, fallback);
     
     // 약간의 지연 후 리디렉션 (상태 안정화)
     setTimeout(() => {
-      try {
-        router.push(redirectPath);
-      } catch (routerError) {
-        log('router.push 실패, window.location 사용', { routerError });
-        window.location.href = redirectPath;
-      }
+      log('리디렉션 실행', { redirectPath });
+      router.push(redirectPath);
     }, DEFAULT_CONFIG.REDIRECT_DELAY);
   };
   
   // =================================
-  // Effect: 권한 체크 실행
+  // 효과 훅
   // =================================
   
   useEffect(() => {
-    log('useEffect 실행', { 
-      authLoading, 
-      hasUser: !!user, 
-      checkCompleted: state.checkCompleted 
-    });
-    
-    // 이미 체크 완료된 경우 스킵
-    if (state.checkCompleted) {
-      return;
-    }
-    
-    // AuthContext 로딩 중이면 대기
-    if (authLoading) {
-      return;
-    }
+    log('AuthGuard 마운트', { requiredRole });
     
     // 권한 체크 실행
     performAuthCheck();
     
-  }, [authLoading, user, requiredRole]); // eslint-disable-line react-hooks/exhaustive-deps
-  
-  // =================================
-  // Effect: 사용자 변경 시 캐시 클리어
-  // =================================
-  
-  useEffect(() => {
     return () => {
-      // 컴포넌트 언마운트 시 사용자 캐시 클리어 (선택적)
-      if (user?.id) {
-        clearUserCache(user.id);
-        log('컴포넌트 언마운트 - 사용자 캐시 클리어', { userId: user.id });
-      }
+      log('AuthGuard 언마운트');
+      checkInProgress.current = false;
     };
-  }, [user?.id, log]);
+  }, [authUser, isAdmin, authLoading, requiredRole]);
   
   // =================================
   // 렌더링 로직
   // =================================
   
   // 로딩 중
-  if (state.isLoading) {
-    log('로딩 컴포넌트 렌더링');
-    
+  if (state.isLoading || authLoading) {
     if (loadingComponent) {
       return <>{loadingComponent}</>;
     }
-    
-    // 컴팩트한 로딩 vs 전체 화면 로딩
-    const isCompactLayout = requiredRole === 'guest' || 
-                           (requiredRole === 'user' && user);
-    
-    return isCompactLayout ? <CompactLoadingComponent /> : <DefaultLoadingComponent />;
+    return <DefaultLoadingComponent />;
   }
   
-  // 권한 없음
-  if (state.isAuthorized === false) {
-    log('권한 없음 컴포넌트 렌더링', { noRedirect });
+  // 오류 발생
+  if (state.error) {
+    log('오류 상태 렌더링', { error: state.error });
     
-    // 사용자 정의 권한 없음 컴포넌트가 있으면 사용
     if (unauthorizedComponent) {
       return <>{unauthorizedComponent}</>;
     }
     
-    // 리디렉션이 비활성화된 경우에만 기본 컴포넌트 표시
+    return <DefaultUnauthorizedComponent requiredRole={requiredRole} />;
+  }
+  
+  // 권한 없음
+  if (state.checkCompleted && !state.isAuthorized) {
+    log('권한 없음 상태 렌더링');
+    
     if (noRedirect) {
+      if (unauthorizedComponent) {
+        return <>{unauthorizedComponent}</>;
+      }
       return <DefaultUnauthorizedComponent requiredRole={requiredRole} />;
     }
     
-    // 리디렉션이 활성화된 경우 null 반환 (리디렉션 진행 중)
-    return null;
+    // 리디렉션 중이면 로딩 표시
+    return <CompactLoadingComponent />;
   }
   
-  // 권한 확인됨 - 자식 컴포넌트 렌더링
-  if (state.isAuthorized === true) {
-    log('자식 컴포넌트 렌더링');
+  // 권한 있음 - 자식 컴포넌트 렌더링
+  if (state.isAuthorized) {
+    log('권한 확인됨, 자식 컴포넌트 렌더링');
     return <>{children}</>;
   }
   
-  // 예상치 못한 상태
-  log('예상치 못한 상태', { state });
-  return null;
+  // 기본 로딩 상태
+  return <DefaultLoadingComponent />;
 }
 
 // =================================
-// 추가 유틸리티 컴포넌트들
+// 편의 컴포넌트들
 // =================================
 
-/**
- * 관리자 전용 래퍼 컴포넌트
- */
 export function AdminOnly({ 
   children, 
   fallback,
@@ -441,9 +376,6 @@ export function AdminOnly({
   );
 }
 
-/**
- * 로그인 사용자 전용 래퍼 컴포넌트
- */
 export function UserOnly({ 
   children, 
   fallback = '/auth/login',
@@ -464,9 +396,6 @@ export function UserOnly({
   );
 }
 
-/**
- * 조건부 권한 체크 컴포넌트
- */
 export function ConditionalAuth({
   condition,
   children,
@@ -478,60 +407,35 @@ export function ConditionalAuth({
   fallback?: string;
   unauthorizedComponent?: React.ReactNode;
 }): React.JSX.Element {
-  if (condition) {
-    return <>{children}</>;
-  }
-  
-  if (unauthorizedComponent) {
-    return <>{unauthorizedComponent}</>;
-  }
-  
-  if (fallback) {
-    // 즉시 리디렉션
-    if (typeof window !== 'undefined') {
-      window.location.href = fallback;
-    }
-  }
-  
-  return <DefaultUnauthorizedComponent requiredRole="custom" />;
-}
-
-// =================================
-// 훅: 권한 정보 사용
-// =================================
-
-/**
- * 현재 사용자의 권한 정보를 가져오는 훅
- */
-export function useUserRole() {
-  const { user } = useAuth();
-  const supabase = useSupabase();
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
   
   useEffect(() => {
-    async function fetchRole() {
-      if (!user) {
-        setUserRole(null);
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        const role = await getUserRole(supabase, user);
-        setUserRole(role);
-      } catch (error) {
-        console.error('권한 정보 조회 실패:', error);
-        setUserRole(null);
-      } finally {
-        setLoading(false);
-      }
+    if (!condition && fallback) {
+      router.push(fallback);
     }
-    
-    fetchRole();
-  }, [user, supabase]);
+  }, [condition, fallback, router]);
   
-  return { userRole, loading };
+  if (!condition) {
+    if (unauthorizedComponent) {
+      return <>{unauthorizedComponent}</>;
+    }
+    return <DefaultUnauthorizedComponent requiredRole="user" />;
+  }
+  
+  return <>{children}</>;
 }
 
-export default AuthGuard;
+// =================================
+// 훅
+// =================================
+
+export function useUserRole() {
+  const { authUser, isAdmin } = useAuth();
+  
+  return {
+    userRole: authUser?.role || null,
+    isAdmin,
+    isAuthenticated: !!authUser,
+    loading: false // JWT metadata 기반이므로 즉시 사용 가능
+  };
+}

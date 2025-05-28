@@ -19,31 +19,24 @@ import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
 
 export default function AdminCustomersPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [isGrantingCoupon, setIsGrantingCoupon] = useState(false);
-  const [couponDialogOpen, setCouponDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [couponCount, setCouponCount] = useState("1");
+  const [couponDialogOpen, setCouponDialogOpen] = useState(false);
   const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
-  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    nickname: "",
+  const [newCustomerData, setNewCustomerData] = useState({
     email: "",
+    nickname: "",
     phone: "",
-    password: "",
-    memo: ""
+    password: ""
   });
-  const customersPerPage = 10;
-  const supabase = useSupabase();
-  const { user } = useAuth();
   
-  useEffect(() => {
-    fetchCustomers();
-  }, [currentPage]);
+  const supabase = useSupabase();
+  const customersPerPage = 10;
   
   // 고객 목록 조회 함수
   const fetchCustomers = async () => {
@@ -97,180 +90,146 @@ export default function AdminCustomersPage() {
     setCouponCount("1");
     setCouponDialogOpen(true);
   };
-  
-  // 쿠폰 부여 확인
-  const confirmGrantCoupon = async () => {
-    if (!selectedCustomer || !user) return;
-    
-    try {
-      setIsGrantingCoupon(true);
-      
-      // grant-coupon Edge Function 호출
-      const { data, error } = await supabase.functions.invoke('grant-coupon', {
-        body: {
-          customer_id: selectedCustomer.id,
-          admin_id: user.id,
-          count: parseInt(couponCount, 10),
-          minutes: 30 // 기본 30분 쿠폰
-        }
-      });
-      
-      if (error) {
-        throw error;
-      }
-      
-      // 성공 메시지 표시
-      toast({
-        title: "쿠폰 부여 완료",
-        description: `${selectedCustomer.nickname || selectedCustomer.email || '고객'}에게 ${data.data.total_count}개의 쿠폰이 부여되었습니다.`
-      });
-      
-      // 다이얼로그 닫기
-      setCouponDialogOpen(false);
-      
-      // 고객 목록 새로고침
-      const updatedCustomers = [...customers];
-      const customerIndex = updatedCustomers.findIndex(c => c.id === selectedCustomer.id);
-      if (customerIndex !== -1) {
-        // 고객 정보 다시 가져오기
-        const { data: refreshedCustomer } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('id', selectedCustomer.id)
-          .single();
-          
-        if (refreshedCustomer) {
-          updatedCustomers[customerIndex] = refreshedCustomer;
-          setCustomers(updatedCustomers);
-        }
-      }
-      
-    } catch (err) {
-      console.error('쿠폰 부여 오류:', err);
-      toast({
-        title: "쿠폰 부여 실패",
-        description: "쿠폰을 부여하는 중 오류가 발생했습니다. 다시 시도해주세요.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsGrantingCoupon(false);
-    }
-  };
-  
-  // 고객 등록 처리
+
+  // 신규 고객 등록 다이얼로그 열기
   const handleAddCustomer = () => {
-    setNewCustomer({
-      nickname: "",
+    setNewCustomerData({
       email: "",
+      nickname: "",
       phone: "",
-      password: "",
-      memo: ""
+      password: ""
     });
     setAddCustomerDialogOpen(true);
   };
-  
-  // 고객 등록 폼 입력 처리
-  const handleNewCustomerChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setNewCustomer(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-  
-  // 고객 등록 확인
-  const confirmAddCustomer = async () => {
-    if (!user) return;
-    
-    // 입력 유효성 검사
-    if (!newCustomer.email.trim()) {
-      toast({
-        title: "입력 오류",
-        description: "이메일은 필수 입력 항목입니다.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!newCustomer.password.trim() || newCustomer.password.length < 6) {
-      toast({
-        title: "입력 오류",
-        description: "비밀번호는 6자 이상이어야 합니다.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
+
+  // 신규 고객 등록 처리
+  const handleCreateCustomer = async () => {
     try {
-      setIsAddingCustomer(true);
-      
-      // 세션 토큰 가져오기
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error("인증 세션이 없습니다. 다시 로그인해주세요.");
+      if (!newCustomerData.email || !newCustomerData.password) {
+        toast({
+          title: "오류",
+          description: "이메일과 비밀번호는 필수입니다.",
+          variant: "destructive",
+        });
+        return;
       }
-      
-      // API 엔드포인트 호출
-      const response = await axios.post('/api/admin/customers', {
-        email: newCustomer.email,
-        password: newCustomer.password,
-        nickname: newCustomer.nickname,
-        phone: newCustomer.phone,
-        memo: newCustomer.memo
-      }, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
+
+      // Supabase Auth를 통한 사용자 생성
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newCustomerData.email,
+        password: newCustomerData.password,
+        options: {
+          data: {
+            nickname: newCustomerData.nickname,
+            phone: newCustomerData.phone,
+            role: 'customer'
+          }
         }
       });
-      
-      // 성공 메시지 표시
-      toast({
-        title: "고객 등록 완료",
-        description: `${newCustomer.nickname || newCustomer.email}님이 등록되었습니다.`
-      });
-      
-      // 다이얼로그 닫기
-      setAddCustomerDialogOpen(false);
-      
-      // 고객 목록 새로고침
-      fetchCustomers();
-      
-    } catch (err: any) {
-      console.error('고객 등록 오류:', err);
-      toast({
-        title: "고객 등록 실패",
-        description: err.response?.data?.error || err.message || "고객을 등록하는 중 오류가 발생했습니다.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsAddingCustomer(false);
-    }
-  };
-  
-  // 고객별 쿠폰 개수 조회
-  const fetchCustomerCoupons = async (customerId: string): Promise<number> => {
-    try {
-      const { data, error, count } = await supabase
-        .from('customer_coupons')
-        .select('*', { count: 'exact' })
-        .eq('customer_id', customerId)
-        .eq('is_used', false);
-        
-      if (error) {
-        console.error('쿠폰 조회 오류:', error);
-        return 0;
+
+      if (authError) {
+        throw authError;
       }
-      
-      return count || 0;
-    } catch (error) {
-      console.error('쿠폰 조회 중 예외 발생:', error);
-      return 0;
+
+      if (authData.user) {
+        // customers 테이블에 추가 정보 저장
+        const { error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            id: authData.user.id,
+            email: newCustomerData.email,
+            nickname: newCustomerData.nickname,
+            phone: newCustomerData.phone,
+            role: 'customer',
+            auth_provider: 'email',
+            accumulated_time_minutes: 0,
+            is_active: true
+          });
+
+        if (customerError) {
+          throw customerError;
+        }
+
+        toast({
+          title: "성공",
+          description: "신규 고객이 등록되었습니다.",
+        });
+
+        setAddCustomerDialogOpen(false);
+        fetchCustomers(); // 목록 새로고침
+      }
+    } catch (error: any) {
+      console.error('고객 등록 오류:', error);
+      toast({
+        title: "오류",
+        description: error.message || "고객 등록에 실패했습니다.",
+        variant: "destructive",
+      });
     }
   };
-  
+
+  // 쿠폰 부여 처리
+  const handleConfirmGrantCoupon = async () => {
+    if (!selectedCustomer) return;
+
+    try {
+      const couponMinutes = parseInt(couponCount) * 30; // 30분 단위
+
+      // customer_coupons 테이블에 쿠폰 추가
+      const { error } = await supabase
+        .from('customer_coupons')
+        .insert({
+          customer_id: selectedCustomer.id,
+          coupon_type: 'time_bonus',
+          time_minutes: couponMinutes,
+          description: `관리자 부여 ${couponCount}개 (${couponMinutes}분)`,
+          is_used: false,
+          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1년 후 만료
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "성공",
+        description: `${selectedCustomer.nickname || selectedCustomer.email}님에게 ${couponMinutes}분 쿠폰이 부여되었습니다.`,
+      });
+
+      setCouponDialogOpen(false);
+      setSelectedCustomer(null);
+    } catch (error: any) {
+      console.error('쿠폰 부여 오류:', error);
+      toast({
+        title: "오류",
+        description: error.message || "쿠폰 부여에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 시간 표시 포맷팅
+  const formatTimeDisplay = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    if (hours > 0) {
+      return `${hours}시간 ${remainingMinutes}분`;
+    } else {
+      return `${remainingMinutes}분`;
+    }
+  };
+
+  // 페이지 변경 시 데이터 새로고침
+  useEffect(() => {
+    fetchCustomers();
+  }, [currentPage]);
+
+  // 컴포넌트 마운트 시 즉시 데이터 로딩
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
   const getAuthProviderText = (provider: string) => {
     switch (provider) {
       case 'email':
@@ -296,7 +255,7 @@ export default function AdminCustomersPage() {
       
       {loading ? (
         <div className="flex justify-center">
-          <div className="w-8 h-8 border-4 border-t-pronto-primary rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
       ) : error ? (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -385,7 +344,7 @@ export default function AdminCustomersPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`px-3 py-1 rounded-md ${
                         currentPage === page
-                          ? 'bg-pronto-primary text-white'
+                                                      ? 'bg-blue-600 text-white'
                           : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                     >
@@ -430,7 +389,6 @@ export default function AdminCustomersPage() {
                     <Select
                       value={couponCount}
                       onValueChange={setCouponCount}
-                      disabled={isGrantingCoupon}
                     >
                       <SelectTrigger id="coupon-count" className="w-full">
                         <SelectValue placeholder="쿠폰 개수 선택" />
@@ -455,21 +413,16 @@ export default function AdminCustomersPage() {
                 <Button
                   variant="outline"
                   onClick={() => setCouponDialogOpen(false)}
-                  disabled={isGrantingCoupon}
                 >
                   취소
                 </Button>
                 <Button
-                  onClick={confirmGrantCoupon}
-                  disabled={isGrantingCoupon}
+                  onClick={handleConfirmGrantCoupon}
                 >
-                  {isGrantingCoupon ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      처리 중...
-                    </>
-                  ) : (
+                  {selectedCustomer ? (
                     '쿠폰 부여'
+                  ) : (
+                    '고객 선택'
                   )}
                 </Button>
               </DialogFooter>
@@ -490,11 +443,10 @@ export default function AdminCustomersPage() {
                     id="email"
                     name="email"
                     type="email"
-                    value={newCustomer.email}
-                    onChange={handleNewCustomerChange}
+                    value={newCustomerData.email}
+                    onChange={(e) => setNewCustomerData(prev => ({ ...prev, email: e.target.value }))}
                     placeholder="이메일 주소"
                     required
-                    disabled={isAddingCustomer}
                   />
                 </div>
                 
@@ -504,11 +456,10 @@ export default function AdminCustomersPage() {
                     id="password"
                     name="password"
                     type="text"
-                    value={newCustomer.password}
-                    onChange={handleNewCustomerChange}
+                    value={newCustomerData.password}
+                    onChange={(e) => setNewCustomerData(prev => ({ ...prev, password: e.target.value }))}
                     placeholder="6자 이상 입력"
                     required
-                    disabled={isAddingCustomer}
                   />
                   <p className="text-xs text-gray-500">6자 이상의 비밀번호를 입력해주세요.</p>
                 </div>
@@ -518,10 +469,9 @@ export default function AdminCustomersPage() {
                   <Input
                     id="nickname"
                     name="nickname"
-                    value={newCustomer.nickname}
-                    onChange={handleNewCustomerChange}
+                    value={newCustomerData.nickname}
+                    onChange={(e) => setNewCustomerData(prev => ({ ...prev, nickname: e.target.value }))}
                     placeholder="이름 또는 닉네임"
-                    disabled={isAddingCustomer}
                   />
                 </div>
                 
@@ -530,22 +480,9 @@ export default function AdminCustomersPage() {
                   <Input
                     id="phone"
                     name="phone"
-                    value={newCustomer.phone}
-                    onChange={handleNewCustomerChange}
+                    value={newCustomerData.phone}
+                    onChange={(e) => setNewCustomerData(prev => ({ ...prev, phone: e.target.value }))}
                     placeholder="010-0000-0000"
-                    disabled={isAddingCustomer}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="memo">메모</Label>
-                  <Textarea
-                    id="memo"
-                    name="memo"
-                    value={newCustomer.memo}
-                    onChange={handleNewCustomerChange}
-                    placeholder="고객에 대한 메모를 입력하세요"
-                    disabled={isAddingCustomer}
                   />
                 </div>
               </div>
@@ -554,22 +491,13 @@ export default function AdminCustomersPage() {
                 <Button
                   variant="outline"
                   onClick={() => setAddCustomerDialogOpen(false)}
-                  disabled={isAddingCustomer}
                 >
                   취소
                 </Button>
                 <Button
-                  onClick={confirmAddCustomer}
-                  disabled={isAddingCustomer}
+                  onClick={handleCreateCustomer}
                 >
-                  {isAddingCustomer ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      등록 중...
-                    </>
-                  ) : (
-                    '고객 등록'
-                  )}
+                  '고객 등록'
                 </Button>
               </DialogFooter>
             </DialogContent>

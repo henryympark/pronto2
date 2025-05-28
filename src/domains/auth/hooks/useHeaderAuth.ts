@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSupabase } from "@/contexts/SupabaseContext";
 import { useIsMounted } from "@/shared/hooks";
 import { usePathname } from "next/navigation";
-import { getUserRole } from "../services/authUtils";
 
 interface HeaderAuthReturn {
   user: any;
@@ -17,35 +15,13 @@ interface HeaderAuthReturn {
 }
 
 export function useHeaderAuth(): HeaderAuthReturn {
-  const { user, loading, signOut } = useAuth();
-  const supabase = useSupabase();
+  const { user, authUser, isAdmin, loading, signOut } = useAuth();
   const isMounted = useIsMounted();
   const pathname = usePathname();
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   
   const isServicePage = useMemo(() => {
     return pathname?.includes('/service/') ?? false;
   }, [pathname]);
-  
-  // 사용자 권한 확인
-  useEffect(() => {
-    async function checkUserRole() {
-      if (!user || loading) {
-        setIsAdmin(false);
-        return;
-      }
-      
-      try {
-        const userRole = await getUserRole(supabase, user);
-        setIsAdmin(userRole.isAdmin);
-      } catch (error) {
-        console.error('[HeaderAuth] 권한 확인 실패:', error);
-        setIsAdmin(false);
-      }
-    }
-    
-    checkUserRole();
-  }, [user, loading, supabase]);
   
   // ✅ sessionStorage 기반 백업 체크가 포함된 버튼 렌더링 로직
   const shouldRenderUserButtons = useMemo(() => {
@@ -64,8 +40,8 @@ export function useHeaderAuth(): HeaderAuthReturn {
       }
     }
     
-    // 주 조건 또는 백업 조건
-    const mainCondition = isMounted && !loading && !!user;
+    // 주 조건 또는 백업 조건 (JWT metadata 기반)
+    const mainCondition = isMounted && !loading && !!authUser;
     const backupCondition = isMounted && hasUserFromStorage && loading;
     
     const result = mainCondition || backupCondition;
@@ -78,13 +54,14 @@ export function useHeaderAuth(): HeaderAuthReturn {
         result,
         isMounted,
         loading,
-        hasUser: !!user,
+        hasAuthUser: !!authUser,
+        isAdmin,
         pathname
       });
     }
     
     return result;
-  }, [isMounted, loading, user, isServicePage, pathname]);
+  }, [isMounted, loading, authUser, isAdmin, isServicePage, pathname]);
 
   const shouldRenderLoginButton = useMemo(() => {
     // sessionStorage 기반 백업 체크
@@ -102,7 +79,7 @@ export function useHeaderAuth(): HeaderAuthReturn {
       }
     }
     
-    const mainCondition = isMounted && !loading && !user;
+    const mainCondition = isMounted && !loading && !authUser;
     const backupCondition = isMounted && !hasUserFromStorage && loading;
     
     const result = mainCondition || backupCondition;
@@ -115,13 +92,13 @@ export function useHeaderAuth(): HeaderAuthReturn {
         result,
         isMounted,
         loading,
-        hasUser: !!user,
+        hasAuthUser: !!authUser,
         pathname
       });
     }
     
     return result;
-  }, [isMounted, loading, user, isServicePage, pathname]);
+  }, [isMounted, loading, authUser, isServicePage, pathname]);
   
   // 단순한 로그아웃 처리
   const handleSignOut = async () => {
@@ -145,7 +122,9 @@ export function useHeaderAuth(): HeaderAuthReturn {
         isMounted,
         loading,
         hasUser: !!user,
-        userId: user?.id,
+        hasAuthUser: !!authUser,
+        userId: authUser?.id,
+        userRole: authUser?.role,
         isAdmin,
         shouldRenderUserButtons,
         shouldRenderLoginButton,
@@ -163,7 +142,7 @@ export function useHeaderAuth(): HeaderAuthReturn {
         console.log('[HeaderAuth] 일반 페이지 상태:', logData);
       }
     }
-  }, [pathname, isServicePage, isMounted, loading, user, isAdmin, shouldRenderUserButtons, shouldRenderLoginButton]);
+  }, [pathname, isServicePage, isMounted, loading, user, authUser, isAdmin, shouldRenderUserButtons, shouldRenderLoginButton]);
   
   return {
     user,

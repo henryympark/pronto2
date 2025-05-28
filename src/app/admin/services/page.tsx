@@ -52,7 +52,7 @@ type OperatingHours = {
 };
 
 export default function AdminServicesPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -99,9 +99,11 @@ export default function AdminServicesPage() {
   
   const timeOptions = generateTimeOptions();
   
+  // 컴포넌트 마운트 시 즉시 데이터 로딩
   useEffect(() => {
     async function fetchServices() {
       try {
+        setLoading(true);
         // 서비스 목록은 일반 클라이언트로 조회 (RLS로 모든 사용자가 볼 수 있음)
         const { data, error } = await supabase
           .from('services')
@@ -553,7 +555,7 @@ export default function AdminServicesPage() {
       
       {loading ? (
         <div className="flex justify-center">
-          <div className="w-8 h-8 border-4 border-t-pronto-primary rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
       ) : error ? (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -581,7 +583,7 @@ export default function AdminServicesPage() {
                     onClick={() => handleServiceChange(service.id)}
                     className={`w-full text-left p-3 rounded-md border transition-colors ${
                       selectedService?.id === service.id
-                        ? 'bg-pronto-primary text-white border-pronto-primary'
+                        ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white hover:bg-gray-50 border-gray-200'
                     }`}
                   >
@@ -793,7 +795,7 @@ export default function AdminServicesPage() {
                           <div className="font-medium text-lg">등록된 휴무일 목록</div>
                           {loadingHolidays ? (
                             <div className="flex justify-center p-4">
-                              <div className="w-6 h-6 border-2 border-t-pronto-primary rounded-full animate-spin"></div>
+                              <div className="w-6 h-6 border-2 border-t-blue-600 rounded-full animate-spin"></div>
                             </div>
                           ) : holidays.length === 0 ? (
                             <div className="text-center py-8 bg-gray-50 rounded-lg">
@@ -873,7 +875,7 @@ export default function AdminServicesPage() {
                         
                         {loadingOperatingHours ? (
                           <div className="flex justify-center p-4">
-                            <div className="w-6 h-6 border-2 border-t-pronto-primary rounded-full animate-spin"></div>
+                            <div className="w-6 h-6 border-2 border-t-blue-600 rounded-full animate-spin"></div>
                           </div>
                         ) : (
                           <div className="space-y-4">

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useSupabase } from "@/contexts/SupabaseContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Reservation = {
   id: string;
@@ -33,58 +34,16 @@ type Reservation = {
 };
 
 export default function AdminReservationsPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const supabase = useSupabase();
+  const { isAdmin, loading: authLoading } = useAuth();
   
   useEffect(() => {
     console.log("[어드민 예약 페이지] 데이터 로드 시작");
-    
-    async function fetchReservations() {
-      try {
-        console.log("[어드민 예약 페이지] Supabase 쿼리 시작");
-        
-        const { data, error } = await supabase
-          .from('reservations')
-          .select(`
-            *,
-            customers(id, email, nickname, phone),
-            services(id, name, price_per_hour)
-          `)
-          .order('created_at', { ascending: false });
-          
-        console.log("[어드민 예약 페이지] 쿼리 완료", { 
-          hasError: !!error, 
-          dataLength: data?.length || 0
-        });
-          
-        if (error) {
-          console.error("[어드민 예약 페이지] 데이터 로드 에러:", error);
-          
-          if (error.code === 'PGRST116' || error.message?.includes('permission denied')) {
-            const errorMsg = error.code === 'PGRST116'
-              ? '예약 테이블이 아직 존재하지 않습니다.'
-              : '예약 테이블에 접근할 권한이 없습니다.';
-            
-            setError(errorMsg);
-          } else {
-            throw error;
-          }
-        }
-        
-        console.log("[어드민 예약 페이지] 데이터 로드 성공");
-        setReservations(data || []);
-      } catch (err: any) {
-        console.error('[어드민 예약 페이지] 예약 정보 로딩 오류:', err);
-        setError(err.message || '예약 정보를 불러오는데 실패했습니다.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    
     fetchReservations();
   }, [supabase]);
   
@@ -131,13 +90,78 @@ export default function AdminReservationsPage() {
     }
   };
   
+  async function fetchReservations() {
+    try {
+      setLoading(true);
+      console.log("[어드민 예약 페이지] Supabase 쿼리 시작");
+      
+      const { data, error } = await supabase
+        .from('reservations')
+        .select(`
+          *,
+          customers(id, email, nickname, phone),
+          services(id, name, price_per_hour)
+        `)
+        .order('created_at', { ascending: false });
+        
+      console.log("[어드민 예약 페이지] 쿼리 완료", { 
+        hasError: !!error, 
+        dataLength: data?.length || 0
+      });
+        
+      if (error) {
+        console.error("[어드민 예약 페이지] 데이터 로드 에러:", error);
+        
+        if (error.code === 'PGRST116' || error.message?.includes('permission denied')) {
+          const errorMsg = error.code === 'PGRST116'
+            ? '예약 테이블이 아직 존재하지 않습니다.'
+            : '예약 테이블에 접근할 권한이 없습니다.';
+          
+          setError(errorMsg);
+        } else {
+          throw error;
+        }
+      }
+      
+      console.log("[어드민 예약 페이지] 데이터 로드 성공");
+      setReservations(data || []);
+    } catch (err: any) {
+      console.error('[어드민 예약 페이지] 예약 정보 로딩 오류:', err);
+      setError(err.message || '예약 정보를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+          <p className="text-lg">권한을 확인하는 중입니다...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="container py-8">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p className="font-bold">접근 권한이 없습니다</p>
+          <p>관리자 권한이 필요합니다.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container py-8">
       <h1 className="text-2xl font-bold mb-6">예약 현황</h1>
       
       {loading ? (
         <div className="flex justify-center">
-          <div className="w-8 h-8 border-4 border-t-pronto-primary rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
       ) : error ? (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">

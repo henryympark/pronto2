@@ -74,7 +74,7 @@ type FilterStatus = "all" | "visible" | "hidden" | "deleted";
 export default function AdminReviewsPage() {
   const supabase = useSupabase();
   const [reviews, setReviews] = useState<ReviewWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [selectedReview, setSelectedReview] = useState<ReviewWithDetails | null>(null);
@@ -282,6 +282,7 @@ export default function AdminReviewsPage() {
     );
   };
 
+  // 컴포넌트 마운트 시 즉시 데이터 로딩
   useEffect(() => {
     fetchReviews();
   }, [filterStatus]);
