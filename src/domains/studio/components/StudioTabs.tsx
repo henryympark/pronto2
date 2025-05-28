@@ -26,9 +26,31 @@ export const StudioTabs = React.memo(({ studio, services = [] }: StudioTabsProps
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewCount, setReviewCount] = useState<number>(0);
   const supabase = useSupabase();
 
-  // 리뷰 데이터 가져오기
+  // 리뷰 갯수만 가져오기 (최초 로딩용)
+  const fetchReviewCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('reviews')
+        .select('*', { count: 'exact', head: true })
+        .eq('service_id', studio.id)
+        .eq('is_hidden', false)
+        .is('deleted_at', null);
+
+      if (error) {
+        console.error('리뷰 갯수 조회 오류:', error);
+        return;
+      }
+
+      setReviewCount(count || 0);
+    } catch (error) {
+      console.error('리뷰 갯수 조회 오류:', error);
+    }
+  };
+
+  // 리뷰 데이터 가져오기 (상세 정보 포함)
   const fetchReviews = async () => {
     try {
       setReviewsLoading(true);
@@ -67,23 +89,30 @@ export const StudioTabs = React.memo(({ studio, services = [] }: StudioTabsProps
           ...review,
           customer: customer ? {
             id: customer.id,
-            name: customer.nickname, // nickname을 name으로 매핑
+            nickname: customer.nickname,
             email: customer.email
           } : {
             id: review.customer_id,
-            name: '알 수 없는 사용자',
+            nickname: '알 수 없는 사용자',
             email: ''
           }
         };
       });
 
       setReviews(reviewsWithCustomers);
+      // 실제 리뷰 데이터를 가져왔을 때 갯수도 업데이트
+      setReviewCount(reviewsWithCustomers.length);
     } catch (error) {
       console.error('리뷰 조회 오류:', error);
     } finally {
       setReviewsLoading(false);
     }
   };
+
+  // 컴포넌트 마운트 시 리뷰 갯수 먼저 가져오기
+  useEffect(() => {
+    fetchReviewCount();
+  }, [studio.id]);
 
   // 리뷰 탭이 활성화될 때 리뷰 데이터 가져오기
   useEffect(() => {
@@ -97,7 +126,7 @@ export const StudioTabs = React.memo(({ studio, services = [] }: StudioTabsProps
     { id: 'services', label: '서비스', icon: Music },
     { id: 'amenities', label: '편의시설', icon: Users },
     { id: 'location', label: '위치/교통', icon: MapPin },
-    { id: 'reviews', label: `리뷰 (${reviews.length})`, icon: null },
+    { id: 'reviews', label: `리뷰 (${reviewCount})`, icon: null },
   ] as const;
 
   const renderOverview = () => (
@@ -313,11 +342,11 @@ export const StudioTabs = React.memo(({ studio, services = [] }: StudioTabsProps
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                     <span className="text-blue-600 font-medium">
-                      {review.customer?.name?.substring(0, 1) || "익명"}
+                      {review.customer?.nickname?.substring(0, 1) || "익명"}
                     </span>
                   </div>
                   <div>
-                    <div className="font-medium">{review.customer?.name || "익명"}</div>
+                    <div className="font-medium">{review.customer?.nickname || "익명"}</div>
                     <div className="flex items-center space-x-2">
                       {renderStars(review.rating)}
                     </div>
