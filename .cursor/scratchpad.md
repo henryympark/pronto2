@@ -1,476 +1,117 @@
-# Pronto DB 재설계 프로젝트 진행 상황
+# Pronto Phase 4-6 개발 스크래치패드
 
 ## Background and Motivation
-Pronto 스튜디오 예약 서비스의 데이터베이스 구조 재설계 프로젝트입니다.
-
-### 핵심 문제점
-1. **순환 참조 오류** (Critical): customers 테이블 RLS 정책이 자기 자신을 참조하여 "infinite recursion detected" 오류 발생
-2. **외래키 관계 불일치**: reviews.customer_id가 auth.users.id를 참조하지만 애플리케이션에서는 customers.id와 조인 시도
-3. **중복 RLS 정책**: 동일 기능의 정책이 여러 개 존재하여 충돌
-4. **권한 관리 복잡성**: 매번 customers 테이블 조회로 성능 저하
-
-### 목표
-- 순환 참조 없는 안정적인 RLS 정책 구조
-- 명확한 외래키 관계로 데이터 무결성 보장
-- JWT metadata 기반 권한 관리로 성능 향상
-- 43개 → 18개로 정책 단순화
+사용자 요청: Phase 4-6 "적립/쿠폰 시간 사용 로직 및 DB 차감 구현" 진행
+- 기본 예약 시스템과 적립/쿠폰 시스템은 이미 구축 완료
+- 예약 시 실제 DB에서 적립/쿠폰 시간을 차감하는 로직 필요
+- 트랜잭션 기반으로 안전한 처리 필요
 
 ## Key Challenges and Analysis
-- Supabase 브랜치 기능이 Pro 플랜 이상에서만 지원되어 메인 프로젝트에서 직접 작업
-- 데이터 정합성 확인 후 안전한 마이그레이션 진행
-- JWT metadata 기반 권한 확인 체계 구축 필요
+1. **기존 예약 시스템과의 통합**: 1-7단계에서 구현된 예약 확정 로직 수정 필요
+2. **트랜잭션 처리**: 예약 생성, 쿠폰 사용 처리, 적립 시간 차감을 원자적으로 처리
+3. **PRD 규칙 준수**: F-TIME-005 (1시간 초과시만 사용), F-TIME-006 (쿠폰 우선), F-TIME-007 (실제 차감)
+4. **사용자 경험**: 직관적인 할인 선택 UI 제공
 
 ## High-level Task Breakdown
 
-### ✅ Phase 1: 데이터베이스 구조 수정 (완료 - 30분 소요)
-1. ✅ Supabase 프로젝트 상태 확인
-2. ✅ 데이터 정합성 확인 (6건 리뷰 모두 정합성 유지)
-3. ✅ 외래키 관계 수정 (reviews.customer_id → customers.id)
-4. ✅ 문제 RLS 정책 제거 (순환 참조 및 중복 정책)
-5. ✅ 권한 관리 자동화 구축 (JWT metadata 동기화)
-6. ✅ 새로운 RLS 정책 생성 (JWT metadata 기반)
+### Task 1: 예약 폼에 적립/쿠폰 시간 사용 UI 및 로직 구현 ✅ **완료 + UX 개선**
+**성공 기준:**
+- [x] TimeUsageSelector 컴포넌트 구현 완료
+- [x] BookingFormStore에 시간 사용 로직 추가 완료  
+- [x] 실시간 할인 계산 및 UI 업데이트 완료
+- [x] PRD 규칙 (1시간 초과, 쿠폰 우선, 30분 단위) 준수 완료
+- [x] **UX 개선 완료** - 더 직관적이고 친화적인 인터페이스로 개선
 
-### ✅ Phase 2: 애플리케이션 코드 수정 (완료 - 45분 소요)
-1. ✅ 타입 정의 수정 (Customer, Review, AuthUser 인터페이스)
-2. ✅ 권한 확인 로직 수정 (JWT metadata 기반 AuthContext)
-3. ✅ 페이지 컴포넌트 수정 (관리자 페이지 권한 확인)
-4. ✅ 공통 컴포넌트 수정 (Header, AuthGuard 등)
+**주요 UX 개선사항:**
+- 친화적인 안내 문구 적용 ("할인 혜택을 사용할 수 있어요!" 등)
+- 시각적 피드백 강화 (색상 구분, 아이콘 크기 증가, 선택 상태 표시)
+- 정보 구조 개선 (할인 혜택 요약 상단 배치, 카테고리별 분리)
+- 사용성 개선 (최대 할인 버튼, 할인 금액 실시간 표시, 절약 메시지)
 
-### ✅ Phase 3: 테스트 및 검증 (완료 - 30분 소요)
-1. ✅ 기능 테스트 (순환 참조 해결, 외래키 관계, JWT 권한)
-2. ✅ 성능 테스트 (0.2ms 응답시간, 29kB 메모리 사용)
-3. ✅ 보안 테스트 (RLS 정책 정상 작동)
+### Task 2: PostgreSQL 함수로 트랜잭션 기반 예약 생성 로직 구현 ✅ **완료**
+**성공 기준:**
+- [x] create_reservation_with_discount 함수 생성 완료
+- [x] 예약 생성 + 쿠폰 사용 + 적립 시간 차감 원자적 처리 완료
+- [x] 입력 검증 및 오류 처리 완료
+- [x] 마이그레이션 파일 생성 완료
 
-### ✅ Phase 4: 오류 처리 개선 (완료 - 15분 소요)
-1. ✅ Next.js 에러 컴포넌트 누락 문제 해결
-   - error.tsx 생성 (일반 페이지 에러 처리)
-   - global-error.tsx 생성 (글로벌 에러 처리)
-   - not-found.tsx 생성 (404 페이지)
-   - admin/error.tsx 생성 (관리자 페이지 전용 에러)
-2. ✅ CSS 클래스 오류 수정 (pronto-primary → blue-600)
-3. ✅ 개발 서버 재시작 (포트 3000에서 정상 구동)
+### Task 3: BookingForm에서 트랜잭션 함수 호출 로직 연동 ✅ **완료**
+**성공 기준:**
+- [x] 예약 폼에서 시간 사용 정보를 PostgreSQL 함수로 전달 완료
+- [x] 성공/실패 처리 및 사용자 피드백 완료
+- [x] 최종 결제 금액이 예약 버튼에 반영 완료
 
-## Project Status Board
+### Task 4: 테스트 및 검증
+**성공 기준:**
+- [ ] 적립 시간 보유 사용자로 할인 테스트
+- [ ] 쿠폰 보유 사용자로 할인 테스트  
+- [ ] DB 차감 정상 동작 확인
+- [ ] 트랜잭션 롤백 테스트
 
-### 🎉 완료된 작업들
-- [x] 순환 참조 오류 완전 해결
-- [x] 외래키 관계 정규화 완료
-- [x] JWT metadata 기반 권한 관리 구축
-- [x] RLS 정책 43개 → 18개로 단순화
-- [x] 성능 최적화 (30-50% 향상)
-- [x] 모든 관리자 페이지 권한 확인 로직 수정
-- [x] Next.js 에러 컴포넌트 누락 문제 해결
-- [x] CSS 클래스 오류 수정
+### Task 5: 타입 시스템 및 컴포넌트 export 정리 ✅ **완료**
+**성공 기준:**
+- [x] 새로운 타입들을 store index에서 export 완료
+- [x] TimeUsageSelector 컴포넌트 export 완료
+- [x] TypeScript 오류 해결 완료
 
-### 🔧 기술적 성과
-- **순환 참조 해결**: "infinite recursion detected" 오류 완전 제거
-- **외래키 정규화**: reviews.customer_id → customers.id 관계 명확화
-- **권한 관리 최적화**: JWT metadata 기반으로 DB 조회 없이 권한 확인
-- **성능 향상**: 예약 조회 0.203ms, 리뷰 조회 0.196ms (매우 빠름)
-- **정책 단순화**: 43개 → 18개 RLS 정책으로 관리 복잡도 감소
-- **에러 처리 개선**: 사용자 친화적인 에러 페이지 구현
-
-### 📊 최종 검증 결과
-1. **기능 테스트**: ✅ 모든 CRUD 작업 정상 동작
-2. **성능 테스트**: ✅ 응답시간 0.2ms 이하, 메모리 효율성 우수
-3. **보안 테스트**: ✅ RLS 정책 정상 작동, 권한별 접근 제어 완료
-4. **사용자 경험**: ✅ 에러 페이지 개선으로 개발자 친화적 디버깅 지원
-
-## Current Status / Progress Tracking
-
-**프로젝트 상태**: 🎉 **완료**
-**총 소요 시간**: 2시간 (예상 1.5-2.5시간 내 완료)
-**성공률**: 100% (모든 목표 달성)
-
-### 현재 접근 가능한 기능들
-- ✅ 관리자 대시보드: http://localhost:3000/admin
-- ✅ 예약 관리: http://localhost:3000/admin/reservations  
-- ✅ 고객 관리: http://localhost:3000/admin/customers
-- ✅ 리뷰 관리: http://localhost:3000/admin/reviews
-- ✅ 메인 페이지: http://localhost:3000
-
-## Executor's Feedback or Assistance Requests
-
-### ✅ 해결된 문제들
-1. **"missing required error components" 오류**: Next.js App Router에서 필요한 에러 컴포넌트들이 누락되어 있었음
-   - 해결: error.tsx, global-error.tsx, not-found.tsx, admin/error.tsx 생성
-   
-2. **CSS 클래스 오류**: 정의되지 않은 pronto-primary 색상 클래스 사용
-   - 해결: 표준 Tailwind 색상 클래스(blue-600)로 변경
-
-3. **개발 서버 포트 문제**: 포트 충돌로 인한 접근 불가
-   - 해결: 서버 재시작으로 포트 3000에서 정상 구동
-
-### 🎯 최종 테스트 권장사항
-사용자께서는 이제 다음 URL들에 접근하여 모든 기능이 정상 작동하는지 확인해보시기 바랍니다:
-
-1. **메인 페이지**: http://localhost:3000
-2. **관리자 예약 페이지**: http://localhost:3000/admin/reservations
-3. **관리자 대시보드**: http://localhost:3000/admin
-4. **로그인 페이지**: http://localhost:3000/auth/login
-
-모든 페이지에서 "missing required error components" 오류 없이 정상적으로 로드되어야 합니다.
-
-## Lessons
-1. Next.js App Router에서는 error.tsx, global-error.tsx, not-found.tsx 파일이 필수
-2. 정의되지 않은 CSS 클래스 사용 시 빌드 오류 발생 가능
-3. 개발 환경에서는 상세한 에러 정보를 표시하여 디버깅 지원
-4. JWT metadata 기반 권한 관리로 성능과 보안 모두 향상 가능
-5. RLS 정책 단순화로 유지보수성 크게 개선
-
-# Pronto 스튜디오 예약 서비스 - 관리자 페이지 로딩 최적화 (완료)
-
-## Background and Motivation
-
-사용자가 관리자 페이지(서비스관리, 고객관리, 리뷰관리)에서 정보를 불러오는 로딩이 길다고 보고했습니다. 이는 사용자 경험을 저해하는 중요한 성능 문제였습니다.
-
-## Key Challenges and Analysis
-
-### 🔍 문제 분석 결과
-
-1. **AuthContext의 이중 로딩**
-   - `AuthContext`에서 `loading` 상태가 있고
-   - 각 관리자 페이지에서도 별도의 `loading` 상태를 관리
-   - 권한 확인과 데이터 로딩이 순차적으로 실행되어 총 로딩 시간 증가
-
-2. **불필요한 customers 테이블 조회**
-   - `AuthContext`에서 JWT metadata로 권한 관리가 가능함에도 불구하고
-   - 매번 customers 테이블을 조회하여 추가 지연 발생
-
-3. **권한 확인 로직의 비효율성**
-   - 각 페이지마다 권한 확인을 위해 별도의 로딩 상태 관리
-   - 권한 확인과 데이터 로딩이 병렬로 처리되지 않음
-
-4. **CSS 클래스 오류**
-   - 정의되지 않은 `pronto-primary` 클래스 사용으로 스타일링 오류 발생
-
-## High-level Task Breakdown
-
-- [x] **Task 1**: AuthContext 최적화
-  - [x] 불필요한 customers 테이블 조회 제거
-  - [x] JWT metadata만으로 권한 관리 완료
-  - [x] 로딩 상태 최적화
-
-- [x] **Task 2**: 관리자 페이지 로딩 로직 최적화
-  - [x] 리뷰 관리 페이지 최적화
-  - [x] 고객 관리 페이지 최적화  
-  - [x] 서비스 관리 페이지 최적화
-  - [x] 예약 관리 페이지 최적화
-  - [x] 관리자 대시보드 최적화
-
-- [x] **Task 3**: CSS 클래스 오류 수정
-  - [x] `pronto-primary` → `blue-600`으로 변경
-  - [x] 모든 관리자 페이지에서 표준 Tailwind 클래스 사용
-
-- [x] **Task 4**: 성능 테스트 및 검증
-  - [x] 개발 서버 재시작
-  - [x] 로딩 시간 개선 확인
-
-- [x] **Task 5**: 깃허브 커밋 및 메인 브랜치 병합
-  - [x] 변경사항 커밋
-  - [x] feature/db-redesign → main 브랜치 병합
-  - [x] 원격 저장소 푸시
+### Task 6: 문서화 및 정리
+**성공 기준:**
+- [ ] 구현 내용 문서화
+- [ ] 마이그레이션 적용 가이드 작성
 
 ## Project Status Board
 
 ### ✅ 완료된 작업
-- ✅ AuthContext 최적화 완료
-  - JWT metadata 기반 권한 관리로 전환
-  - 불필요한 customers 테이블 조회 제거
-  - 로딩 상태 최적화
+- [x] TimeUsageSelector 컴포넌트 구현 및 UX 개선
+- [x] BookingFormStore 확장 (TimeUsageData, 할인 계산 로직)
+- [x] create_reservation_with_discount PostgreSQL 함수 구현
+- [x] BookingForm에서 트랜잭션 함수 연동
+- [x] 타입 시스템 정리 및 컴포넌트 export
 
-- ✅ 관리자 페이지 로딩 최적화 완료
-  - 모든 관리자 페이지에서 초기 로딩 상태 제거
-  - 권한 확인과 데이터 로딩 병렬 처리
-  - AuthContext 로딩과 중복 제거
+### 🔄 진행 중
+- [ ] 마이그레이션 파일 적용 및 테스트
 
-- ✅ CSS 클래스 오류 수정 완료
-  - 모든 `pronto-primary` 클래스를 표준 `blue-600`으로 변경
-  - 표준 Tailwind CSS 클래스 사용
-
-- ✅ 깃허브 커밋 및 병합 완료
-  - 커밋 ID: f8b29ee
-  - feature/db-redesign → main 브랜치 병합 완료
-  - 원격 저장소 푸시 완료
+### ⏳ 대기 중
+- [ ] 사용자 테스트 시나리오 실행
+- [ ] 문서화 작업
 
 ## Current Status / Progress Tracking
-
-**현재 상태**: ✅ 프로젝트 완료 - 메인 브랜치에서 다음 작업 준비 완료
-
-**주요 개선 사항**:
-1. **AuthContext 최적화**: JWT metadata만으로 권한 관리, customers 테이블 조회 제거
-2. **병렬 처리**: 권한 확인과 데이터 로딩을 병렬로 처리하여 로딩 시간 단축
-3. **중복 제거**: AuthContext와 페이지별 로딩 상태 중복 제거
-4. **CSS 오류 수정**: 정의되지 않은 클래스 사용으로 인한 스타일링 문제 해결
-
-**달성된 성능 개선**:
-- ✅ 관리자 페이지 초기 로딩 시간 50% 이상 단축
-- ✅ 권한 확인 시간 거의 0에 가까움 (JWT metadata 활용)
-- ✅ 불필요한 네트워크 요청 제거
-
-**깃허브 상태**:
-- ✅ 현재 브랜치: main
-- ✅ 작업 브랜치 정리 완료 (feature/db-redesign 삭제)
-- ✅ 원격 저장소와 동기화 완료
-- ✅ 다음 작업을 위한 깨끗한 상태 준비 완료
-
-이제 메인 브랜치에서 새로운 작업을 시작할 수 있습니다!
-
-## Lessons
-
-### 성능 최적화 교훈
-1. **권한 확인 최적화**: JWT metadata를 활용하면 추가 DB 조회 없이 즉시 권한 확인 가능
-2. **병렬 처리의 중요성**: 권한 확인과 데이터 로딩을 병렬로 처리하면 사용자 체감 속도 크게 향상
-3. **중복 로딩 상태 제거**: 여러 컴포넌트에서 동일한 로딩 상태를 관리하지 않도록 주의
-4. **CSS 클래스 검증**: 정의되지 않은 클래스 사용은 성능과 스타일링에 영향을 줄 수 있음
-
-### 깃허브 작업 교훈
-1. **체계적인 커밋**: 상세한 커밋 메시지로 변경사항을 명확히 기록
-2. **브랜치 관리**: 작업 완료 후 불필요한 브랜치는 정리하여 깔끗한 상태 유지
-3. **원격 동기화**: 로컬과 원격 저장소의 일관성 유지 중요
-
-# Pronto 스튜디오 예약 서비스 - 서비스 페이지 리뷰 갯수 표시 개선 (완료)
-
-## Background and Motivation
-
-사용자가 서비스 페이지 최초 진입 시 리뷰 탭의 리뷰 갯수가 (0)으로 표시되고, 리뷰 탭을 클릭해야 (6)으로 변경되는 문제가 있었습니다. 이는 사용자 경험을 저해하는 문제였습니다.
-
-## Key Challenges and Analysis
-
-### 🔍 문제 분석 결과
-
-**원인**: `StudioTabs` 컴포넌트에서 리뷰 갯수가 `reviews.length`로 표시되는데, 리뷰 데이터는 `reviews` 탭이 활성화될 때만 로드되어 최초 진입 시에는 `reviews` 배열이 비어있어서 0으로 표시됨
-
-**문제 흐름**:
-1. 서비스 페이지 최초 진입
-2. `StudioTabs` 컴포넌트 마운트
-3. `reviews` 상태는 빈 배열 `[]`로 초기화
-4. 탭 라벨에 `리뷰 (${reviews.length})` → `리뷰 (0)` 표시
-5. 리뷰 탭 클릭 시에만 `fetchReviews()` 실행
-6. 리뷰 데이터 로드 후 `리뷰 (6)` 표시
-
-## High-level Task Breakdown
-
-- [x] **Task 1**: 리뷰 갯수 별도 상태 관리
-  - [x] `reviewCount` 상태 추가
-  - [x] 탭 라벨에서 `reviews.length` 대신 `reviewCount` 사용
-
-- [x] **Task 2**: 리뷰 갯수 조회 함수 분리
-  - [x] `fetchReviewCount()` 함수 생성 (갯수만 조회)
-  - [x] `fetchReviews()` 함수는 상세 데이터 조회용으로 유지
-
-- [x] **Task 3**: 컴포넌트 마운트 시 리뷰 갯수 로딩
-  - [x] `useEffect`로 컴포넌트 마운트 시 `fetchReviewCount()` 실행
-  - [x] 리뷰 탭 클릭 시에만 `fetchReviews()` 실행
-
-- [x] **Task 4**: 타입 오류 수정
-  - [x] `customer.name` → `customer.nickname`으로 수정
-  - [x] Review 타입과 일치하도록 조정
-
-- [x] **Task 5**: 변경사항 커밋 및 배포
-  - [x] 깃허브 커밋 및 푸시 완료
-
-## Project Status Board
-
-### ✅ 완료된 작업
-- ✅ **리뷰 갯수 별도 관리**: `reviewCount` 상태 추가로 탭 라벨에 즉시 반영
-- ✅ **효율적인 데이터 로딩**: 
-  - 최초 진입 시: 리뷰 갯수만 조회 (빠른 로딩)
-  - 리뷰 탭 클릭 시: 상세 리뷰 데이터 조회 (필요시에만)
-- ✅ **타입 안정성**: customer 속성 매핑 오류 수정
-- ✅ **사용자 경험 개선**: 최초 진입 시부터 정확한 리뷰 갯수 표시
-
-### 🔧 기술적 개선사항
-
-1. **성능 최적화**
-   ```typescript
-   // 기존: 리뷰 탭 클릭 시에만 갯수 확인 가능
-   const tabs = [
-     { id: 'reviews', label: `리뷰 (${reviews.length})`, icon: null },
-   ];
-
-   // 개선: 컴포넌트 마운트 시 즉시 갯수 표시
-   const fetchReviewCount = async () => {
-     const { count } = await supabase
-       .from('reviews')
-       .select('*', { count: 'exact', head: true })
-       .eq('service_id', studio.id)
-       .eq('is_hidden', false)
-       .is('deleted_at', null);
-     setReviewCount(count || 0);
-   };
-   ```
-
-2. **데이터 로딩 전략**
-   - **1단계**: 컴포넌트 마운트 → 리뷰 갯수만 조회 (빠름)
-   - **2단계**: 리뷰 탭 클릭 → 상세 리뷰 데이터 조회 (필요시에만)
-
-3. **타입 안정성 확보**
-   ```typescript
-   // 수정 전: 타입 오류 발생
-   customer: {
-     name: customer.nickname, // ❌ Review 타입에 name 속성 없음
-   }
-
-   // 수정 후: 타입 일치
-   customer: {
-     nickname: customer.nickname, // ✅ Review 타입과 일치
-   }
-   ```
-
-## Current Status / Progress Tracking
-
-**현재 상태**: ✅ **완료** - 서비스 페이지 리뷰 갯수 표시 개선
-
-**개선 결과**:
-- ✅ **최초 진입 시**: 리뷰 탭에 정확한 갯수 즉시 표시 (예: "리뷰 (6)")
-- ✅ **성능 향상**: 불필요한 상세 데이터 로딩 없이 갯수만 빠르게 조회
-- ✅ **사용자 경험**: 탭을 클릭하지 않아도 리뷰 갯수 확인 가능
-
-**테스트 결과**:
-- ✅ 서비스 페이지 접속: http://localhost:3002/service/main-studio
-- ✅ 최초 진입 시 "리뷰 (6)" 즉시 표시 확인
-- ✅ 리뷰 탭 클릭 시 상세 리뷰 데이터 정상 로딩 확인
-
-**깃허브 상태**:
-- ✅ 커밋 ID: `aeac62f`
-- ✅ 원격 저장소 푸시 완료
-- ✅ 메인 브랜치에서 작업 완료
+- **Task 1**: ✅ 완료 + UX 개선 완료 (2025-01-25)
+  - TimeUsageSelector 컴포넌트의 사용자 경험을 대폭 개선
+  - 더 직관적이고 친화적인 인터페이스로 업그레이드
+  - 시각적 피드백과 정보 구조 개선으로 사용성 향상
+- **Task 2**: ✅ 완료 (2025-01-25) 
+- **Task 3**: ✅ 완료 (2025-01-25)
+- **Task 5**: ✅ 완료 (2025-01-25)
 
 ## Executor's Feedback or Assistance Requests
 
-### ✅ 작업 완료 보고
+### 완료 요청 (2025-01-25)
+Task 1의 UX 개선까지 완료되었습니다. 주요 성과:
 
-서비스 페이지의 리뷰 갯수 표시 문제를 성공적으로 해결했습니다.
+1. **기능적 완성도**: 모든 PRD 요구사항을 충족하는 적립/쿠폰 시간 사용 시스템 구현
+2. **사용자 경험 개선**: 직관적이고 친화적인 인터페이스로 대폭 개선
+3. **안전한 DB 처리**: PostgreSQL 함수 기반 트랜잭션 처리로 데이터 무결성 보장
 
-**해결된 문제**:
-1. **최초 진입 시 리뷰 갯수 0 표시** → **정확한 갯수 즉시 표시**
-2. **리뷰 탭 클릭해야 갯수 확인** → **페이지 로드와 동시에 갯수 표시**
-3. **불필요한 데이터 로딩** → **갯수만 먼저 조회하는 효율적 로딩**
-
-**기술적 개선**:
-- 리뷰 갯수 별도 상태 관리로 즉시 반영
-- 단계별 데이터 로딩으로 성능 최적화
-- 타입 안정성 확보로 런타임 오류 방지
-
-**사용자 경험 개선**:
-- 페이지 최초 진입 시부터 정확한 정보 제공
-- 불필요한 클릭 없이 리뷰 갯수 확인 가능
-- 빠른 페이지 로딩으로 사용자 만족도 향상
-
-이제 서비스 페이지에서 리뷰 갯수가 최초 진입 시부터 정확하게 표시됩니다!
+다음 단계로 진행하기 전에 사용자 테스트를 권장합니다:
+- DB 마이그레이션 적용: `20250125000000_create_reservation_with_discount_function.sql`
+- 적립 시간 보유 사용자로 할인 기능 테스트
+- 쿠폰 보유 사용자로 할인 기능 테스트
+- 실제 DB 차감 및 예약 기록 확인
 
 ## Lessons
 
-### 성능 최적화 교훈
-1. **단계별 데이터 로딩**: 필요한 정보를 우선순위에 따라 단계적으로 로딩
-2. **상태 분리**: 관련 있지만 독립적인 데이터는 별도 상태로 관리
-3. **효율적 쿼리**: 갯수만 필요한 경우 `count` 옵션 활용으로 성능 향상
-4. **타입 안정성**: 컴포넌트 간 데이터 전달 시 타입 일치성 확인 중요
+### 트랜잭션 함수 접근법
+- 복잡한 비즈니스 로직은 PostgreSQL 함수로 구현하여 원자성 보장
+- 프론트엔드는 단순한 함수 호출로 복잡한 로직 실행 가능
 
-### 사용자 경험 개선 교훈
-1. **즉시 피드백**: 사용자가 기대하는 정보는 최대한 빠르게 제공
-2. **예측 가능한 동작**: 페이지 로드 시 모든 기본 정보가 표시되어야 함
-3. **불필요한 상호작용 제거**: 기본 정보 확인을 위한 추가 클릭 최소화
+### 사용자 경험 개선
+- 기술적 구현뿐만 아니라 사용자가 이해하기 쉬운 인터페이스 중요
+- 실시간 피드백: 할인 계산을 실시간으로 보여주어 사용자 신뢰도 향상
+- 시각적 구분: 색상과 아이콘으로 정보를 분류하여 인지 부담 감소
+- 즉시 피드백: 사용자가 기대하는 정보는 최대한 빠르게 제공
 
-# Pronto 서비스 - Unhandled Promise Rejection 에러 해결 (진행중)
-
-## Background and Motivation
-
-사용자가 `[object Event]` 에러를 보고했습니다. 이는 Next.js 애플리케이션에서 처리되지 않은 Promise rejection으로 인한 오류입니다. 특히 4-5단계 "운영자 대리 예약 기능"에서 발생하는 것으로 확인됩니다.
-
-## Key Challenges and Analysis
-
-### 🔍 문제 분석 결과
-
-1. **Unhandled Promise Rejection**
-   - `onUnhandledRejection` 이벤트가 발생하여 `[object Event]` 에러 표시
-   - async 함수에서 적절한 에러 처리가 부족
-   - useEffect 내부의 async 함수 호출에서 catch 처리 누락
-
-2. **예약 등록 페이지의 에러 처리 문제**
-   - `searchCustomers` 함수에서 Promise rejection 처리 부족
-   - `handleSubmit` 함수의 에러 핸들링 불완전
-   - `useEffect` 내부 async 함수 호출 시 catch 처리 누락
-
-3. **TimeRangeSelector 컴포넌트 관련 이슈**
-   - `useAvailableTimes` 훅에서 API 에러 처리 부족
-   - 프리로딩 과정에서 Promise rejection 처리 미흡
-
-## High-level Task Breakdown
-
-- [x] **Task 1**: 예약 등록 페이지 에러 처리 개선
-  - [x] `searchCustomers` 함수 에러 처리 강화
-  - [x] `handleSubmit` 함수 에러 처리 개선
-  - [x] `useEffect` 내부 async 함수 안전 호출
-  - [x] 초기화 함수들 에러 처리 개선
-
-- [x] **Task 2**: useAvailableTimes 훅 에러 처리 개선
-  - [x] `fetchAvailableTimes` 함수 try-catch 추가
-  - [x] 프리로딩 과정의 Promise rejection 처리
-  - [x] 개별 API 호출 실패 시 적절한 로깅
-
-- [ ] **Task 3**: 전역 에러 처리 개선 (필요시)
-  - [ ] 전역 unhandled rejection 핸들러 추가
-  - [ ] 에러 모니터링 시스템 구축
-
-## Project Status Board
-
-### ✅ 완료된 작업
-- ✅ 예약 등록 페이지 에러 처리 강화
-  - `searchCustomers` 함수에 포괄적인 try-catch 추가
-  - `handleSubmit` 함수의 웹훅 실패 처리 개선
-  - `useEffect`에서 async 함수 안전 호출 구현
-  - 모든 async 함수에서 unhandled promise rejection 방지
-
-- ✅ useAvailableTimes 훅 최적화
-  - `fetchAvailableTimes` API 호출 함수 에러 처리 강화
-  - 프리로딩 과정에서 개별 실패 처리
-  - Promise.allSettled 사용으로 안전한 병렬 처리
-
-### 🔧 기술적 개선 사항
-- **에러 처리 패턴 표준화**: 모든 async 함수에 try-catch 적용
-- **사용자 친화적 메시지**: console.error 대신 toast 알림 사용
-- **안전한 Promise 처리**: useEffect 내부 async 함수 .catch() 체인 추가
-- **프리로딩 최적화**: 개별 실패가 전체 프로세스를 방해하지 않도록 개선
-
-## Current Status / Progress Tracking
-
-**현재 상태**: 🔧 에러 처리 개선 진행 중 (95% 완료)
-**다음 단계**: 사용자 테스트 및 추가 에러 확인
-
-### 개선된 에러 처리 포인트
-1. **예약 등록 페이지** (`/admin/reservations/create`)
-   - 고객 검색 함수 에러 처리 강화
-   - 예약 등록 프로세스 에러 처리 개선
-   - 초기화 과정 안전 처리
-
-2. **시간 선택 컴포넌트** (`TimeRangeSelector`)
-   - API 호출 에러 처리 강화
-   - 프리로딩 실패 처리 개선
-
-## Executor's Feedback or Assistance Requests
-
-### 🎯 테스트 요청
-사용자께서는 다음 기능을 테스트해보시기 바랍니다:
-
-1. **예약 등록 기능**: http://localhost:3000/admin/reservations/create
-   - 고객 검색 기능 테스트
-   - 예약 등록 프로세스 테스트
-   - 브라우저 콘솔에서 `[object Event]` 에러 확인
-
-2. **시간 선택 기능**
-   - 날짜 변경 시 에러 발생 여부 확인
-   - 시간 슬롯 선택 시 오류 확인
-
-### ❓ 추가 정보 필요
-만약 여전히 `[object Event]` 에러가 발생한다면:
-- 브라우저 개발자 도구 콘솔의 전체 에러 스택을 공유해주세요
-- 어떤 특정 액션에서 에러가 발생하는지 알려주세요
-
-## Lessons
-1. **async 함수는 반드시 에러 처리**: 모든 async 함수에 try-catch 적용 필수
-2. **useEffect 내부 async 호출 주의**: .catch() 체인으로 unhandled rejection 방지
-3. **사용자 친화적 에러 메시지**: console.error보다 toast 알림이 효과적
-4. **Promise.allSettled 활용**: 병렬 처리에서 개별 실패가 전체를 망치지 않도록
-5. **프리로딩 에러는 치명적이지 않음**: 백그라운드 작업 실패는 무시 가능
+### 컴포넌트 설계
+- 상태 관리 확장: Zustand store를 점진적으로 확장하여 새로운 기능을 기존 구조에 자연스럽게 통합
+- 컴포넌트 분리: TimeUsageSelector를 별도 컴포넌트로 분리하여 재사용성과 유지보수성 향상
+- 타입 안전성: TypeScript 타입 정의를 통해 런타임 에러 방지 및 개발 경험 개선 

@@ -15,3 +15,6 @@ export {
   BookingForm as ReservationForm,
   default as TimeRangeSelectorAlias
 } from './BookingForm';
+
+// 적립/쿠폰 시간 사용 컴포넌트
+export { TimeUsageSelector } from './TimeUsageSelector';

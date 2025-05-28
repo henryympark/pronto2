@@ -12,6 +12,7 @@ import { useToast } from "@/shared/hooks/useToast";
 import { useAuth } from "@/domains/auth";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { useRouter } from "next/navigation";
+import { TimeUsageSelector } from "./TimeUsageSelector";
 
 interface BookingFormProps {
   serviceId: string;
@@ -25,15 +26,27 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
   
   const { 
     formData, 
+    timeUsageData,
     showBookingForm, 
     isSubmitting, 
     setFormData, 
     toggleBookingForm, 
     setIsSubmitting,
-    loadRecentBookingData
+    loadRecentBookingData,
+    loadTimeUsageData,
+    calculateDiscount
   } = useBookingFormStore();
   
   const { selectedDate, selectedTimeRange, formattedDate } = useReservationStore();
+
+  // 예약 시간이 변경될 때마다 할인 계산
+  useEffect(() => {
+    if (selectedTimeRange.duration && selectedTimeRange.price && showBookingForm) {
+      const totalMinutes = selectedTimeRange.duration * 60;
+      const hourlyRate = selectedTimeRange.price / selectedTimeRange.duration;
+      calculateDiscount(totalMinutes, hourlyRate);
+    }
+  }, [selectedTimeRange.duration, selectedTimeRange.price, showBookingForm, calculateDiscount]);
   
   // 예약하기 버튼 클릭 핸들러
   const handleBookingClick = async () => {
@@ -60,10 +73,20 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
       return;
     }
 
-    // 폼이 열릴 때 사용자의 가장 최근 예약 정보 가져오기
+    // 폼이 열릴 때 사용자의 가장 최근 예약 정보와 적립/쿠폰 정보 가져오기
     if (!showBookingForm) {
       console.log('[BookingForm] 최근 예약 정보 로딩 시작');
-      await loadRecentBookingData(supabase, user.id);
+      await Promise.all([
+        loadRecentBookingData(supabase, user.id),
+        loadTimeUsageData(supabase, user.id)
+      ]);
+
+      // 초기 할인 계산
+      if (selectedTimeRange.duration && selectedTimeRange.price) {
+        const totalMinutes = selectedTimeRange.duration * 60;
+        const hourlyRate = selectedTimeRange.price / selectedTimeRange.duration;
+        calculateDiscount(totalMinutes, hourlyRate);
+      }
     }
     
     toggleBookingForm();
@@ -151,27 +174,35 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
         return;
       }
 
-      // 예약 정보 Supabase DB에 저장
-      const { data, error } = await supabase
-        .from("reservations")
-        .insert({
-          service_id: serviceId,
-          customer_id: user.id,
-          reservation_date: formattedDateStr,
-          start_time: startTime,
-          end_time: endTime,
-          total_hours: selectedTimeRange.duration,
-          total_price: selectedTimeRange.price,
-          original_total_price: selectedTimeRange.price,
-          status: "confirmed",
-          customer_name: formData.customerName,
-          company_name: formData.companyName || null,
-          shooting_purpose: formData.shootingPurpose || null,
-          vehicle_number: formData.vehicleNumber || null,
-          privacy_agreed: formData.privacyAgreed
-        })
-        .select()
-        .single();
+      // 적립/쿠폰 사용 검증
+      const isUsingDiscount = timeUsageData.selectedAccumulatedMinutes > 0 || timeUsageData.selectedCouponIds.length > 0;
+      const finalPrice = isUsingDiscount ? timeUsageData.finalPrice : selectedTimeRange.price;
+
+      console.log('[BookingForm] 예약 정보:', {
+        selectedAccumulatedMinutes: timeUsageData.selectedAccumulatedMinutes,
+        selectedCouponIds: timeUsageData.selectedCouponIds,
+        finalPrice,
+        originalPrice: selectedTimeRange.price
+      });
+
+      // 트랜잭션으로 예약 생성 및 적립/쿠폰 차감 처리
+      const { data, error } = await supabase.rpc('create_reservation_with_discount', {
+        p_service_id: serviceId,
+        p_customer_id: user.id,
+        p_reservation_date: formattedDateStr,
+        p_start_time: startTime,
+        p_end_time: endTime,
+        p_total_hours: selectedTimeRange.duration,
+        p_total_price: selectedTimeRange.price,
+        p_final_price: finalPrice,
+        p_customer_name: formData.customerName,
+        p_company_name: formData.companyName || null,
+        p_shooting_purpose: formData.shootingPurpose || null,
+        p_vehicle_number: formData.vehicleNumber || null,
+        p_privacy_agreed: formData.privacyAgreed,
+        p_used_coupon_ids: timeUsageData.selectedCouponIds,
+        p_used_accumulated_minutes: timeUsageData.selectedAccumulatedMinutes
+      });
 
       if (error) {
         console.error("[BookingForm] 예약 생성 오류:", JSON.stringify(error, null, 2));
@@ -189,11 +220,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
       // 예약 성공 시 결제 완료 페이지로 이동
       toast({
         title: "예약이 완료되었습니다",
-        description: "예약이 성공적으로 처리되었습니다."
+        description: isUsingDiscount 
+          ? `적립/쿠폰 할인이 적용되어 ${finalPrice.toLocaleString()}원으로 예약되었습니다.`
+          : "예약이 성공적으로 처리되었습니다."
       } as any);
       
       // 결제 완료 페이지로 리디렉션
-      router.push(`/payment/complete?reservationId=${data.id}`);
+      router.push(`/payment/complete?reservationId=${data.reservation_id}`);
       
     } catch (err) {
       console.error("[BookingForm] 예약 처리 중 오류:", err);
@@ -223,66 +256,80 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
       
       {/* 예약 폼 (기본적으로 숨겨짐) */}
       {showBookingForm && (
-        <div className="mt-6 space-y-4 border-t border-pronto-gray-200 pt-4">
+        <div className="mt-6 space-y-6 border-t border-pronto-gray-200 pt-4">
           <h3 className="font-medium">예약 정보 입력</h3>
           
-          <div className="space-y-2">
-            <Label htmlFor="customerName">이름 <span className="text-red-500">*</span></Label>
-            <Input
-              id="customerName"
-              value={formData.customerName}
-              onChange={(e) => setFormData({ customerName: e.target.value })}
-              placeholder="예약자 이름을 입력해주세요"
-              required
+          {/* 기본 예약 정보 입력 */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="customerName">이름 <span className="text-red-500">*</span></Label>
+              <Input
+                id="customerName"
+                value={formData.customerName}
+                onChange={(e) => setFormData({ customerName: e.target.value })}
+                placeholder="예약자 이름을 입력해주세요"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="companyName">업체명</Label>
+              <Input
+                id="companyName"
+                value={formData.companyName}
+                onChange={(e) => setFormData({ companyName: e.target.value })}
+                placeholder="업체명을 입력해주세요"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="shootingPurpose">촬영 목적</Label>
+              <Input
+                id="shootingPurpose"
+                value={formData.shootingPurpose}
+                onChange={(e) => setFormData({ shootingPurpose: e.target.value })}
+                placeholder="촬영 목적을 입력해주세요"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vehicleNumber">차량번호 (선택)</Label>
+              <Input
+                id="vehicleNumber"
+                value={formData.vehicleNumber}
+                onChange={(e) => setFormData({ vehicleNumber: e.target.value })}
+                placeholder="차량번호를 입력해주세요"
+              />
+            </div>
+          </div>
+
+          {/* 적립/쿠폰 시간 사용 섹션 */}
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="font-medium mb-4">적립/쿠폰 시간 사용</h4>
+            <TimeUsageSelector
+              totalMinutes={selectedTimeRange.duration * 60}
+              hourlyRate={selectedTimeRange.price / selectedTimeRange.duration}
+              isVisible={true}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="companyName">업체명</Label>
-            <Input
-              id="companyName"
-              value={formData.companyName}
-              onChange={(e) => setFormData({ companyName: e.target.value })}
-              placeholder="업체명을 입력해주세요"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="shootingPurpose">촬영 목적</Label>
-            <Input
-              id="shootingPurpose"
-              value={formData.shootingPurpose}
-              onChange={(e) => setFormData({ shootingPurpose: e.target.value })}
-              placeholder="촬영 목적을 입력해주세요"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="vehicleNumber">차량번호 (선택)</Label>
-            <Input
-              id="vehicleNumber"
-              value={formData.vehicleNumber}
-              onChange={(e) => setFormData({ vehicleNumber: e.target.value })}
-              placeholder="차량번호를 입력해주세요"
-            />
-          </div>
-
-          <div className="flex items-center space-x-2 pt-2">
-            <Checkbox 
-              id="privacyAgreed" 
-              checked={formData.privacyAgreed}
-              onCheckedChange={(checked) => setFormData({ privacyAgreed: checked as boolean })}
-              required
-            />
-            <Label 
-              htmlFor="privacyAgreed" 
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              개인정보 수집 및 이용에 동의합니다 <span className="text-red-500">*</span>
-            </Label>
-          </div>
-          
-          <div className="pt-4">
+          {/* 개인정보 동의 및 완료 버튼 */}
+          <div className="space-y-4 border-t border-gray-200 pt-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="privacyAgreed" 
+                checked={formData.privacyAgreed}
+                onCheckedChange={(checked) => setFormData({ privacyAgreed: checked as boolean })}
+                required
+              />
+              <Label 
+                htmlFor="privacyAgreed" 
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                개인정보 수집 및 이용에 동의합니다 <span className="text-red-500">*</span>
+              </Label>
+            </div>
+            
             <Button
               onClick={handleCompleteBooking}
               className="w-full bg-pronto-primary hover:bg-pronto-primary/90"
@@ -291,17 +338,24 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>{user ? "예약 생성 중..." : "예약 정보 저장 중..."}</span>
+                  <span>예약 생성 중...</span>
                 </div>
               ) : (
-                "예약 완료 및 결제하기"
+                <>
+                  예약 완료 및 결제하기
+                  {timeUsageData.finalPrice > 0 && timeUsageData.finalPrice !== selectedTimeRange.price && (
+                    <span className="ml-2 text-sm">
+                      ({timeUsageData.finalPrice.toLocaleString()}원)
+                    </span>
+                  )}
+                </>
               )}
             </Button>
+            
+            <p className="text-xs text-pronto-gray-500">
+              * 예약 시 입력하신 개인정보는 예약 관리 목적으로만 사용됩니다.
+            </p>
           </div>
-          
-          <p className="text-xs text-pronto-gray-500">
-            * 예약 시 입력하신 개인정보는 예약 관리 목적으로만 사용됩니다.
-          </p>
         </div>
       )}
     </div>
