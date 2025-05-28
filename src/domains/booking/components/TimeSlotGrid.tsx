@@ -56,7 +56,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
     
     // 현재 시간 슬롯으로 스크롤 (약간 왼쪽으로 오프셋 주기)
     const container = scrollContainerRef.current;
-    const slotWidth = 41; // 40px + 1px 간격
+    const slotWidth = 33; // 32px 슬롯 너비 + 1px 간격
     const containerWidth = container.clientWidth;
     const scrollPosition = Math.max(0, (closestIndex * slotWidth) - (containerWidth / 3));
     
@@ -112,7 +112,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
   // 로딩 상태 UI
   if (loading) {
     return (
-      <div className="relative">
+      <div className="relative w-full max-w-[350px] mx-auto">
         {/* 좌우 스크롤 버튼 - 로딩 중에도 표시 */}
         <Button
           variant="outline"
@@ -132,13 +132,13 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
           <ChevronRight className="h-4 w-4" />
         </Button>
         
-        <div className="w-full overflow-hidden border border-white">
+        <div className="w-full overflow-hidden border border-white rounded-md">
           <div className="overflow-x-auto hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {/* 스켈레톤 그리드 - 원래 구조와 동일 */}
             <div 
               className="grid min-w-max"
               style={{ 
-                gridTemplateColumns: `repeat(26, 40px)`, // 9시-22시 (26개 슬롯)
+                gridTemplateColumns: `repeat(26, 32px)`, // 9시-22시 (26개 슬롯) - 40px에서 32px로 변경
                 gridTemplateRows: 'auto 1fr',
                 columnGap: '1px',
                 backgroundColor: 'white',
@@ -147,7 +147,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
               {/* 첫 번째 행: 시간 눈금 스켈레톤 */}
               <div className="col-span-full bg-white relative h-10 border-b border-white">
                 {Array.from({ length: 26 }).map((_, index) => {
-                  const leftPosition = index * 40 + index * 1;
+                  const leftPosition = index * 32 + index * 1; // 40px에서 32px로 변경
                   const isHourMark = index % 2 === 0; // 정각 표시
                   
                   return (
@@ -174,7 +174,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
               </div>
               
               {/* 두 번째 행: 시간 슬롯 스켈레톤 */}
-              <div className="col-span-full grid grid-flow-col gap-[1px]" style={{ gridTemplateColumns: `repeat(26, 40px)` }}>
+              <div className="col-span-full grid grid-flow-col gap-[1px]" style={{ gridTemplateColumns: `repeat(26, 32px)` }}>
                 {Array.from({ length: 26 }).map((_, index) => (
                   <div
                     key={`skeleton-slot-${index}`}
@@ -202,7 +202,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
   }
 
   return (
-    <div className="relative">
+    <div className="relative w-full max-w-[350px] mx-auto">
       {/* 좌우 스크롤 버튼 - 모바일에서 더 큰 터치 영역 */}
       <Button
         variant="outline"
@@ -222,7 +222,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
         <ChevronRight className="h-4 w-4" />
       </Button>
       
-      <div className="w-full overflow-hidden border border-white">
+      <div className="w-full overflow-hidden border border-white rounded-md">
         <div 
           ref={scrollContainerRef}
           className="overflow-x-auto hide-scrollbar"
@@ -232,7 +232,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
           <div 
             className="grid min-w-max"
             style={{ 
-              gridTemplateColumns: `repeat(${timeSlots.length}, 40px)`,
+              gridTemplateColumns: `repeat(${timeSlots.length}, 32px)`,
               gridTemplateRows: 'auto 1fr',
               columnGap: '1px',
               backgroundColor: 'white',
@@ -241,8 +241,8 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
             {/* 첫 번째 행: 시간 눈금 및 레이블 영역 (회색 배경) */}
             <div className="col-span-full bg-white relative h-10 border-b border-white">
               {timeSlots.map((slot, index) => {
-                // 40px 슬롯 너비 + 1px 간격을 고려한 정확한 위치 계산
-                const leftPosition = index * 40 + index * 1;
+                // 32px 슬롯 너비 + 1px 간격을 고려한 정확한 위치 계산
+                const leftPosition = index * 32 + index * 1;
                 
                 return (
                   <div
@@ -275,7 +275,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
             </div>
             
             {/* 두 번째 행: 시간 슬롯 영역 (흰색 배경) */}
-            <div className="col-span-full grid grid-flow-col gap-[1px]" style={{ gridTemplateColumns: `repeat(${timeSlots.length}, 40px)` }}>
+            <div className="col-span-full grid grid-flow-col gap-[1px]" style={{ gridTemplateColumns: `repeat(${timeSlots.length}, 32px)` }}>
               {timeSlots.map((slot, index) => (
                 <button
                   key={`slot-${slot.time}`}

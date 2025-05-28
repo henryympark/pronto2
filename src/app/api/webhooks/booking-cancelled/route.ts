@@ -11,7 +11,8 @@ export async function POST(request: Request) {
       startTime, 
       endTime, 
       reservationDate,
-      cancelReason 
+      cancelReason,
+      cancelledBy // 취소 주체 (user 또는 admin)
     } = body;
 
     // 필수 필드 검증
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '필수 정보가 누락되었습니다.' }, { status: 400 });
     }
 
-    // 여기서는 웹훅 이벤트만 발생시키고, 실제 카카오 알림톡 발송은 Phase 7에서 구현
+    // 여기서는 웹훅 이벤트만 발생시키고, 실제 카카오 알림톡 발송은 Phase 8에서 구현
     console.log('예약 취소 이벤트 발생:', {
       type: 'booking.cancelled',
       data: {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
         endTime,
         reservationDate,
         cancelReason: cancelReason || '사용자 요청',
+        cancelledBy: cancelledBy || 'user', // 취소 주체 정보 추가
         timestamp: new Date().toISOString()
       }
     });

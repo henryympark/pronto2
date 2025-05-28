@@ -19,6 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatTimeDisplay } from "@/lib/date-utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Link from "next/link";
+import { useReservationHistory } from "@/hooks/useReservationHistory";
+import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
 
 // 타입 정의
 interface Service {
@@ -71,6 +73,11 @@ export default function MyPage() {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelingReservation, setCancelingReservation] = useState<Reservation | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // 예약 이력 조회 훅
+  const { history, loading: historyLoading, error: historyError } = useReservationHistory(
+    selectedReservation?.id || null
+  );
 
   // 기본 핸들러들
   const handleSignOut = async () => {
@@ -510,63 +517,87 @@ export default function MyPage() {
 
           {/* 예약 상세 정보 모달 */}
           <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>예약 상세 정보</DialogTitle>
               </DialogHeader>
               
               {selectedReservation && (
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold mb-1">서비스</h4>
-                    <p>{selectedReservation.service?.name || '알 수 없는 서비스'}</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-1">예약 상태</h4>
-                    <Badge className={getStatusColorClass(selectedReservation)}>
-                      {getStatusText(selectedReservation)}
-                    </Badge>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-1">예약 일시</h4>
-                    <p>
-                      {format(parseISO(selectedReservation.reservation_date), 'yyyy년 MM월 dd일', { locale: ko })}
-                      <br />
-                      {formatTimeString(selectedReservation.start_time)} ~ {formatTimeString(selectedReservation.end_time)}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-1">이용 시간</h4>
-                    <p>{selectedReservation.total_hours}시간</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-1">결제 정보</h4>
-                    <p>총 금액: {selectedReservation.total_price.toLocaleString()}원</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-1">예약자 정보</h4>
-                    <p>{selectedReservation.customer_name || user?.user_metadata?.name || '미설정'}</p>
-                  </div>
-                  
-                  {(selectedReservation.company_name || selectedReservation.purpose || selectedReservation.car_number) && (
+                <div className="space-y-6">
+                  {/* 기본 예약 정보 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <h4 className="font-semibold mb-1">추가 정보</h4>
-                      {selectedReservation.company_name && (
-                        <p>회사명: {selectedReservation.company_name}</p>
-                      )}
-                      {selectedReservation.purpose && (
-                        <p>촬영 목적: {selectedReservation.purpose}</p>
-                      )}
-                      {selectedReservation.car_number && (
-                        <p>차량 번호: {selectedReservation.car_number}</p>
-                      )}
+                      <h4 className="font-semibold mb-1">서비스</h4>
+                      <p>{selectedReservation.service?.name || '알 수 없는 서비스'}</p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold mb-1">예약 상태</h4>
+                      <Badge className={getStatusColorClass(selectedReservation)}>
+                        {getStatusText(selectedReservation)}
+                      </Badge>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold mb-1">예약 일시</h4>
+                      <p>
+                        {format(parseISO(selectedReservation.reservation_date), 'yyyy년 MM월 dd일', { locale: ko })}
+                        <br />
+                        {formatTimeString(selectedReservation.start_time)} ~ {formatTimeString(selectedReservation.end_time)}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold mb-1">이용 시간</h4>
+                      <p>{selectedReservation.total_hours}시간</p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold mb-1">결제 정보</h4>
+                      <p>총 금액: {selectedReservation.total_price.toLocaleString()}원</p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold mb-1">예약자 정보</h4>
+                      <p>{selectedReservation.customer_name || user?.user_metadata?.name || '미설정'}</p>
+                    </div>
+                  </div>
+
+                  {/* 추가 정보 */}
+                  {(selectedReservation.company_name || selectedReservation.purpose || selectedReservation.car_number) && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold mb-3">추가 정보</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {selectedReservation.company_name && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-500">회사명</h5>
+                            <p className="mt-1">{selectedReservation.company_name}</p>
+                          </div>
+                        )}
+                        {selectedReservation.purpose && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-500">촬영 목적</h5>
+                            <p className="mt-1">{selectedReservation.purpose}</p>
+                          </div>
+                        )}
+                        {selectedReservation.car_number && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-500">차량 번호</h5>
+                            <p className="mt-1">{selectedReservation.car_number}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
+
+                  {/* 진행이력 */}
+                  <div className="border-t pt-4">
+                    <ReservationHistoryTimeline 
+                      history={history}
+                      loading={historyLoading}
+                      error={historyError}
+                    />
+                  </div>
                 </div>
               )}
               

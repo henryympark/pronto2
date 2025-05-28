@@ -4,7 +4,7 @@
  */
 
 // 예약 폼 스토어
-export { useBookingFormStore, type BookingFormData } from './bookingFormStore';
+export { useBookingFormStore, type CustomerFormData } from './bookingFormStore';
 
 // 예약 상태 스토어
 export { useReservationStore, type TimeRange } from './reservationStore';

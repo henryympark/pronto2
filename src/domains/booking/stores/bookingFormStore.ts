@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export interface BookingFormData {
+export interface CustomerFormData {
   customerName: string;
   companyName: string;
   shootingPurpose: string;
@@ -9,18 +9,18 @@ export interface BookingFormData {
 }
 
 interface BookingFormStore {
-  formData: BookingFormData;
+  formData: CustomerFormData;
   showBookingForm: boolean;
   isSubmitting: boolean;
   
-  setFormData: (updates: Partial<BookingFormData>) => void;
+  setFormData: (updates: Partial<CustomerFormData>) => void;
   toggleBookingForm: () => void;
   setIsSubmitting: (isSubmitting: boolean) => void;
   loadRecentBookingData: (supabase: any, userId: string) => Promise<void>;
   resetForm: () => void;
 }
 
-const initialFormData: BookingFormData = {
+const initialFormData: CustomerFormData = {
   customerName: '',
   companyName: '',
   shootingPurpose: '',

@@ -398,17 +398,19 @@ export default function ChangeReservationPage() {
             <CardContent className="space-y-6">
               <div>
                 <h3 className="text-lg font-medium mb-2">날짜 선택</h3>
-                <Calendar
-                  mode="single"
-                  required={false} 
-                  selected={selectedDate || undefined}
-                  onSelect={(date) => setSelectedDate(date || null)}
-                  className="border rounded-md p-2"
-                  disabled={(date) => {
-                    // 오늘 이전 날짜는 선택 불가
-                    return date < new Date(new Date().setHours(0, 0, 0, 0));
-                  }}
-                />
+                <div className="flex justify-center">
+                  <Calendar
+                    mode="single"
+                    required={false} 
+                    selected={selectedDate || undefined}
+                    onSelect={(date) => setSelectedDate(date || null)}
+                    className="border rounded-md p-2"
+                    disabled={(date) => {
+                      // 오늘 이전 날짜는 선택 불가
+                      return date < new Date(new Date().setHours(0, 0, 0, 0));
+                    }}
+                  />
+                </div>
               </div>
 
               <div>
@@ -426,7 +428,7 @@ export default function ChangeReservationPage() {
                       />
                     )}
                     
-                    <div className="p-3 bg-muted rounded-md">
+                    <div className="p-3 bg-muted rounded-md max-w-[350px] mx-auto">
                       <p className="font-medium">
                         {selectedTimeRange.start && selectedTimeRange.end 
                           ? `${selectedTimeRange.start} ~ ${selectedTimeRange.end} (${selectedTimeRange.duration}시간)` 
@@ -439,10 +441,12 @@ export default function ChangeReservationPage() {
                     
                     {/* 가격 변동 정보 표시 */}
                     {selectedTimeRange.price > 0 && priceChange.originalPrice > 0 && (
-                      <PriceChangeInfo 
-                        originalPrice={priceChange.originalPrice}
-                        newPrice={priceChange.newPrice}
-                      />
+                      <div className="max-w-[350px] mx-auto">
+                        <PriceChangeInfo 
+                          originalPrice={priceChange.originalPrice}
+                          newPrice={priceChange.newPrice}
+                        />
+                      </div>
                     )}
                   </div>
                 ) : (

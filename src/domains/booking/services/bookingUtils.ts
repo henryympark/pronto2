@@ -5,26 +5,8 @@
 
 import { format, parseISO, differenceInMinutes } from "date-fns";
 import { ko } from "date-fns/locale";
-
-// 타입 정의
-export interface TimeSlot {
-  time: string;
-  status: 'available' | 'unavailable' | 'selected' | 'disabled';
-}
-
-export interface Booking {
-  id: string;
-  service_id: string;
-  customer_id: string;
-  reservation_date: string;
-  start_time: string;
-  end_time: string;
-  total_hours: number;
-  total_price: number;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
+import { TimeSlot } from "../types/calendar";
+import { Booking } from "../types/booking";
 
 // 예약 상태 라벨 반환
 export const getBookingStatusLabel = (status: string): string => {
@@ -104,13 +86,11 @@ export const generateTimeSlots = (
     for (let minute = 0; minute < 60; minute += intervalMinutes) {
       const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       
-      const status = isBookingAvailable(timeString, existingBookings, date) 
-        ? 'available' 
-        : 'unavailable';
+      const available = isBookingAvailable(timeString, existingBookings, date);
       
       slots.push({
         time: timeString,
-        status
+        available
       });
     }
   }

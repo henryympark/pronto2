@@ -102,4 +102,19 @@ export type UpdateReservationStatusResponse = {
  */
 export type DeleteReservationResponse = {
   message: string;
+};
+
+/**
+ * 예약 이력 타입
+ */
+export type ReservationHistory = {
+  id: string;
+  reservation_id: string;
+  action_type: 'created' | 'modified' | 'cancelled' | 'completed' | 'confirmed';
+  action_description: string;
+  old_data?: any;
+  new_data?: any;
+  performed_by?: string;
+  performed_by_type: 'customer' | 'admin';
+  created_at: string;
 }; 

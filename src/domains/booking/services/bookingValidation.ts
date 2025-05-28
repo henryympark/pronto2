@@ -47,18 +47,10 @@ export const validateBookingForm = (
   }
   
   // 시간 유효성 및 가용성 검사
-  if (data.startTime && data.endTime) {
-    const timeValidation = validateBookingTime(data.startTime, data.endTime);
+  if (data.startTime && data.endTime && data.reservationDate) {
+    const timeValidation = validateBookingTime(data.startTime, data.endTime, data.reservationDate);
     if (!timeValidation.isValid) {
       errors.startTime = timeValidation.error;
-    } else if (data.reservationDate) {
-      // 예약 가능 여부 검사
-      const startDateTime = `${data.reservationDate}T${data.startTime}:00`;
-      const endDateTime = `${data.reservationDate}T${data.endTime}:00`;
-      
-      if (!isBookingAvailable(existingBookings, startDateTime, endDateTime)) {
-        errors.general = '선택한 시간에 이미 예약이 있습니다.';
-      }
     }
   }
   
@@ -112,8 +104,8 @@ export const validateCreateBookingRequest = (
     errors.push('종료 시간이 필요합니다.');
   }
   
-  if (data.startTime && data.endTime) {
-    const timeValidation = validateBookingTime(data.startTime, data.endTime);
+  if (data.startTime && data.endTime && data.reservationDate) {
+    const timeValidation = validateBookingTime(data.startTime, data.endTime, data.reservationDate);
     if (!timeValidation.isValid) {
       errors.push(timeValidation.error || '올바른 시간을 입력해주세요.');
     }

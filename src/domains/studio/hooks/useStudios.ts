@@ -29,6 +29,8 @@ interface UseStudiosReturn {
   refetch: () => Promise<void>;
   isValidSearch: boolean;
   validationErrors: string[];
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 const DEFAULT_PARAMS: StudioSearchParams = {
@@ -60,17 +62,17 @@ export const useStudios = ({
   );
 
   const fetchStudios = useCallback(async () => {
-    if (!enabled || !validation.isValid) return;
+    if (!enabled) return;
 
     const result = await execute(() => studioApi.getStudios(searchParams));
     
-    if (result.success && result.data) {
-      setStudios(result.data.studios);
-      setTotalCount(result.data.total);
-      setCurrentPage(result.data.page);
-      setTotalPages(result.data.totalPages);
+    if (result) {
+      setStudios(result.studios);
+      setTotalCount(result.total);
+      setCurrentPage(result.page);
+      setTotalPages(result.totalPages);
     }
-  }, [searchParams, enabled, validation.isValid, execute]);
+  }, [searchParams, enabled, execute]);
 
   const updateSearchParams = useCallback((params: Partial<StudioSearchParams>) => {
     setSearchParams(prev => ({
@@ -100,13 +102,16 @@ export const useStudios = ({
     }
   }, [fetchStudios, autoFetch]);
 
+  const hasNextPage = currentPage < totalPages;
+  const hasPreviousPage = currentPage > 1;
+
   return {
     studios,
     totalCount,
     currentPage,
     totalPages,
     isLoading,
-    error,
+    error: error?.message || null,
     searchParams,
     updateSearchParams,
     resetSearchParams,
@@ -114,5 +119,7 @@ export const useStudios = ({
     refetch,
     isValidSearch: validation.isValid,
     validationErrors: validation.errors,
+    hasNextPage,
+    hasPreviousPage,
   };
 };

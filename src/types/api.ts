@@ -23,26 +23,6 @@ export interface ApiResponse<T> {
 }
 
 /**
- * 예약 가능 시간 API 응답
- */
-export interface AvailableTimesApiResponse {
-  /** 예약 날짜 (YYYY-MM-DD) */
-  date: string;
-  /** 운영 시작 시간 (HH:MM) */
-  operatingStartTime: string;
-  /** 운영 종료 시간 (HH:MM) */
-  operatingEndTime: string;
-  /** 예약 불가능한 시간 슬롯 목록 */
-  unavailableSlots: string[];
-  /** 현재 시간 (오늘 날짜인 경우에만) */
-  currentTime: string | null;
-  /** 휴무일 여부 */
-  isClosed: boolean;
-  /** 추가 메시지 */
-  message: string | null;
-}
-
-/**
  * 예약 목록 API 응답
  */
 export interface ReservationsApiResponse {

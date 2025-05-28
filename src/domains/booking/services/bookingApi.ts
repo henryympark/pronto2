@@ -5,34 +5,7 @@
 
 import { SupabaseClient } from "@supabase/supabase-js";
 import { format, parseISO, startOfDay, endOfDay, isEqual } from "date-fns";
-
-// 타입 정의
-export interface Booking {
-  id: string;
-  service_id: string;
-  customer_id: string;
-  reservation_date: string;
-  start_time: string;
-  end_time: string;
-  total_hours: number;
-  total_price: number;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AvailableTimesApiResponse {
-  success: boolean;
-  currentTime: string;
-  operatingStartTime: string;
-  operatingEndTime: string;
-  isClosed: boolean;
-  isToday: boolean;
-  daysDiff: number;
-  unavailableSlots: string[];
-  message?: string;
-  error?: string;
-}
+import { Booking } from "../types/booking";
 
 // 특정 날짜의 기존 예약 조회
 export const getReservationsByDate = async (
@@ -124,3 +97,16 @@ export const createBookingApiService = (supabase: SupabaseClient) => {
     }
   };
 };
+
+export interface AvailableTimesApiResponse {
+  success: boolean;
+  currentTime: string;
+  operatingStartTime: string;
+  operatingEndTime: string;
+  isClosed: boolean;
+  isToday: boolean;
+  daysDiff: number;
+  unavailableSlots: string[];
+  message?: string;
+  error?: string;
+}

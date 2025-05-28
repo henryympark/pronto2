@@ -1,7 +1,7 @@
 // src/lib/supabase.ts
 // Supabase 클라이언트 관리 - TypeScript 에러 수정 완료
 
-import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // =================================
 // createClient export 추가 (domains 호환성)
@@ -15,8 +15,8 @@ export { createClient } from '@supabase/supabase-js';
 // =================================
 
 // 환경 변수에서 Supabase URL과 anon key를 가져옵니다.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // 환경 변수가 설정되지 않았을 경우 백업 URL과 키를 사용합니다.
 // 주의: 실제 프로덕션 환경에서는 환경 변수를 올바르게 설정해야 합니다.
@@ -43,7 +43,7 @@ declare global {
   }
   
   // Node.js 전역 객체 확장
-  let __SUPABASE_SERVER_INSTANCE: SupabaseClient | null | undefined;
+  let __SUPABASE_SERVER_INSTANCE: SupabaseClient | null;
 }
 
 // =================================
@@ -52,8 +52,8 @@ declare global {
 
 // 서버에서 사용할 인스턴스 저장 변수 초기화
 if (typeof window === 'undefined' && typeof globalThis !== 'undefined') {
-  if (!globalThis.__SUPABASE_SERVER_INSTANCE) {
-    globalThis.__SUPABASE_SERVER_INSTANCE = null;
+  if (!(globalThis as any).__SUPABASE_SERVER_INSTANCE) {
+    (globalThis as any).__SUPABASE_SERVER_INSTANCE = null;
   }
 }
 
@@ -96,7 +96,7 @@ export const createSupabaseServerClient = (): SupabaseClient => {
     );
     
     // 클라이언트용 인스턴스 생성
-    const clientInstance = createSupabaseClient(finalSupabaseUrl, finalSupabaseAnonKey, {
+    const clientInstance = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -107,9 +107,14 @@ export const createSupabaseServerClient = (): SupabaseClient => {
     return clientInstance;
   }
 
-  // 서버 사이드 전역 인스턴스 확인
-  if (typeof globalThis !== 'undefined' && globalThis.__SUPABASE_SERVER_INSTANCE) {
-    return globalThis.__SUPABASE_SERVER_INSTANCE;
+  // 기존 서버 사이드 인스턴스가 있으면 재사용
+  if (typeof window === 'undefined' && (globalThis as any).__SUPABASE_SERVER_INSTANCE) {
+    return (globalThis as any).__SUPABASE_SERVER_INSTANCE;
+  }
+
+  // 서버 사이드에서는 전역 변수에 저장하여 재사용
+  if (typeof window === 'undefined') {
+    (globalThis as any).__SUPABASE_SERVER_INSTANCE = serverSideInstance;
   }
 
   // 서버 사이드 싱글톤 인스턴스 재사용
@@ -118,17 +123,12 @@ export const createSupabaseServerClient = (): SupabaseClient => {
   }
 
   // 새 서버 사이드 인스턴스 생성
-  serverSideInstance = createSupabaseClient(finalSupabaseUrl, finalSupabaseAnonKey, {
+  serverSideInstance = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
     auth: {
       persistSession: false, // 서버에서는 세션 유지 안 함
       autoRefreshToken: false,
     }
   });
-
-  // 전역 객체에 저장
-  if (typeof globalThis !== 'undefined') {
-    globalThis.__SUPABASE_SERVER_INSTANCE = serverSideInstance;
-  }
 
   return serverSideInstance;
 };

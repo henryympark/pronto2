@@ -13,7 +13,8 @@ export async function POST(request: Request) {
       newStartTime, 
       newEndTime, 
       reservationDate,
-      priceChange // 가격 변동 정보 추가
+      priceChange, // 가격 변동 정보 추가
+      changedBy // 변경 주체 (user 또는 admin)
     } = body;
 
     // 필수 필드 검증
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '필수 정보가 누락되었습니다.' }, { status: 400 });
     }
 
-    // 여기서는 웹훅 이벤트만 발생시키고, 실제 카카오 알림톡 발송은 Phase 7에서 구현
+    // 여기서는 웹훅 이벤트만 발생시키고, 실제 카카오 알림톡 발송은 Phase 8에서 구현
     console.log('예약 변경 이벤트 발생:', {
       type: 'booking.changed',
       data: {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
         newStartTime,
         newEndTime,
         reservationDate,
+        changedBy: changedBy || 'user', // 변경 주체 정보 추가
         // 가격 변동 정보 추가
         priceChange: priceChange ? {
           originalPrice: priceChange.originalPrice,

@@ -497,7 +497,7 @@ export default function AdminCustomersPage() {
                 <Button
                   onClick={handleCreateCustomer}
                 >
-                  '고객 등록'
+                  고객 등록
                 </Button>
               </DialogFooter>
             </DialogContent>

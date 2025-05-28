@@ -32,8 +32,8 @@ export const useStudio = ({
 
     const result = await execute(() => studioApi.getStudio(studioId));
     
-    if (result.success && result.data) {
-      setStudio(result.data);
+    if (result) {
+      setStudio(result);
     }
   }, [studioId, enabled, execute]);
 
@@ -48,7 +48,7 @@ export const useStudio = ({
   return {
     studio,
     isLoading,
-    error,
+    error: error?.message || null,
     refetch,
   };
 };

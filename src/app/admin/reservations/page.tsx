@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { format, parseISO, addMinutes, isBefore } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { Calendar } from "@/components/ui/calendar";
+import { TimeRangeSelector } from "@/domains/booking";
+import { toast } from "@/shared/hooks/useToast";
+import { Loader2 } from "lucide-react";
+import { useReservationHistory } from "@/hooks/useReservationHistory";
+import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
 
 type Reservation = {
   id: string;
@@ -20,6 +27,8 @@ type Reservation = {
   vehicle_number?: string;
   admin_memo?: string;
   created_at: string;
+  reservation_date?: string;
+  total_price?: number;
   customers: {
     id: string;
     email?: string;
@@ -39,6 +48,29 @@ export default function AdminReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 예약 변경 관련 상태
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTimeRange, setSelectedTimeRange] = useState<{
+    start: string;
+    end: string;
+    duration: number;
+    price: number;
+  }>({
+    start: "",
+    end: "",
+    duration: 0,
+    price: 0
+  });
+
+  // 예약 이력 조회 훅
+  const { history, loading: historyLoading, error: historyError } = useReservationHistory(
+    selectedReservation?.id || null
+  );
+  
   const supabase = useSupabase();
   const { isAdmin, loading: authLoading } = useAuth();
   
@@ -87,6 +119,175 @@ export default function AdminReservationsPage() {
         return '대기중';
       default:
         return status;
+    }
+  };
+
+  // 예약 변경 모달 열기
+  const openChangeModal = () => {
+    if (!selectedReservation) return;
+    
+    // 예약 날짜 설정
+    const reservationDate = selectedReservation.reservation_date 
+      ? new Date(selectedReservation.reservation_date)
+      : new Date(selectedReservation.start_time.split('T')[0]);
+    
+    setSelectedDate(reservationDate);
+    setIsChangeModalOpen(true);
+    setIsModalOpen(false);
+  };
+
+  // 예약 취소 모달 열기
+  const openCancelModal = () => {
+    setIsCancelModalOpen(true);
+    setIsModalOpen(false);
+  };
+
+  // 시간 범위 변경 핸들러
+  const handleTimeRangeChange = useCallback((startTime: string, endTime: string, duration: number, price: number) => {
+    setSelectedTimeRange({
+      start: startTime,
+      end: endTime,
+      duration,
+      price
+    });
+  }, []);
+
+  // 예약 변경 처리
+  const handleChangeReservation = async () => {
+    if (!selectedReservation || !selectedDate || !selectedTimeRange.start || !selectedTimeRange.end) {
+      toast({
+        title: "입력 오류",
+        description: "날짜와 시간을 모두 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+      const startTimeFormatted = selectedTimeRange.start;
+      const endTimeFormatted = selectedTimeRange.end;
+
+      // 예약 정보 업데이트
+      const { error } = await supabase
+        .from('reservations')
+        .update({
+          reservation_date: formattedDate,
+          start_time: startTimeFormatted,
+          end_time: endTimeFormatted,
+          total_hours: selectedTimeRange.duration,
+          total_price: selectedTimeRange.price,
+          status: 'modified',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedReservation.id);
+
+      if (error) {
+        console.error("예약 변경 오류:", error);
+        throw new Error(`예약 변경 실패: ${error.message}`);
+      }
+
+      // 웹훅 이벤트 발생 (booking.changed)
+      await fetch('/api/webhooks/booking-changed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reservationId: selectedReservation.id,
+          customerId: selectedReservation.customer_id,
+          serviceId: selectedReservation.service_id,
+          oldStartTime: selectedReservation.start_time,
+          oldEndTime: selectedReservation.end_time,
+          newStartTime: startTimeFormatted,
+          newEndTime: endTimeFormatted,
+          reservationDate: formattedDate,
+          changedBy: 'admin'
+        }),
+      });
+
+      toast({
+        title: "예약 변경 완료",
+        description: "예약이 성공적으로 변경되었습니다.",
+      });
+
+      // 모달 닫기 및 데이터 새로고침
+      setIsChangeModalOpen(false);
+      setSelectedReservation(null);
+      fetchReservations();
+
+    } catch (error) {
+      console.error("예약 변경 중 오류 발생:", error);
+      toast({
+        title: "예약 변경 실패",
+        description: error instanceof Error ? error.message : "예약 변경 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 예약 취소 처리
+  const handleCancelReservation = async () => {
+    if (!selectedReservation) return;
+
+    try {
+      setIsSubmitting(true);
+
+      // 예약 상태를 취소로 변경
+      const { error } = await supabase
+        .from('reservations')
+        .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedReservation.id);
+
+      if (error) {
+        console.error("예약 취소 오류:", error);
+        throw new Error(`예약 취소 실패: ${error.message}`);
+      }
+
+      // 웹훅 이벤트 발생 (booking.cancelled)
+      await fetch('/api/webhooks/booking-cancelled', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reservationId: selectedReservation.id,
+          customerId: selectedReservation.customer_id,
+          serviceId: selectedReservation.service_id,
+          startTime: selectedReservation.start_time,
+          endTime: selectedReservation.end_time,
+          reservationDate: selectedReservation.reservation_date || selectedReservation.start_time.split('T')[0],
+          cancelReason: '운영자 취소',
+          cancelledBy: 'admin'
+        }),
+      });
+
+      toast({
+        title: "예약 취소 완료",
+        description: "예약이 성공적으로 취소되었습니다.",
+      });
+
+      // 모달 닫기 및 데이터 새로고침
+      setIsCancelModalOpen(false);
+      setSelectedReservation(null);
+      fetchReservations();
+
+    } catch (error) {
+      console.error("예약 취소 중 오류 발생:", error);
+      toast({
+        title: "예약 취소 실패",
+        description: error instanceof Error ? error.message : "예약 취소 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -248,7 +449,7 @@ export default function AdminReservationsPage() {
 
       {/* 예약 상세 정보 모달 */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>예약 상세 정보</DialogTitle>
           </DialogHeader>
@@ -332,19 +533,147 @@ export default function AdminReservationsPage() {
                 </div>
               </div>
 
+              {/* 진행이력 */}
+              <div className="border-t pt-4">
+                <ReservationHistoryTimeline 
+                  history={history}
+                  loading={historyLoading}
+                  error={historyError}
+                />
+              </div>
+
+              {/* 운영자 예약 변경/취소 버튼 */}
+              {selectedReservation.status !== 'cancelled' && (
+                <div className="border-t pt-4 flex justify-end space-x-3">
+                  <Button 
+                    variant="outline"
+                    onClick={openChangeModal}
+                    disabled={isSubmitting}
+                  >
+                    예약 변경
+                  </Button>
+                  <Button 
+                    variant="destructive"
+                    onClick={openCancelModal}
+                    disabled={isSubmitting}
+                  >
+                    예약 취소
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 예약 변경 모달 */}
+      <Dialog open={isChangeModalOpen} onOpenChange={setIsChangeModalOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>예약 변경</DialogTitle>
+          </DialogHeader>
+          
+          {selectedReservation && (
+            <div className="mt-4 space-y-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-medium text-blue-900 mb-2">현재 예약 정보</h3>
+                <p className="text-sm text-blue-800">
+                  {selectedReservation.services?.name} - {formatDateTime(selectedReservation.start_time)} ~ {formatDateTime(selectedReservation.end_time)}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">새로운 날짜 선택</h3>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate || undefined}
+                    onSelect={(date) => setSelectedDate(date || null)}
+                    disabled={(date) => date < new Date()}
+                    className="rounded-md border"
+                  />
+                </div>
+
+                {selectedDate && selectedReservation.services && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">새로운 시간 선택</h3>
+                    <TimeRangeSelector
+                      serviceId={selectedReservation.service_id}
+                      selectedDate={selectedDate}
+                      onTimeRangeChange={handleTimeRangeChange}
+                      pricePerHour={selectedReservation.services.price_per_hour}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="border-t pt-4 flex justify-end space-x-3">
-                <button 
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  onClick={() => alert('예약 변경 기능은 아직 구현되지 않았습니다.')}
+                <Button 
+                  variant="outline"
+                  onClick={() => setIsChangeModalOpen(false)}
+                  disabled={isSubmitting}
                 >
-                  예약 변경
-                </button>
-                <button 
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                  onClick={() => alert('예약 취소 기능은 아직 구현되지 않았습니다.')}
+                  취소
+                </Button>
+                <Button 
+                  onClick={handleChangeReservation}
+                  disabled={isSubmitting || !selectedTimeRange.start}
                 >
-                  예약 취소
-                </button>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      변경 중...
+                    </>
+                  ) : (
+                    '예약 변경'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 예약 취소 확인 모달 */}
+      <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>예약 취소 확인</DialogTitle>
+          </DialogHeader>
+          
+          {selectedReservation && (
+            <div className="mt-4 space-y-4">
+              <div className="bg-red-50 p-4 rounded-lg">
+                <p className="text-sm text-red-800">
+                  정말로 이 예약을 취소하시겠습니까?
+                </p>
+                <p className="text-xs text-red-600 mt-2">
+                  {selectedReservation.services?.name} - {formatDateTime(selectedReservation.start_time)}
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <Button 
+                  variant="outline"
+                  onClick={() => setIsCancelModalOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  취소
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={handleCancelReservation}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      취소 중...
+                    </>
+                  ) : (
+                    '예약 취소'
+                  )}
+                </Button>
               </div>
             </div>
           )}

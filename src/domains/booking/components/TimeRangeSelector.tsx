@@ -150,7 +150,7 @@ export default function TimeRangeSelector({
   }, [selectedDate, selectedSlots, timeSlots]);
 
   // 선택된 시간이 변경될 때마다 부모 컴포넌트에 알림
-  useEffect(() => {
+  const notifyTimeRangeChange = useCallback(() => {
     if (selectedSlots.length > 0) {
       const sortedSlots = [...selectedSlots].sort((a, b) => {
         const [aHours, aMinutes] = a.split(":").map(Number);
@@ -174,6 +174,10 @@ export default function TimeRangeSelector({
       onTimeRangeChange("", "", 0, 0);
     }
   }, [selectedSlots, pricePerHour, onTimeRangeChange]);
+
+  useEffect(() => {
+    notifyTimeRangeChange();
+  }, [notifyTimeRangeChange]);
 
   // 초기 시간 설정
   useEffect(() => {

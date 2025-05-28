@@ -40,8 +40,8 @@ export const useStudioAvailability = ({
       studioApi.getStudioAvailability(studioId, startDate, endDate)
     );
     
-    if (result.success && result.data) {
-      setAvailability(result.data);
+    if (result) {
+      setAvailability(result);
     }
   }, [studioId, startDate, endDate, enabled, execute]);
 
@@ -69,7 +69,7 @@ export const useStudioAvailability = ({
   return {
     availability,
     isLoading,
-    error,
+    error: error?.message || null,
     refetch,
     getAvailableSlots,
     isTimeSlotAvailable,

@@ -88,6 +88,7 @@ export interface JWTPayload {
  * @property role - 사용자 역할 (customer, admin)
  * @property nickname - 닉네임
  * @property phone - 전화번호
+ * @property auth_provider - 인증 제공자 (email, kakao, naver 등)
  * @property profile_image - 프로필 이미지 URL
  * @property created_at - 생성 일시
  * @property updated_at - 수정 일시
@@ -106,6 +107,8 @@ export interface Customer {
   nickname?: string;
   /** 전화번호 */
   phone?: string;
+  /** 인증 제공자 (email, kakao, naver 등) */
+  auth_provider: string;
   /** 프로필 이미지 URL */
   profile_image?: string;
   /** 생성 일시 */

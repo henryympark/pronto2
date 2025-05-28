@@ -64,15 +64,6 @@ export interface BookingStatsResponse extends ApiResponse<BookingStats> {
 }
 
 /**
- * 예약 가능 시간 응답
- */
-export interface AvailableTimesApiResponse extends ApiResponse {
-  operatingStartTime: string;
-  operatingEndTime: string;
-  unavailableSlots: string[];
-}
-
-/**
  * 예약 검증 응답
  */
 export interface BookingValidationResponse extends ApiResponse {

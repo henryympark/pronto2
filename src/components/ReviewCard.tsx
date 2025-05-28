@@ -95,11 +95,11 @@ export default function ReviewCard({
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center">
           <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium mr-3">
-            {review.customer?.name?.substring(0, 1) || "익명"}
+            {review.customer?.nickname?.substring(0, 1) || "익명"}
           </div>
           <div>
             <h4 className="font-medium">
-              {review.customer?.name || "익명"}
+              {review.customer?.nickname || "익명"}
             </h4>
             <div className="flex items-center">
               <div className="flex mr-2">{renderStars(review.rating)}</div>
