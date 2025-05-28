@@ -18,6 +18,11 @@ interface ReservationWithDetails extends Reservation {
   customer_email?: string;
   customer_phone?: string;
   payment_method?: string;
+  // 할인 관련 필드 추가
+  final_price?: number;
+  original_total_price?: number;
+  used_coupon_ids?: string[];
+  used_accumulated_time_minutes?: number;
   services?: {
     name: string;
     price_per_hour: number;
@@ -165,6 +170,33 @@ function PaymentCompleteContent() {
     }
   };
 
+  // 할인 적용 여부 확인
+  const hasDiscount = () => {
+    if (!reservation) return false;
+    return (reservation.used_coupon_ids && reservation.used_coupon_ids.length > 0) || 
+           (reservation.used_accumulated_time_minutes && reservation.used_accumulated_time_minutes > 0);
+  };
+
+  // 할인 금액 계산
+  const getDiscountAmount = () => {
+    if (!reservation || !hasDiscount()) return 0;
+    const originalPrice = reservation.original_total_price || reservation.total_price;
+    const finalPrice = reservation.final_price || reservation.total_price;
+    return Math.max(0, originalPrice - finalPrice);
+  };
+
+  // 최종 결제 금액 계산
+  const getFinalPrice = () => {
+    if (!reservation) return 0;
+    return reservation.final_price || reservation.total_price;
+  };
+
+  // 원래 금액 계산
+  const getOriginalPrice = () => {
+    if (!reservation) return 0;
+    return reservation.original_total_price || reservation.total_price;
+  };
+
   return (
     <div className="max-w-xl mx-auto">
       <div className="bg-white rounded-lg shadow-md p-8">
@@ -271,10 +303,56 @@ function PaymentCompleteContent() {
                         <span className="text-pronto-gray-600">서비스 이용료</span>
                         <span>{(reservation.services?.price_per_hour || 0).toLocaleString()}원 × {reservation.total_hours}시간</span>
                       </div>
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>총 결제 금액</span>
-                        <span>{reservation.total_price.toLocaleString()}원</span>
-                      </div>
+                      
+                      {/* 할인 적용 여부에 따른 분기 처리 */}
+                      {hasDiscount() ? (
+                        <>
+                          <div className="flex justify-between mb-2">
+                            <span className="text-pronto-gray-600">소계</span>
+                            <span>{getOriginalPrice().toLocaleString()}원</span>
+                          </div>
+                          
+                          {/* 쿠폰 할인 */}
+                          {reservation.used_coupon_ids && reservation.used_coupon_ids.length > 0 && (
+                            <div className="flex justify-between mb-2 text-red-600">
+                              <span>쿠폰 할인 ({reservation.used_coupon_ids.length}개)</span>
+                              <span>-{Math.floor((reservation.used_coupon_ids.length * 30 * (reservation.services?.price_per_hour || 0)) / 60).toLocaleString()}원</span>
+                            </div>
+                          )}
+                          
+                          {/* 적립 시간 할인 */}
+                          {reservation.used_accumulated_time_minutes && reservation.used_accumulated_time_minutes > 0 && (
+                            <div className="flex justify-between mb-2 text-red-600">
+                              <span>적립 시간 할인 ({reservation.used_accumulated_time_minutes}분)</span>
+                              <span>-{Math.floor((reservation.used_accumulated_time_minutes * (reservation.services?.price_per_hour || 0)) / 60).toLocaleString()}원</span>
+                            </div>
+                          )}
+                          
+                          <Separator className="my-2" />
+                          
+                          <div className="flex justify-between mb-2">
+                            <span className="text-pronto-gray-600">총 할인 금액</span>
+                            <span className="text-red-600 font-medium">-{getDiscountAmount().toLocaleString()}원</span>
+                          </div>
+                          
+                          <div className="flex justify-between font-bold text-lg">
+                            <span>최종 결제 금액</span>
+                            <span className="text-pronto-primary">{getFinalPrice().toLocaleString()}원</span>
+                          </div>
+                          
+                          {/* 절약 메시지 */}
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-2 mt-3 text-center">
+                            <p className="text-green-700 text-sm font-medium">
+                              🎉 총 {getDiscountAmount().toLocaleString()}원을 절약했어요!
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between font-bold text-lg">
+                          <span>총 결제 금액</span>
+                          <span>{reservation.total_price.toLocaleString()}원</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
