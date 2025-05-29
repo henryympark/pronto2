@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Loader2, LogOut, User, Star, Clock, Ticket } from "lucide-react";
+import { AlertCircle, Loader2, LogOut, User, Star, Clock, Ticket, CheckCircle, XCircle, Edit, Play } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
@@ -24,6 +24,8 @@ import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline"
 // 예약 연장 관련 컴포넌트 import
 import { ExtensionButton, ExtensionModal } from "@/components/reservation";
 import type { Reservation, ReservationHistory } from '@/types/reservation';
+// 시간 슬라이더 캐시 무효화를 위한 import 추가
+import { useInvalidateAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
 
 type FilterType = 'upcoming' | 'completed' | 'cancelled';
 
@@ -59,6 +61,49 @@ export default function MyPage() {
   const { history, loading: historyLoading, error: historyError } = useReservationHistory(
     selectedReservation?.id || null
   );
+
+  // 시간 슬라이더 캐시 무효화 훅 추가
+  const invalidateAvailableTimes = useInvalidateAvailableTimes();
+
+  // 실시간 상태 업데이트를 위한 타이머
+  useEffect(() => {
+    if (!reservations.length || isLoading) return;
+
+    // 현재 시간 기준으로 상태가 변경될 수 있는 예약이 있는지 확인
+    const hasActiveOrUpcomingReservations = reservations.some(reservation => {
+      const timeStatus = getReservationTimeStatus(reservation);
+      const now = new Date();
+      const startDateTime = new Date(`${reservation.reservation_date}T${reservation.start_time}`);
+      const endDateTime = new Date(`${reservation.reservation_date}T${reservation.end_time}`);
+      
+      // 시작 전이거나 이용 중인 예약이 있는지 확인
+      return (timeStatus === 'before_start' && startDateTime > now) || 
+             (timeStatus === 'in_progress' && endDateTime > now);
+    });
+
+    if (!hasActiveOrUpcomingReservations) return;
+
+    // 1분마다 상태 체크하여 필터링된 목록 업데이트
+    const interval = setInterval(() => {
+      console.log('[MyPage] 실시간 상태 업데이트 - 예약 상태 재검토');
+      
+      // 현재 필터에 맞춰 목록 재적용
+      const updatedFiltered = applyFilter(reservations, activeFilter);
+      setFilteredReservations(updatedFiltered);
+      
+      // 선택된 예약 상세 정보 업데이트 (상태 표시가 변경될 수 있음)
+      if (selectedReservation) {
+        const updatedSelected = reservations.find(r => r.id === selectedReservation.id);
+        if (updatedSelected) {
+          setSelectedReservation(updatedSelected);
+        }
+      }
+    }, 60000); // 1분 간격
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [reservations, activeFilter, selectedReservation, isLoading]);
 
   // 기본 핸들러들
   const handleSignOut = async () => {
@@ -144,6 +189,21 @@ export default function MyPage() {
     }
   };
 
+  // 예약 상태 판별을 위한 헬퍼 함수들
+  const getReservationTimeStatus = (reservation: Reservation) => {
+    const now = new Date();
+    const startDateTime = new Date(`${reservation.reservation_date}T${reservation.start_time}`);
+    const endDateTime = new Date(`${reservation.reservation_date}T${reservation.end_time}`);
+    
+    if (now < startDateTime) {
+      return 'before_start'; // 시작 전
+    } else if (now >= startDateTime && now <= endDateTime) {
+      return 'in_progress'; // 이용 중
+    } else {
+      return 'completed'; // 완료 (시간이 지남)
+    }
+  };
+
   // 필터 함수들
   const applyFilter = (allReservations: Reservation[], filterType: FilterType) => {
     if (!allReservations || allReservations.length === 0) {
@@ -156,12 +216,14 @@ export default function MyPage() {
     
     switch (filterType) {
       case 'upcoming':
+        // 예약 현황: 예약 확정/변경됨 상태이면서 아직 끝나지 않은 예약들
         filtered = allReservations.filter(res => {
           const endDateTime = new Date(`${res.reservation_date}T${res.end_time}`);
           return (res.status === 'confirmed' || res.status === 'modified') && endDateTime > now;
         });
         break;
       case 'completed':
+        // 이용 완료: 완료 상태이거나 시간이 지난 예약들  
         filtered = allReservations.filter(res => {
           const endDateTime = new Date(`${res.reservation_date}T${res.end_time}`);
           return res.status === 'completed' || 
@@ -169,6 +231,7 @@ export default function MyPage() {
         });
         break;
       case 'cancelled':
+        // 취소 내역: 취소된 예약들
         filtered = allReservations.filter(res => res.status === 'cancelled');
         break;
       default:
@@ -195,25 +258,82 @@ export default function MyPage() {
     return timeStr.substring(0, 5);
   };
 
+  // 예약 상태별 아이콘을 반환하는 헬퍼 함수
+  const getStatusIcon = (reservation: Reservation) => {
+    const status = reservation.status || '';
+    const timeStatus = getReservationTimeStatus(reservation);
+    
+    switch (status) {
+      case 'confirmed':
+        return timeStatus === 'before_start' 
+          ? <CheckCircle className="h-3 w-3" />      // 예약 확정 (시작 전)
+          : timeStatus === 'in_progress'
+          ? <Play className="h-3 w-3" />             // 이용 중
+          : <CheckCircle className="h-3 w-3" />;     // 완료
+      case 'modified':
+        return timeStatus === 'before_start' 
+          ? <Edit className="h-3 w-3" />             // 예약 변경 (시작 전)
+          : timeStatus === 'in_progress'
+          ? <Play className="h-3 w-3" />             // 이용 중
+          : <CheckCircle className="h-3 w-3" />;     // 완료
+      case 'completed': 
+        return <CheckCircle className="h-3 w-3" />;
+      case 'cancelled': 
+        return <XCircle className="h-3 w-3" />;
+      default: 
+        return <AlertCircle className="h-3 w-3" />;
+    }
+  };
+
   const getStatusColorClass = (reservation: Reservation) => {
     const status = reservation.status || '';
+    const timeStatus = getReservationTimeStatus(reservation);
+    
     switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-800 hover:bg-green-200';
-      case 'completed': return 'bg-blue-100 text-blue-800 hover:bg-blue-200';
-      case 'cancelled': return 'bg-red-100 text-red-800 hover:bg-red-200';
-      case 'modified': return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 hover:bg-gray-200';
+      case 'confirmed':
+        return timeStatus === 'before_start' 
+          ? 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200'  // 시작 전 - 더 선명한 녹색
+          : timeStatus === 'in_progress'
+          ? 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 animate-pulse'     // 이용 중 - 애니메이션 추가
+          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200';         // 완료
+      case 'modified':
+        return timeStatus === 'before_start' 
+          ? 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200'          // 변경됨 (시작 전) - 더 선명한 노란색
+          : timeStatus === 'in_progress'
+          ? 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 animate-pulse'        // 이용 중 - 애니메이션 추가
+          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200';         // 완료
+      case 'completed': 
+        return 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200';
+      case 'cancelled': 
+        return 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200';
+      default: 
+        return 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200';
     }
   };
 
   const getStatusText = (reservation: Reservation) => {
     const status = reservation.status || '';
+    const timeStatus = getReservationTimeStatus(reservation);
+    
     switch (status) {
-      case 'confirmed': return '예약 확정';
-      case 'completed': return '이용 완료';
-      case 'cancelled': return '예약 취소';
-      case 'modified': return '예약 변경됨';
-      default: return '알 수 없음';
+      case 'confirmed':
+        return timeStatus === 'before_start' 
+          ? '예약 확정 (시작 전)' 
+          : timeStatus === 'in_progress'
+          ? '현재 이용 중'
+          : '이용 완료';
+      case 'modified':
+        return timeStatus === 'before_start' 
+          ? '예약 변경됨 (시작 전)' 
+          : timeStatus === 'in_progress'
+          ? '현재 이용 중'
+          : '이용 완료';
+      case 'completed': 
+        return '이용 완료';
+      case 'cancelled': 
+        return '예약 취소';
+      default: 
+        return '알 수 없음';
     }
   };
 
@@ -242,6 +362,18 @@ export default function MyPage() {
       setIsCancelModalOpen(false);
       setCancelingReservation(null);
       fetchReservations();
+      
+      // 시간 슬라이더 캐시 무효화 (예약 취소로 인한 시간 해제 반영)
+      if (cancelingReservation.service?.id) {
+        const reservationDate = new Date(cancelingReservation.reservation_date);
+        console.log('[MyPage] 예약 취소 성공 - 시간 슬라이더 캐시 무효화:', {
+          serviceId: cancelingReservation.service.id,
+          date: cancelingReservation.reservation_date,
+          cancelledTimeSlot: `${cancelingReservation.start_time}-${cancelingReservation.end_time}`
+        });
+        invalidateAvailableTimes(cancelingReservation.service.id, reservationDate);
+      }
+      
       toast({
         title: "예약 취소 완료",
         description: "예약이 성공적으로 취소되었습니다.",
@@ -290,6 +422,18 @@ export default function MyPage() {
 
     // 간단한 데이터도 새로고침 (적립 시간 등이 변경될 수 있음)
     fetchSimplifiedData();
+
+    // 시간 슬라이더 캐시 무효화 (예약 연장으로 인한 시간 변경 반영)
+    if (updatedReservation.service?.id) {
+      const reservationDate = new Date(updatedReservation.reservation_date);
+      console.log('[MyPage] 예약 연장 성공 - 시간 슬라이더 캐시 무효화:', {
+        serviceId: updatedReservation.service.id,
+        date: updatedReservation.reservation_date,
+        originalEndTime: extendingReservation?.end_time,
+        newEndTime: updatedReservation.end_time
+      });
+      invalidateAvailableTimes(updatedReservation.service.id, reservationDate);
+    }
   };
 
   // 초기 로드
@@ -476,7 +620,7 @@ export default function MyPage() {
             {/* 필터링 탭 */}
             <Tabs defaultValue="upcoming" className="mb-6" onValueChange={(value) => handleFilterChange(value as FilterType)}>
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="upcoming">이용 예정</TabsTrigger>
+                <TabsTrigger value="upcoming">예약 현황</TabsTrigger>
                 <TabsTrigger value="completed">이용 완료</TabsTrigger>
                 <TabsTrigger value="cancelled">취소 내역</TabsTrigger>
               </TabsList>
@@ -508,7 +652,8 @@ export default function MyPage() {
                             <h3 className="text-lg font-semibold mb-1">
                               {reservation.service?.name || '알 수 없는 서비스'}
                             </h3>
-                            <Badge className={getStatusColorClass(reservation)}>
+                            <Badge className={`${getStatusColorClass(reservation)} flex items-center gap-1.5 text-sm font-medium px-3 py-1`}>
+                              {getStatusIcon(reservation)}
                               {getStatusText(reservation)}
                             </Badge>
                             
@@ -614,7 +759,8 @@ export default function MyPage() {
                     
                     <div>
                       <h4 className="font-semibold mb-1">예약 상태</h4>
-                      <Badge className={getStatusColorClass(selectedReservation)}>
+                      <Badge className={`${getStatusColorClass(selectedReservation)} flex items-center gap-1.5 text-sm font-medium px-3 py-1`}>
+                        {getStatusIcon(selectedReservation)}
                         {getStatusText(selectedReservation)}
                       </Badge>
                     </div>

@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Calendar } from "@/components/ui/calendar";
 import { TimeRangeSelector } from "@/domains/booking";
 import { toast } from "@/shared/hooks/useToast";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, CheckCircle, Play, Edit, XCircle, AlertCircle } from "lucide-react";
 import { useReservationHistory } from "@/hooks/useReservationHistory";
 import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
 import { useRouter } from "next/navigation";
@@ -94,32 +94,106 @@ export default function AdminReservationsPage() {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'modified':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'pending':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  // 시간 기반 예약 상태 판별 헬퍼 함수 (마이페이지와 동일)
+  const getReservationTimeStatus = (reservation: Reservation) => {
+    if (!reservation.start_time || !reservation.end_time) {
+      return 'unknown';
+    }
+
+    const now = new Date();
+    const startTime = new Date(reservation.start_time);
+    const endTime = new Date(reservation.end_time);
+
+    if (now < startTime) {
+      return 'before_start'; // 시작 전
+    } else if (now >= startTime && now <= endTime) {
+      return 'in_progress'; // 이용 중
+    } else {
+      return 'completed'; // 완료 (시간이 지남)
     }
   };
 
-  const getStatusText = (status: string) => {
+  // 예약 상태별 아이콘을 반환하는 헬퍼 함수
+  const getStatusIcon = (reservation: Reservation) => {
+    const status = reservation.status || '';
+    const timeStatus = getReservationTimeStatus(reservation);
+    
     switch (status) {
       case 'confirmed':
-        return '확정';
-      case 'cancelled':
-        return '취소됨';
+        return timeStatus === 'before_start' 
+          ? <CheckCircle className="h-3 w-3" />      // 예약 확정 (시작 전)
+          : timeStatus === 'in_progress'
+          ? <Play className="h-3 w-3" />             // 이용 중
+          : <CheckCircle className="h-3 w-3" />;     // 완료
       case 'modified':
-        return '변경됨';
+        return timeStatus === 'before_start' 
+          ? <Edit className="h-3 w-3" />             // 예약 변경 (시작 전)
+          : timeStatus === 'in_progress'
+          ? <Play className="h-3 w-3" />             // 이용 중
+          : <CheckCircle className="h-3 w-3" />;     // 완료
+      case 'completed': 
+        return <CheckCircle className="h-3 w-3" />;
+      case 'cancelled': 
+        return <XCircle className="h-3 w-3" />;
       case 'pending':
-        return '대기중';
-      default:
+        return <AlertCircle className="h-3 w-3" />;
+      default: 
+        return <AlertCircle className="h-3 w-3" />;
+    }
+  };
+
+  const getStatusBadgeClass = (reservation: Reservation) => {
+    const status = reservation.status || '';
+    const timeStatus = getReservationTimeStatus(reservation);
+    
+    switch (status) {
+      case 'confirmed':
+        return timeStatus === 'before_start' 
+          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'  // 시작 전 - 더 선명한 녹색
+          : timeStatus === 'in_progress'
+          ? 'bg-blue-100 text-blue-800 border-blue-200 animate-pulse'     // 이용 중 - 애니메이션 추가
+          : 'bg-slate-100 text-slate-700 border-slate-200';         // 완료
+      case 'modified':
+        return timeStatus === 'before_start' 
+          ? 'bg-amber-100 text-amber-800 border-amber-200'          // 변경됨 (시작 전) - 더 선명한 노란색
+          : timeStatus === 'in_progress'
+          ? 'bg-blue-100 text-blue-800 border-blue-200 animate-pulse'        // 이용 중 - 애니메이션 추가
+          : 'bg-slate-100 text-slate-700 border-slate-200';         // 완료
+      case 'completed': 
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'cancelled': 
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'pending':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      default: 
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusText = (reservation: Reservation) => {
+    const status = reservation.status || '';
+    const timeStatus = getReservationTimeStatus(reservation);
+    
+    switch (status) {
+      case 'confirmed':
+        return timeStatus === 'before_start' 
+          ? '예약 확정 (시작 전)'
+          : timeStatus === 'in_progress'
+          ? '현재 이용 중'
+          : '이용 완료';
+      case 'modified':
+        return timeStatus === 'before_start' 
+          ? '예약 변경됨 (시작 전)'
+          : timeStatus === 'in_progress'
+          ? '현재 이용 중'
+          : '이용 완료';
+      case 'completed': 
+        return '이용 완료';
+      case 'cancelled': 
+        return '예약 취소';
+      case 'pending':
+        return '예약 대기중';
+      default: 
         return status;
     }
   };
@@ -436,9 +510,10 @@ export default function AdminReservationsPage() {
                     {reservation.start_time ? formatDateTime(reservation.start_time) : '알 수 없음'}
                   </td>
                   <td className="py-3 px-4">
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeClass(reservation.status)}`}>
-                      {getStatusText(reservation.status)}
-                    </span>
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(reservation)}`}>
+                      {getStatusIcon(reservation)}
+                      {getStatusText(reservation)}
+                    </div>
                   </td>
                   <td className="py-3 px-4">
                     {reservation.created_at ? format(new Date(reservation.created_at), 'yyyy-MM-dd', { locale: ko }) : '알 수 없음'}
@@ -475,9 +550,10 @@ export default function AdminReservationsPage() {
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">상태</h3>
                   <p className="mt-1">
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeClass(selectedReservation.status)}`}>
-                      {getStatusText(selectedReservation.status)}
-                    </span>
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(selectedReservation)}`}>
+                      {getStatusIcon(selectedReservation)}
+                      {getStatusText(selectedReservation)}
+                    </div>
                   </p>
                 </div>
                 <div>
