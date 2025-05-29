@@ -118,13 +118,13 @@ export async function GET(request: NextRequest) {
         .eq("day_of_week", dayOfWeek)
         .single(),
       
-      // 2. 해당 날짜의 예약 정보 조회
+      // 2. 해당 날짜의 예약 정보 조회 - cancelled 상태만 제외하고 모든 예약 포함
       supabaseServer
         .from("reservations")
-        .select("start_time, end_time")
+        .select("start_time, end_time, status")
         .eq("service_id", serviceId)
         .eq("reservation_date", dateParam)
-        .in("status", ["pending", "confirmed"]),
+        .neq("status", "cancelled"), // cancelled 상태만 제외
       
       // 3. 해당 날짜의 차단된 시간 조회
       supabaseServer
@@ -166,6 +166,13 @@ export async function GET(request: NextRequest) {
 
     // 예약 정보 처리
     const reservations = reservationsResponse.error ? [] : reservationsResponse.data || [];
+    
+    // 디버깅을 위한 로깅 추가
+    console.log(`[DEBUG] 서비스 ${serviceId}, 날짜 ${dateParam} 예약 정보:`, {
+      reservationsError: reservationsResponse.error,
+      reservationsCount: reservations.length,
+      reservations: reservations
+    });
     
     // 차단된 시간 처리
     const blockedTimes = blockedTimesResponse.error ? [] : blockedTimesResponse.data || [];

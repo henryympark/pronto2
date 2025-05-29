@@ -320,6 +320,38 @@ export default function CreateReservationPage() {
 
       if (error) {
         console.error("예약 생성 오류:", error);
+        
+        // PostgreSQL UNIQUE 제약 조건 위반 (23505) - 동시성 에러
+        if (error.code === '23505') {
+          toast({
+            title: "동시 예약 충돌",
+            description: "죄송합니다. 같은 시간에 다른 고객이 먼저 예약을 완료했습니다. 다른 시간을 선택해주세요.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // PostgreSQL 커스텀 에러 (P0001) - 비즈니스 로직 제약 위반
+        if (error.code === 'P0001') {
+          toast({
+            title: "예약 충돌",
+            description: error.message || "선택하신 시간에 이미 다른 예약이 있습니다. 다른 시간을 선택해주세요.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // 기타 DB 제약 조건 위반
+        if (error.code && error.code.startsWith('23')) {
+          toast({
+            title: "데이터 오류",
+            description: "예약 생성 중 데이터 제약 조건에 위반되었습니다. 입력 정보를 확인해주세요.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // 일반적인 에러 처리
         toast({
           title: "예약 등록 실패",
           description: error.message || "예약 생성 중 오류가 발생했습니다.",

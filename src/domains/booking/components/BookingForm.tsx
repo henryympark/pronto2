@@ -13,6 +13,7 @@ import { useAuth } from "@/domains/auth";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { useRouter } from "next/navigation";
 import { TimeUsageSelector } from "./TimeUsageSelector";
+import { useInvalidateAvailableTimes } from "../hooks/useAvailableTimes";
 
 interface BookingFormProps {
   serviceId: string;
@@ -38,6 +39,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
   } = useBookingFormStore();
   
   const { selectedDate, selectedTimeRange, formattedDate } = useReservationStore();
+
+  // useInvalidateAvailableTimes 훅 추가
+  const invalidateAvailableTimes = useInvalidateAvailableTimes();
 
   // 예약 시간이 변경될 때마다 할인 계산
   useEffect(() => {
@@ -203,67 +207,119 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
         originalPrice: selectedTimeRange.price
       });
 
-      // 트랜잭션으로 예약 생성 및 적립/쿠폰 차감 처리
-      console.log('[BookingForm] 예약 데이터:', {
-        formattedDateStr,
-        startTime,
-        endTime,
-        p_reservation_date: formattedDateStr,
-        p_start_time: startTime,
-        p_end_time: endTime
-      });
-
-      // 1. 먼저 일반 예약 생성 (기존 방식 사용)
-      const reservationData = {
-        service_id: serviceId,
-        customer_id: user.id,
-        start_time: `${formattedDateStr} ${startTime}`,
-        end_time: `${formattedDateStr} ${endTime}`,
-        total_hours: selectedTimeRange.duration,
-        total_price: selectedTimeRange.price,
-        final_price: finalPrice,
-        original_total_price: selectedTimeRange.price,
-        status: 'confirmed',
-        customer_name: formData.customerName,
-        company_name: formData.companyName || null,
-        shooting_purpose: formData.shootingPurpose || null,
-        vehicle_number: formData.vehicleNumber || null,
-        privacy_agreed: formData.privacyAgreed,
-        used_coupon_ids: timeUsageData.selectedCouponIds,
-        used_accumulated_time_minutes: timeUsageData.selectedAccumulatedMinutes,
-        reservation_date: formattedDateStr
+      // 1. API를 통한 예약 생성 (동시성 에러 처리 포함)
+      const reservationRequestData = {
+        customerId: user.id,
+        reservationDate: formattedDateStr,
+        startTime: selectedTimeRange.start,
+        endTime: selectedTimeRange.end,
+        totalHours: selectedTimeRange.duration,
+        totalPrice: selectedTimeRange.price
       };
 
-      console.log('[BookingForm] 예약 생성 데이터:', reservationData);
+      console.log('[BookingForm] API 예약 생성 요청:', reservationRequestData);
 
-      const { data: reservationResult, error: reservationError } = await supabase
-        .from('reservations')
-        .insert([reservationData])
-        .select()
-        .single();
+      const reservationResponse = await fetch(`/api/services/${serviceId}/reservations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reservationRequestData)
+      });
 
-      if (reservationError) {
-        console.error("[BookingForm] 예약 생성 오류:", JSON.stringify(reservationError, null, 2));
+      const reservationResult = await reservationResponse.json();
+
+      if (!reservationResponse.ok) {
+        console.error("[BookingForm] API 예약 생성 실패:", reservationResult);
+        
+        // 동시성 에러 처리
+        if (reservationResult.error === 'CONCURRENT_BOOKING') {
+          toast({
+            title: "동시 예약 충돌",
+            description: "죄송합니다. 같은 시간에 다른 고객이 먼저 예약을 완료했습니다. 페이지를 새로고침하여 다른 시간을 선택해주세요.",
+            variant: "destructive"
+          } as any);
+          
+          // 페이지 새로고침을 위한 사용자 액션 제안
+          setTimeout(() => {
+            const shouldRefresh = confirm("페이지를 새로고침하여 최신 예약 현황을 확인하시겠습니까?");
+            if (shouldRefresh) {
+              window.location.reload();
+            }
+          }, 2000);
+          
+          setIsSubmitting(false);
+          return;
+        }
+
+        // 예약 충돌 에러 처리
+        if (reservationResult.error === 'BOOKING_CONFLICT') {
+          toast({
+            title: "예약 시간 충돌",
+            description: reservationResult.message || "선택하신 시간에 이미 다른 예약이 있습니다. 다른 시간을 선택해주세요.",
+            variant: "destructive"
+          } as any);
+          setIsSubmitting(false);
+          return;
+        }
+
+        // 제약 조건 위반 에러 처리
+        if (reservationResult.error === 'CONSTRAINT_VIOLATION') {
+          toast({
+            title: "입력 정보 오류",
+            description: "예약 정보가 올바르지 않습니다. 입력 내용을 확인해주세요.",
+            variant: "destructive"
+          } as any);
+          setIsSubmitting(false);
+          return;
+        }
+
+        // 일반적인 에러 처리
         toast({
           title: "예약 생성 실패",
-          description: `예약 생성 오류: ${reservationError.message || "예약을 생성하는 중 오류가 발생했습니다."}`,
+          description: reservationResult.message || "예약을 생성하는 중 오류가 발생했습니다. 다시 시도해주세요.",
           variant: "destructive"
         } as any);
         setIsSubmitting(false);
         return;
       }
 
-      console.log("[BookingForm] 예약 생성 성공:", reservationResult);
+      const createdReservation = reservationResult.reservation;
+      console.log("[BookingForm] API 예약 생성 성공:", createdReservation);
+
+      // 2. 예약이 성공한 경우에만 추가 정보 업데이트 (고객명, 업체명 등)
+      if (formData.customerName !== (user.email || '')) {
+        try {
+          const { error: updateError } = await supabase
+            .from('reservations')
+            .update({
+              customer_name: formData.customerName,
+              company_name: formData.companyName || null,
+              shooting_purpose: formData.shootingPurpose || null,
+              vehicle_number: formData.vehicleNumber || null,
+              privacy_agreed: formData.privacyAgreed,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', createdReservation.id);
+
+          if (updateError) {
+            console.warn("[BookingForm] 예약 추가 정보 업데이트 실패:", updateError);
+            // 추가 정보 업데이트 실패는 예약 생성을 중단하지 않음
+          }
+        } catch (updateErr) {
+          console.warn("[BookingForm] 예약 추가 정보 업데이트 중 오류:", updateErr);
+        }
+      }
 
       try {
-        // 2. 쿠폰 사용 처리
+        // 3. 쿠폰 사용 처리
         if (timeUsageData.selectedCouponIds.length > 0) {
           const { error: couponError } = await supabase
             .from('customer_coupons')
             .update({
               is_used: true,
               used_at: new Date().toISOString(),
-              used_reservation_id: reservationResult.id,
+              used_reservation_id: createdReservation.id,
               updated_at: new Date().toISOString()
             })
             .in('id', timeUsageData.selectedCouponIds)
@@ -273,13 +329,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           if (couponError) {
             console.error("[BookingForm] 쿠폰 업데이트 오류:", couponError);
             // 쿠폰 업데이트 실패 시 예약 삭제
-            await supabase.from('reservations').delete().eq('id', reservationResult.id);
+            await supabase.from('reservations').delete().eq('id', createdReservation.id);
             throw new Error(`쿠폰 처리 실패: ${couponError.message}`);
           }
           console.log("[BookingForm] 쿠폰 사용 처리 완료");
         }
 
-        // 3. 적립 시간 차감
+        // 4. 적립 시간 차감
         if (timeUsageData.selectedAccumulatedMinutes > 0) {
           // 현재 적립 시간 조회
           const { data: customerData, error: customerSelectError } = await supabase
@@ -315,10 +371,29 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           console.log("[BookingForm] 적립 시간 차감 완료");
         }
 
+        // 5. 예약 최종 정보 업데이트 (할인 적용된 가격)
+        if (isUsingDiscount) {
+          const { error: finalUpdateError } = await supabase
+            .from('reservations')
+            .update({
+              final_price: finalPrice,
+              original_total_price: selectedTimeRange.price,
+              used_coupon_ids: timeUsageData.selectedCouponIds,
+              used_accumulated_time_minutes: timeUsageData.selectedAccumulatedMinutes,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', createdReservation.id);
+
+          if (finalUpdateError) {
+            console.warn("[BookingForm] 최종 가격 업데이트 실패:", finalUpdateError);
+            // 최종 가격 업데이트 실패는 치명적이지 않음
+          }
+        }
+
       } catch (discountError) {
         console.error("[BookingForm] 할인 처리 중 오류:", discountError);
         // 할인 처리 실패 시 예약 삭제
-        await supabase.from('reservations').delete().eq('id', reservationResult.id);
+        await supabase.from('reservations').delete().eq('id', createdReservation.id);
         toast({
           title: "할인 처리 실패",
           description: discountError instanceof Error ? discountError.message : "할인 처리 중 오류가 발생했습니다.",
@@ -336,8 +411,12 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId }) => {
           : "예약이 성공적으로 처리되었습니다."
       } as any);
       
+      // 예약 완료 후 해당 날짜의 캐시 무효화
+      console.log('[BookingForm] 예약 완료 후 캐시 무효화 실행');
+      invalidateAvailableTimes(serviceId, selectedDate);
+      
       // 결제 완료 페이지로 리디렉션
-      router.push(`/payment/complete?reservationId=${reservationResult.id}`);
+      router.push(`/payment/complete?reservationId=${createdReservation.id}`);
       
     } catch (err) {
       console.error("[BookingForm] 예약 처리 중 오류:", err);

@@ -115,9 +115,12 @@ export const useAvailableTimes = ({ serviceId, selectedDate, prefetchDays = 3 }:
     queryKey: ['availableTimes', serviceId, dateString],
     queryFn: () => fetchAvailableTimes(serviceId, dateString!),
     enabled: !!serviceId && !!dateString,
-    staleTime: 5 * 60 * 1000, // 5분간 fresh 상태 유지
+    // 오늘 날짜는 더 짧은 캐시 시간 사용 (실시간 예약 현황 반영)
+    staleTime: dateString === format(new Date(), 'yyyy-MM-dd')
+      ? 1 * 60 * 1000  // 오늘: 1분간 fresh
+      : 5 * 60 * 1000, // 미래 날짜: 5분간 fresh
     gcTime: 30 * 60 * 1000, // 30분간 캐시 유지 (구 cacheTime)
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: dateString === format(new Date(), 'yyyy-MM-dd'), // 오늘 날짜는 포커스 시 재요청
     refetchOnMount: false, // 마운트 시 자동 재요청 방지 (캐시 우선 사용)
     retry: 2,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000), // 지수 백오프

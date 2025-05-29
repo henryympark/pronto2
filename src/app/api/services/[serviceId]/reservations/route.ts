@@ -80,13 +80,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. 예약 시간 중복 확인
+    // 2. 예약 시간 중복 확인 (pending 상태 포함)
     const { data: existingReservations, error: reservationsError } = await supabaseServer
       .from("reservations")
       .select("id, start_time, end_time")
       .eq("service_id", serviceId)
       .eq("reservation_date", reservationDate)
-      .in("status", ["pending", "confirmed"]);
+      .in("status", ["pending", "confirmed", "modified"]);
 
     if (reservationsError) {
       return NextResponse.json(
@@ -150,33 +150,106 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. 새 예약 생성
-    const { data: newReservation, error: createError } = await supabaseServer
-      .from("reservations")
-      .insert({
-        service_id: serviceId,
-        customer_id: customerId || null,
-        reservation_date: reservationDate,
-        start_time: startTime,
-        end_time: endTime,
-        total_hours: totalHours,
-        total_price: totalPrice,
-        status: "pending"
-      })
-      .select()
-      .single();
+    // 4. 새 예약 생성 (동시성 에러 처리 포함)
+    try {
+      const { data: newReservation, error: createError } = await supabaseServer
+        .from("reservations")
+        .insert({
+          service_id: serviceId,
+          customer_id: customerId || null,
+          reservation_date: reservationDate,
+          start_time: startTime,
+          end_time: endTime,
+          total_hours: totalHours,
+          total_price: totalPrice,
+          status: "pending"
+        })
+        .select()
+        .single();
 
-    if (createError) {
+      if (createError) {
+        // PostgreSQL UNIQUE 제약 조건 위반 (23505) - 동시성 에러
+        if (createError.code === '23505') {
+          // 동시 예약 실패 로그 기록
+          try {
+            await supabaseServer
+              .from("concurrent_booking_failures")
+              .insert({
+                service_id: serviceId,
+                reservation_date: reservationDate,
+                start_time: startTime,
+                attempted_customer_id: customerId || null,
+                attempted_at: new Date().toISOString(),
+                error_message: createError.message,
+                payment_id: null // 결제 정보는 나중에 추가
+              });
+          } catch (logError) {
+            console.error("동시 예약 실패 로그 기록 실패:", logError);
+          }
+
+          return NextResponse.json(
+            { 
+              error: "CONCURRENT_BOOKING",
+              message: "죄송합니다. 같은 시간에 다른 고객이 먼저 예약을 완료했습니다. 다른 시간을 선택해주세요." 
+            },
+            { status: 409 }
+          );
+        }
+
+        // PostgreSQL 커스텀 에러 (P0001) - 비즈니스 로직 제약 위반
+        if (createError.code === 'P0001') {
+          return NextResponse.json(
+            { 
+              error: "BOOKING_CONFLICT",
+              message: createError.message || "선택하신 시간에 이미 다른 예약이 있습니다. 다른 시간을 선택해주세요." 
+            },
+            { status: 409 }
+          );
+        }
+
+        // 기타 DB 제약 조건 위반
+        if (createError.code && createError.code.startsWith('23')) {
+          return NextResponse.json(
+            { 
+              error: "CONSTRAINT_VIOLATION",
+              message: "예약 생성 중 데이터 제약 조건에 위반되었습니다. 입력 정보를 확인해주세요." 
+            },
+            { status: 400 }
+          );
+        }
+
+        console.error("예약 생성 에러:", createError);
+        return NextResponse.json(
+          { error: "예약 생성 중 오류가 발생했습니다." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        message: "예약이 성공적으로 생성되었습니다.",
+        reservation: newReservation
+      }, { status: 201 });
+
+    } catch (dbError: any) {
+      console.error("DB 예약 생성 중 예외:", dbError);
+      
+      // PostgreSQL UNIQUE 제약 조건 위반
+      if (dbError?.code === '23505' || dbError?.message?.includes('unique_constraint')) {
+        return NextResponse.json(
+          { 
+            error: "CONCURRENT_BOOKING",
+            message: "죄송합니다. 같은 시간에 다른 고객이 먼저 예약을 완료했습니다. 다른 시간을 선택해주세요." 
+          },
+          { status: 409 }
+        );
+      }
+
+      // 기타 DB 에러
       return NextResponse.json(
-        { error: "예약 생성 중 오류가 발생했습니다." },
+        { error: "예약 처리 중 오류가 발생했습니다." },
         { status: 500 }
       );
     }
-
-    return NextResponse.json({
-      message: "예약이 성공적으로 생성되었습니다.",
-      reservation: newReservation
-    }, { status: 201 });
     
   } catch (error) {
     console.error("예약 생성 중 오류 발생:", error);

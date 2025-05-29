@@ -6,7 +6,7 @@
 export const CACHE_DURATIONS = {
   // 예약 가능 시간 캐싱
   AVAILABLE_TIMES: {
-    TODAY: 300,     // 오늘 날짜: 5분 (300초)
+    TODAY: 30,      // 오늘 날짜: 30초 (실시간 예약 현황 반영을 위해 짧게 설정)
     FUTURE: 900,    // 미래 날짜: 15분 (900초)
   },
   
