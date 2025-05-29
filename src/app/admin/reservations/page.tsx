@@ -3,14 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { format, parseISO, addMinutes, isBefore } from "date-fns";
+import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Calendar } from "@/components/ui/calendar";
 import { TimeRangeSelector } from "@/domains/booking";
 import { toast } from "@/shared/hooks/useToast";
-import { Loader2, Plus, CheckCircle, Play, Edit, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, Plus, CheckCircle, Play, Edit, XCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { useReservationHistory } from "@/hooks/useReservationHistory";
 import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,9 @@ type Reservation = {
   created_at: string;
   reservation_date?: string;
   total_price?: number;
+  // 타임스탬프 조합 필드 (런타임 생성)
+  combined_start_time?: string;
+  combined_end_time?: string;
   customers: {
     id: string;
     email?: string;
@@ -52,6 +55,7 @@ export default function AdminReservationsPage() {
   const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   
   // 예약 변경 관련 상태
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -77,8 +81,50 @@ export default function AdminReservationsPage() {
   const router = useRouter();
   
   useEffect(() => {
-    console.log("[어드민 예약 페이지] 데이터 로드 시작");
+    console.log("[어드민 예약 페이지] 초기 데이터 로드 및 Realtime 구독 시작");
+    
+    // 초기 데이터 로드
     fetchReservations();
+    
+    // Realtime 구독 설정
+    const channel = supabase
+      .channel('reservations-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE 모든 이벤트
+          schema: 'public',
+          table: 'reservations'
+        },
+        (payload) => {
+          console.log('[Realtime] 예약 변화 감지:', payload);
+          handleRealtimeChange(payload);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Realtime] 구독 상태:', status);
+        setIsRealtimeConnected(status === 'SUBSCRIBED');
+        
+        if (status === 'SUBSCRIBED') {
+          toast({
+            title: "실시간 연결됨",
+            description: "예약 변경사항이 실시간으로 반영됩니다.",
+          });
+        } else if (status === 'CHANNEL_ERROR') {
+          toast({
+            title: "실시간 연결 오류",
+            description: "실시간 업데이트에 문제가 발생했습니다.",
+            variant: "destructive",
+          });
+        }
+      });
+
+    // 컴포넌트 언마운트 시 구독 해제
+    return () => {
+      console.log('[Realtime] 구독 해제');
+      supabase.removeChannel(channel);
+      setIsRealtimeConnected(false);
+    };
   }, [supabase]);
   
   const openReservationDetail = (reservation: Reservation) => {
@@ -86,23 +132,31 @@ export default function AdminReservationsPage() {
     setIsModalOpen(true);
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string, timeString?: string) => {
     try {
-      return format(new Date(dateString), 'yyyy년 M월 d일 HH:mm', { locale: ko });
+      if (timeString) {
+        // reservation_date + start_time/end_time 조합으로 정확한 타임스탬프 생성
+        const dateTime = `${dateString}T${timeString}`;
+        return format(new Date(dateTime), 'yyyy년 M월 d일 HH:mm', { locale: ko });
+      } else {
+        // 기존 방식 (하위 호환성)
+        return format(new Date(dateString), 'yyyy년 M월 d일 HH:mm', { locale: ko });
+      }
     } catch (e) {
       return '날짜 형식 오류';
     }
   };
 
-  // 시간 기반 예약 상태 판별 헬퍼 함수 (마이페이지와 동일)
+  // 시간 기반 예약 상태 판별 헬퍼 함수 (수정됨)
   const getReservationTimeStatus = (reservation: Reservation) => {
-    if (!reservation.start_time || !reservation.end_time) {
+    if (!reservation.reservation_date || !reservation.start_time || !reservation.end_time) {
       return 'unknown';
     }
 
     const now = new Date();
-    const startTime = new Date(reservation.start_time);
-    const endTime = new Date(reservation.end_time);
+    // reservation_date + start_time/end_time으로 정확한 타임스탬프 생성
+    const startTime = new Date(`${reservation.reservation_date}T${reservation.start_time}`);
+    const endTime = new Date(`${reservation.reservation_date}T${reservation.end_time}`);
 
     if (now < startTime) {
       return 'before_start'; // 시작 전
@@ -179,13 +233,13 @@ export default function AdminReservationsPage() {
         return timeStatus === 'before_start' 
           ? '예약 확정 (시작 전)'
           : timeStatus === 'in_progress'
-          ? '현재 이용 중'
+          ? '🔴 현재 이용 중'
           : '이용 완료';
       case 'modified':
         return timeStatus === 'before_start' 
           ? '예약 변경됨 (시작 전)'
           : timeStatus === 'in_progress'
-          ? '현재 이용 중'
+          ? '🔴 현재 이용 중'
           : '이용 완료';
       case 'completed': 
         return '이용 완료';
@@ -398,10 +452,23 @@ export default function AdminReservationsPage() {
         } else {
           throw error;
         }
+        return;
       }
       
-      console.log("[어드민 예약 페이지] 데이터 로드 성공");
-      setReservations(data || []);
+      // 데이터 후처리: 타임스탬프 조합 생성
+      const processedData = (data || []).map(reservation => ({
+        ...reservation,
+        // 실시간 상태 반영을 위한 타임스탬프 조합 생성
+        combined_start_time: reservation.reservation_date && reservation.start_time 
+          ? `${reservation.reservation_date}T${reservation.start_time}` 
+          : null,
+        combined_end_time: reservation.reservation_date && reservation.end_time 
+          ? `${reservation.reservation_date}T${reservation.end_time}` 
+          : null,
+      }));
+      
+      console.log("[어드민 예약 페이지] 데이터 로드 성공, 처리된 예약 수:", processedData.length);
+      setReservations(processedData);
     } catch (err: any) {
       console.error('[어드민 예약 페이지] 예약 정보 로딩 오류:', err);
       setError(err.message || '예약 정보를 불러오는데 실패했습니다.');
@@ -410,6 +477,125 @@ export default function AdminReservationsPage() {
     }
   }
   
+  // Realtime 이벤트 처리 함수
+  const handleRealtimeChange = useCallback(async (payload: any) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    try {
+      switch (eventType) {
+        case 'INSERT':
+          console.log('[Realtime] 새 예약 생성:', newRecord);
+          // 새 예약의 관련 데이터(고객, 서비스)를 포함해서 가져오기
+          const { data: newReservationData, error: fetchError } = await supabase
+            .from('reservations')
+            .select(`
+              *,
+              customers(id, email, nickname, phone),
+              services(id, name, price_per_hour)
+            `)
+            .eq('id', newRecord.id)
+            .single();
+
+          if (fetchError) {
+            console.error('[Realtime] 새 예약 데이터 조회 실패:', fetchError);
+            return;
+          }
+
+          // 타임스탬프 조합 필드 추가
+          const processedNewReservation = {
+            ...newReservationData,
+            combined_start_time: newReservationData.reservation_date && newReservationData.start_time 
+              ? `${newReservationData.reservation_date}T${newReservationData.start_time}` 
+              : null,
+            combined_end_time: newReservationData.reservation_date && newReservationData.end_time 
+              ? `${newReservationData.reservation_date}T${newReservationData.end_time}` 
+              : null,
+          };
+
+          setReservations(prev => [processedNewReservation, ...prev]);
+          
+          toast({
+            title: "🎉 새 예약 접수",
+            description: `${newReservationData.customer_name || '고객'}님의 예약이 접수되었습니다.`,
+          });
+          break;
+
+        case 'UPDATE':
+          console.log('[Realtime] 예약 업데이트:', newRecord);
+          // 업데이트된 예약의 관련 데이터를 포함해서 가져오기
+          const { data: updatedReservationData, error: updateFetchError } = await supabase
+            .from('reservations')
+            .select(`
+              *,
+              customers(id, email, nickname, phone),
+              services(id, name, price_per_hour)
+            `)
+            .eq('id', newRecord.id)
+            .single();
+
+          if (updateFetchError) {
+            console.error('[Realtime] 업데이트된 예약 데이터 조회 실패:', updateFetchError);
+            return;
+          }
+
+          // 타임스탬프 조합 필드 추가
+          const processedUpdatedReservation = {
+            ...updatedReservationData,
+            combined_start_time: updatedReservationData.reservation_date && updatedReservationData.start_time 
+              ? `${updatedReservationData.reservation_date}T${updatedReservationData.start_time}` 
+              : null,
+            combined_end_time: updatedReservationData.reservation_date && updatedReservationData.end_time 
+              ? `${updatedReservationData.reservation_date}T${updatedReservationData.end_time}` 
+              : null,
+          };
+
+          setReservations(prev => 
+            prev.map(reservation => 
+              reservation.id === newRecord.id 
+                ? processedUpdatedReservation 
+                : reservation
+            )
+          );
+
+          // 상태 변경에 따른 알림
+          if (oldRecord.status !== newRecord.status) {
+            const statusMessages = {
+              'confirmed': '예약이 확정되었습니다',
+              'cancelled': '예약이 취소되었습니다',
+              'modified': '예약이 변경되었습니다',
+              'completed': '예약이 완료되었습니다'
+            };
+            
+            toast({
+              title: "📝 예약 상태 변경",
+              description: statusMessages[newRecord.status as keyof typeof statusMessages] || '예약이 업데이트되었습니다',
+            });
+          }
+          break;
+
+        case 'DELETE':
+          console.log('[Realtime] 예약 삭제:', oldRecord);
+          setReservations(prev => prev.filter(reservation => reservation.id !== oldRecord.id));
+          
+          toast({
+            title: "🗑️ 예약 삭제",
+            description: "예약이 삭제되었습니다.",
+          });
+          break;
+
+        default:
+          console.log('[Realtime] 알 수 없는 이벤트:', eventType);
+      }
+    } catch (error) {
+      console.error('[Realtime] 이벤트 처리 중 오류:', error);
+      toast({
+        title: "실시간 업데이트 오류",
+        description: "데이터 동기화 중 문제가 발생했습니다.",
+        variant: "destructive",
+      });
+    }
+  }, [supabase]);
+
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -435,14 +621,33 @@ export default function AdminReservationsPage() {
   return (
     <div className="container py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">예약 현황</h1>
-        <Button 
-          onClick={() => router.push('/admin/reservations/create')}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          예약등록
-        </Button>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">예약 현황</h1>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isRealtimeConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className={`text-sm ${isRealtimeConnected ? 'text-green-600' : 'text-red-600'}`}>
+              {isRealtimeConnected ? '실시간 연결됨' : '연결 끊김'}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline"
+            onClick={() => fetchReservations()}
+            disabled={loading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            수동 새로고침
+          </Button>
+          <Button 
+            onClick={() => router.push('/admin/reservations/create')}
+            className="flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            예약등록
+          </Button>
+        </div>
       </div>
       
       {loading ? (
@@ -507,7 +712,7 @@ export default function AdminReservationsPage() {
                   </td>
                   <td className="py-3 px-4">{reservation.services?.name || '알 수 없음'}</td>
                   <td className="py-3 px-4">
-                    {reservation.start_time ? formatDateTime(reservation.start_time) : '알 수 없음'}
+                    {reservation.start_time ? formatDateTime(reservation.reservation_date || '', reservation.start_time) : '알 수 없음'}
                   </td>
                   <td className="py-3 px-4">
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(reservation)}`}>
@@ -549,12 +754,12 @@ export default function AdminReservationsPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">상태</h3>
-                  <p className="mt-1">
+                  <div className="mt-1">
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(selectedReservation)}`}>
                       {getStatusIcon(selectedReservation)}
                       {getStatusText(selectedReservation)}
                     </div>
-                  </p>
+                  </div>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">서비스</h3>
@@ -571,11 +776,11 @@ export default function AdminReservationsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <h4 className="text-xs text-gray-500">시작 시간</h4>
-                    <p className="mt-1">{formatDateTime(selectedReservation.start_time)}</p>
+                    <p className="mt-1">{formatDateTime(selectedReservation.reservation_date || '', selectedReservation.start_time)}</p>
                   </div>
                   <div>
                     <h4 className="text-xs text-gray-500">종료 시간</h4>
-                    <p className="mt-1">{formatDateTime(selectedReservation.end_time)}</p>
+                    <p className="mt-1">{formatDateTime(selectedReservation.reservation_date || '', selectedReservation.end_time)}</p>
                   </div>
                 </div>
               </div>
@@ -665,7 +870,7 @@ export default function AdminReservationsPage() {
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h3 className="font-medium text-blue-900 mb-2">현재 예약 정보</h3>
                 <p className="text-sm text-blue-800">
-                  {selectedReservation.services?.name} - {formatDateTime(selectedReservation.start_time)} ~ {formatDateTime(selectedReservation.end_time)}
+                  {selectedReservation.services?.name} - {formatDateTime(selectedReservation.reservation_date || '', selectedReservation.start_time)} ~ {formatDateTime(selectedReservation.reservation_date || '', selectedReservation.end_time)}
                 </p>
               </div>
 
@@ -735,7 +940,7 @@ export default function AdminReservationsPage() {
                   정말로 이 예약을 취소하시겠습니까?
                 </p>
                 <p className="text-xs text-red-600 mt-2">
-                  {selectedReservation.services?.name} - {formatDateTime(selectedReservation.start_time)}
+                  {selectedReservation.services?.name} - {formatDateTime(selectedReservation.reservation_date || '', selectedReservation.start_time)}
                 </p>
               </div>
 
