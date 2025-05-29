@@ -14,6 +14,7 @@ import { Loader2, Plus, CheckCircle, Play, Edit, XCircle, AlertCircle, RefreshCw
 import { useReservationHistory } from "@/hooks/useReservationHistory";
 import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
 import { useRouter } from "next/navigation";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 type Reservation = {
   id: string;
@@ -30,6 +31,8 @@ type Reservation = {
   created_at: string;
   reservation_date?: string;
   total_price?: number;
+  final_price?: number;
+  privacy_agreed?: boolean;
   // 타임스탬프 조합 필드 (런타임 생성)
   combined_start_time?: string;
   combined_end_time?: string;
@@ -596,6 +599,20 @@ export default function AdminReservationsPage() {
     }
   }, [supabase]);
 
+  const formatTimeOnly = (timeString: string) => {
+    if (!timeString) return '';
+    return timeString.substring(0, 5);
+  };
+
+  const calculateDurationHours = (startTime: string, endTime: string) => {
+    if (!startTime || !endTime) return 0;
+    
+    const start = new Date(`2000-01-01T${startTime}`);
+    const end = new Date(`2000-01-01T${endTime}`);
+    const diffMs = end.getTime() - start.getTime();
+    return Math.round(diffMs / (1000 * 60 * 60) * 10) / 10; // 소수점 1자리까지
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -740,116 +757,178 @@ export default function AdminReservationsPage() {
 
       {/* 예약 상세 정보 모달 */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>예약 상세 정보</DialogTitle>
           </DialogHeader>
           
           {selectedReservation && (
-            <div className="mt-4 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">예약 ID</h3>
-                  <p className="mt-1">{selectedReservation.id}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">상태</h3>
-                  <div className="mt-1">
+            <div className="space-y-4">
+              {/* 고객 프로필 */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 font-medium text-sm">
+                        {selectedReservation.customer_name?.charAt(0) || '고'}
+                      </span>
+                    </div>
+                    {selectedReservation.customer_name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">전화번호</span>
+                    <a 
+                      href={`tel:${selectedReservation.customers?.phone || ''}`}
+                      className="text-sm text-blue-600 underline"
+                    >
+                      {selectedReservation.customers?.phone || '정보 없음'}
+                    </a>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">이메일</span>
+                    <a 
+                      href={`mailto:${selectedReservation.customers?.email || ''}`}
+                      className="text-sm text-blue-600 underline"
+                    >
+                      {selectedReservation.customers?.email || '정보 없음'}
+                    </a>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">예약번호</span>
+                    <span className="text-sm font-mono">{selectedReservation.id.substring(0, 8)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">예약날짜</span>
+                    <span className="text-sm">{formatDateTime(selectedReservation.reservation_date || '', selectedReservation.start_time)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 예약내역 */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">예약내역</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">서비스명</span>
+                    <span className="text-sm font-medium">{selectedReservation.services?.name || '알 수 없음'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">이용날짜</span>
+                    <span className="text-sm text-green-600 font-medium">
+                      {formatDateTime(selectedReservation.reservation_date || '', selectedReservation.start_time)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">이용시간</span>
+                    <span className="text-sm">
+                      {formatTimeOnly(selectedReservation.start_time)} ~ {formatTimeOnly(selectedReservation.end_time)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">수량</span>
+                    <span className="text-sm">{calculateDurationHours(selectedReservation.start_time, selectedReservation.end_time)}시간</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 예약자입력정보 */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">예약자입력정보</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm text-gray-500">업체명</span>
+                    <span className="text-sm text-right">{selectedReservation.company_name || '정보 없음'}</span>
+                  </div>
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm text-gray-500">촬영목적</span>
+                    <span className="text-sm text-right max-w-[200px]">{selectedReservation.shooting_purpose || '정보 없음'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">차량번호</span>
+                    <span className="text-sm">{selectedReservation.vehicle_number || '정보 없음'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">개인정보동의</span>
+                    <span className={`text-sm ${selectedReservation.privacy_agreed ? 'text-green-600' : 'text-red-600'}`}>
+                      {selectedReservation.privacy_agreed ? '동의함' : '동의안함'}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 결제정보 */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">결제정보</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">결제금액</span>
+                    <span className="text-lg font-bold text-blue-600">
+                      {(selectedReservation.final_price || selectedReservation.total_price || 0).toLocaleString()}원
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 현재 상태 */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">현재 상태</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">예약 상태</span>
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(selectedReservation)}`}>
                       {getStatusIcon(selectedReservation)}
                       {getStatusText(selectedReservation)}
                     </div>
                   </div>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">서비스</h3>
-                  <p className="mt-1">{selectedReservation.services?.name || '알 수 없음'}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">가격</h3>
-                  <p className="mt-1">{selectedReservation.services?.price_per_hour?.toLocaleString() || '0'}원/시간</p>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">예약 시간</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-xs text-gray-500">시작 시간</h4>
-                    <p className="mt-1">{formatDateTime(selectedReservation.reservation_date || '', selectedReservation.start_time)}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs text-gray-500">종료 시간</h4>
-                    <p className="mt-1">{formatDateTime(selectedReservation.reservation_date || '', selectedReservation.end_time)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">고객 정보</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-xs text-gray-500">이름</h4>
-                    <p className="mt-1">{selectedReservation.customer_name}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs text-gray-500">이메일</h4>
-                    <p className="mt-1">{selectedReservation.customers?.email || '정보 없음'}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs text-gray-500">전화번호</h4>
-                    <p className="mt-1">{selectedReservation.customers?.phone || '정보 없음'}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs text-gray-500">업체명</h4>
-                    <p className="mt-1">{selectedReservation.company_name || '정보 없음'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">추가 정보</h3>
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <h4 className="text-xs text-gray-500">촬영 목적</h4>
-                    <p className="mt-1">{selectedReservation.shooting_purpose || '정보 없음'}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs text-gray-500">차량번호</h4>
-                    <p className="mt-1">{selectedReservation.vehicle_number || '정보 없음'}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs text-gray-500">관리자 메모</h4>
-                    <p className="mt-1">{selectedReservation.admin_memo || '메모 없음'}</p>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
               {/* 진행이력 */}
-              <div className="border-t pt-4">
-                <ReservationHistoryTimeline 
-                  history={history}
-                  loading={historyLoading}
-                  error={historyError}
-                />
-              </div>
+              <Card>
+                <CardContent className="pt-4">
+                  <ReservationHistoryTimeline 
+                    history={history}
+                    loading={historyLoading}
+                    error={historyError}
+                  />
+                </CardContent>
+              </Card>
 
-              {/* 운영자 예약 변경/취소 버튼 */}
+              {/* 액션 버튼들 */}
               {selectedReservation.status !== 'cancelled' && (
-                <div className="border-t pt-4 flex justify-end space-x-3">
+                <div className="flex gap-3 pt-2">
                   <Button 
                     variant="outline"
                     onClick={openChangeModal}
                     disabled={isSubmitting}
+                    className="flex-1"
                   >
-                    예약 변경
+                    예약변경
                   </Button>
                   <Button 
-                    variant="destructive"
+                    variant="outline"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1"
+                  >
+                    노쇼
+                  </Button>
+                  <Button 
+                    variant="outline"
                     onClick={openCancelModal}
                     disabled={isSubmitting}
+                    className="flex-1"
                   >
-                    예약 취소
+                    예약취소
                   </Button>
                 </div>
               )}
