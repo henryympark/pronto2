@@ -115,10 +115,10 @@ export const useAvailableTimes = ({ serviceId, selectedDate, prefetchDays = 3 }:
     queryKey: ['availableTimes', serviceId, dateString],
     queryFn: () => fetchAvailableTimes(serviceId, dateString!),
     enabled: !!serviceId && !!dateString,
-    // 오늘 날짜는 더 짧은 캐시 시간 사용 (실시간 예약 현황 반영)
+    // 캐시 시간을 상수와 일치시켜 더 일관성 있게 관리
     staleTime: dateString === format(new Date(), 'yyyy-MM-dd')
-      ? 1 * 60 * 1000  // 오늘: 1분간 fresh
-      : 5 * 60 * 1000, // 미래 날짜: 5분간 fresh
+      ? 10 * 1000    // 오늘: 10초간 fresh (CACHE_DURATIONS.AVAILABLE_TIMES.TODAY와 일치)
+      : 5 * 60 * 1000, // 미래 날짜: 5분간 fresh (CACHE_DURATIONS.AVAILABLE_TIMES.FUTURE와 일치)
     gcTime: 30 * 60 * 1000, // 30분간 캐시 유지 (구 cacheTime)
     refetchOnWindowFocus: dateString === format(new Date(), 'yyyy-MM-dd'), // 오늘 날짜는 포커스 시 재요청
     refetchOnMount: false, // 마운트 시 자동 재요청 방지 (캐시 우선 사용)
@@ -209,21 +209,91 @@ export const useGetCachedAvailableTimes = (serviceId: string, date: Date | null)
   }, [queryClient, serviceId, dateString]);
 };
 
-// 캐시 무효화 함수 (예약 완료 후 사용)
+// 캐시 무효화 함수 (예약 완료 후 사용) - 강화된 버전
 export const useInvalidateAvailableTimes = () => {
   const queryClient = useQueryClient();
   
   return React.useCallback((serviceId: string, date?: Date) => {
     if (date) {
       const dateString = format(date, 'yyyy-MM-dd');
+      console.log(`[useInvalidateAvailableTimes] 특정 날짜 캐시 무효화: ${dateString}`);
+      
+      // 1. 해당 날짜의 캐시 무효화
       queryClient.invalidateQueries({
         queryKey: ['availableTimes', serviceId, dateString]
       });
+      
+      // 2. 해당 날짜의 캐시 즉시 제거 (무효화보다 더 강력)
+      queryClient.removeQueries({
+        queryKey: ['availableTimes', serviceId, dateString]
+      });
+      
+      // 3. 관련된 인접 날짜들도 무효화 (다른 사용자들이 보고 있을 수 있음)
+      const adjacentDates = [
+        format(addDays(date, -1), 'yyyy-MM-dd'), // 전날
+        format(addDays(date, 1), 'yyyy-MM-dd'),  // 다음날
+      ];
+      
+      adjacentDates.forEach(adjDate => {
+        queryClient.invalidateQueries({
+          queryKey: ['availableTimes', serviceId, adjDate]
+        });
+      });
+      
+      // 4. 즉시 새로운 데이터 프리페치 (사용자 경험 향상)
+      queryClient.prefetchQuery({
+        queryKey: ['availableTimes', serviceId, dateString],
+        queryFn: () => fetchAvailableTimes(serviceId, dateString),
+        staleTime: 0, // 즉시 fresh 상태로 만들기
+      }).catch(error => {
+        console.warn(`[useInvalidateAvailableTimes] 프리페치 실패 (${dateString}):`, error);
+      });
+      
     } else {
+      console.log(`[useInvalidateAvailableTimes] 전체 서비스 캐시 무효화: ${serviceId}`);
+      
       // 모든 날짜의 캐시 무효화
       queryClient.invalidateQueries({
         queryKey: ['availableTimes', serviceId]
       });
+      
+      // 모든 날짜의 캐시 즉시 제거
+      queryClient.removeQueries({
+        queryKey: ['availableTimes', serviceId]
+      });
     }
   }, [queryClient]);
+};
+
+// 전역 캐시 무효화 유틸리티 (다른 컴포넌트에서도 사용 가능)
+export const invalidateAvailableTimesGlobally = (queryClient: any, serviceId: string, date?: Date) => {
+  if (date) {
+    const dateString = format(date, 'yyyy-MM-dd');
+    console.log(`[Global] 캐시 무효화: ${serviceId} - ${dateString}`);
+    
+    // 즉시 제거 + 무효화 + 프리페치
+    queryClient.removeQueries({
+      queryKey: ['availableTimes', serviceId, dateString]
+    });
+    
+    queryClient.invalidateQueries({
+      queryKey: ['availableTimes', serviceId, dateString]
+    });
+    
+    // 백그라운드에서 새 데이터 프리페치
+    queryClient.prefetchQuery({
+      queryKey: ['availableTimes', serviceId, dateString],
+      queryFn: () => fetchAvailableTimes(serviceId, dateString),
+      staleTime: 0,
+    }).catch(console.warn);
+    
+  } else {
+    console.log(`[Global] 전체 서비스 캐시 무효화: ${serviceId}`);
+    queryClient.removeQueries({
+      queryKey: ['availableTimes', serviceId]
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['availableTimes', serviceId]
+    });
+  }
 }; 
