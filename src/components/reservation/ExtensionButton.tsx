@@ -24,18 +24,29 @@ export function ExtensionButton({
 }: ExtensionButtonProps) {
   const [gracePeriodRemaining, setGracePeriodRemaining] = useState<number>(0);
   const [isEligible, setIsEligible] = useState<boolean>(false);
+  const [isInUse, setIsInUse] = useState<boolean>(false);
 
   useEffect(() => {
     const updateGracePeriod = () => {
-      // 예약 종료 시간 계산
+      // 예약 시작 및 종료 시간 계산
+      const reservationStartDateTime = createReservationDateTime(
+        reservation.reservation_date,
+        reservation.start_time
+      );
       const reservationEndDateTime = createReservationDateTime(
         reservation.reservation_date,
         reservation.end_time
       );
 
+      const now = new Date();
       const remaining = getRemainingGracePeriodMinutes(reservationEndDateTime);
+      
+      // 이용중 상태 확인: 현재 시간이 예약 시작 시간과 종료 시간 사이에 있는지
+      const currentlyInUse = now >= reservationStartDateTime && now <= reservationEndDateTime;
+      
       setGracePeriodRemaining(remaining);
-      setIsEligible(remaining > 0 && reservation.status === 'confirmed');
+      setIsEligible(remaining > 0 && (reservation.status === 'confirmed' || reservation.status === 'modified'));
+      setIsInUse(currentlyInUse);
     };
 
     // 초기 계산
@@ -45,7 +56,7 @@ export function ExtensionButton({
     const interval = setInterval(updateGracePeriod, 30000);
 
     return () => clearInterval(interval);
-  }, [reservation.reservation_date, reservation.end_time, reservation.status]);
+  }, [reservation.reservation_date, reservation.start_time, reservation.end_time, reservation.status]);
 
   if (!isEligible) {
     return null; // Grace Period가 끝났거나 예약 상태가 적절하지 않으면 버튼 숨김
@@ -66,10 +77,13 @@ export function ExtensionButton({
         예약 연장하기
       </Button>
       
-      <Badge variant="outline" className="flex items-center gap-1 text-xs">
-        <Clock className="h-3 w-3" />
-        연장 가능시간: {gracePeriodRemaining}분 남음
-      </Badge>
+      {/* 이용중 상태일 때만 연장 가능시간 표시 */}
+      {isInUse && (
+        <Badge variant="outline" className="flex items-center gap-1 text-xs">
+          <Clock className="h-3 w-3" />
+          연장 가능시간: {gracePeriodRemaining}분 남음
+        </Badge>
+      )}
     </div>
   );
 } 

@@ -470,124 +470,121 @@ export default function MyPage() {
           </div>
 
           {/* 예약 내역 섹션 */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>예약 내역</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* 필터링 탭 */}
-              <Tabs defaultValue="upcoming" className="mb-6" onValueChange={(value) => handleFilterChange(value as FilterType)}>
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="upcoming">이용 예정</TabsTrigger>
-                  <TabsTrigger value="completed">이용 완료</TabsTrigger>
-                  <TabsTrigger value="cancelled">취소 내역</TabsTrigger>
-                </TabsList>
-              </Tabs>
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-6">예약 내역</h2>
+            
+            {/* 필터링 탭 */}
+            <Tabs defaultValue="upcoming" className="mb-6" onValueChange={(value) => handleFilterChange(value as FilterType)}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="upcoming">이용 예정</TabsTrigger>
+                <TabsTrigger value="completed">이용 완료</TabsTrigger>
+                <TabsTrigger value="cancelled">취소 내역</TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-              {isLoading ? (
-                <div className="flex justify-center items-center py-10">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-                </div>
-              ) : filteredReservations.length === 0 ? (
-                <div className="text-center py-10">
-                  <p className="text-gray-500">예약 내역이 없습니다.</p>
-                  <Link href="/" className="mt-4 inline-block">
-                    <Button>서비스 둘러보기</Button>
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredReservations.map((reservation) => (
-                    <Card 
-                      key={reservation.id} 
-                      className="overflow-hidden hover:bg-gray-50 cursor-pointer"
-                      onClick={() => handleReservationClick(reservation)}
-                    >
-                      <CardContent className="p-0">
-                        <div className="p-6">
-                          <div className="flex justify-between items-start mb-4">
-                            <div>
-                              <h3 className="text-lg font-semibold mb-1">
-                                {reservation.service?.name || '알 수 없는 서비스'}
-                              </h3>
-                              <Badge className={getStatusColorClass(reservation)}>
-                                {getStatusText(reservation)}
-                              </Badge>
-                              
-                              {reservation.status === 'cancelled' && (
-                                <div className="mt-2 text-sm">
-                                  <span className="text-gray-600">취소 처리 완료</span>
-                                </div>
-                              )}
-                            </div>
+            {isLoading ? (
+              <div className="flex justify-center items-center py-10">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+              </div>
+            ) : filteredReservations.length === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-gray-500">예약 내역이 없습니다.</p>
+                <Link href="/" className="mt-4 inline-block">
+                  <Button>서비스 둘러보기</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredReservations.map((reservation) => (
+                  <Card 
+                    key={reservation.id} 
+                    className="overflow-hidden hover:bg-gray-50 cursor-pointer"
+                    onClick={() => handleReservationClick(reservation)}
+                  >
+                    <CardContent className="p-0">
+                      <div className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-lg font-semibold mb-1">
+                              {reservation.service?.name || '알 수 없는 서비스'}
+                            </h3>
+                            <Badge className={getStatusColorClass(reservation)}>
+                              {getStatusText(reservation)}
+                            </Badge>
                             
-                            <div className="text-right">
-                              <p className="text-sm text-gray-500 mb-1">
-                                {format(parseISO(reservation.reservation_date), 'yyyy년 MM월 dd일', { locale: ko })}
-                                <br />
-                                {formatTimeString(reservation.start_time)} ~ {formatTimeString(reservation.end_time)}
-                              </p>
-                              <p className="font-medium">
-                                {reservation.total_price?.toLocaleString() || 0}원
-                              </p>
-                            </div>
+                            {reservation.status === 'cancelled' && (
+                              <div className="mt-2 text-sm">
+                                <span className="text-gray-600">취소 처리 완료</span>
+                              </div>
+                            )}
                           </div>
                           
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <p className="text-sm text-gray-600">
-                                {reservation.company_name && (
-                                  <span className="mr-2">회사명: {reservation.company_name}</span>
-                                )}
-                                {reservation.purpose && (
-                                  <span>촬영 목적: {reservation.purpose}</span>
-                                )}
-                              </p>
-                            </div>
-                            
-                            <div className="flex gap-2">
-                              {/* 예약 연장 버튼 - 이용 예정 탭의 active 예약에만 표시 */}
-                              {activeFilter === 'upcoming' && 
-                                (reservation.status === 'confirmed' || reservation.status === 'modified') && (
-                                <ExtensionButton
-                                  reservation={reservation}
-                                  onExtensionClick={() => handleExtensionClick(reservation)}
-                                  disabled={false}
-                                />
-                              )}
-                              
-                              {activeFilter === 'completed' && 
-                                (reservation.status === 'completed' || 
-                                ((reservation.status === 'confirmed' || reservation.status === 'modified') && 
-                                  new Date(`${reservation.reservation_date}T${reservation.end_time}`) <= new Date())) && 
-                                !reservation.has_review && (
-                                <Link 
-                                  href={`/my/reviews/write/${reservation.id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Button variant="outline" size="sm">리뷰 작성</Button>
-                                </Link>
-                              )}
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleReservationClick(reservation);
-                                }}
-                              >
-                                상세보기
-                              </Button>
-                            </div>
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500 mb-1">
+                              {format(parseISO(reservation.reservation_date), 'yyyy년 MM월 dd일', { locale: ko })}
+                              <br />
+                              {formatTimeString(reservation.start_time)} ~ {formatTimeString(reservation.end_time)}
+                            </p>
+                            <p className="font-medium">
+                              {reservation.total_price?.toLocaleString() || 0}원
+                            </p>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-sm text-gray-600">
+                              {reservation.company_name && (
+                                <span className="mr-2">회사명: {reservation.company_name}</span>
+                              )}
+                              {reservation.purpose && (
+                                <span>촬영 목적: {reservation.purpose}</span>
+                              )}
+                            </p>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            {/* 예약 연장 버튼 - 이용 예정 탭의 active 예약에만 표시 */}
+                            {activeFilter === 'upcoming' && 
+                              (reservation.status === 'confirmed' || reservation.status === 'modified') && (
+                              <ExtensionButton
+                                reservation={reservation}
+                                onExtensionClick={() => handleExtensionClick(reservation)}
+                                disabled={false}
+                              />
+                            )}
+                            
+                            {activeFilter === 'completed' && 
+                              (reservation.status === 'completed' || 
+                              ((reservation.status === 'confirmed' || reservation.status === 'modified') && 
+                                new Date(`${reservation.reservation_date}T${reservation.end_time}`) <= new Date())) && 
+                              !reservation.has_review && (
+                              <Link 
+                                href={`/my/reviews/write/${reservation.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Button variant="outline" size="sm">리뷰 작성</Button>
+                              </Link>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReservationClick(reservation);
+                              }}
+                            >
+                              상세보기
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* 내 정보 및 로그아웃 버튼 */}
           <div className="flex flex-col space-y-4 justify-start mb-8">

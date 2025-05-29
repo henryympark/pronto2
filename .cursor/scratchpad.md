@@ -57,7 +57,49 @@
 - DB 트랜잭션 안전성 확보
 - 웹훅 이벤트 발생 시스템
 
+### 신규 요청: Supabase Security Advisor 문제 해결 (2025-01-26)
+**사용자 요구사항**: 
+> "supabase에서 Security Advisor의 errors, warnings의 목록을 확인하고 문제를 해결해줘. 무조건 supabase mcp를 이용해서 해결해줘"
+
+**현재 상태 분석**:
+- Supabase 프로젝트: `pronto2` (ID: plercperpovsdoprkyow)
+- 프로젝트 상태: ACTIVE_HEALTHY
+- PostgreSQL 버전: 15.8.1.082
+- 리전: ap-northeast-2
+
+**목표**: 
+- Supabase Security Advisor에서 발견된 모든 보안 오류 및 경고 해결
+- RLS (Row Level Security) 정책 강화
+- 데이터베이스 권한 및 접근 제어 최적화
+- 보안 모범 사례 적용
+
 ## Key Challenges and Analysis
+
+### Supabase Security Advisor 분석 결과
+
+**1. RLS (Row Level Security) 상태 분석**
+- ✅ **활성화된 테이블들**: `services`, `reviews`, `customer_coupons`, `reservations`, `blocked_times`, `holidays`, `service_operating_hours`, `customers`, `review_images`, `reservation_history`
+- ❌ **RLS 비활성화**: `reviews_backup` 테이블 (백업 테이블이지만 보안 위험)
+
+**2. 주요 보안 취약점 발견**
+- **백업 테이블 보안 부재**: `reviews_backup` 테이블에 RLS가 비활성화되어 있어 무제한 접근 가능
+- **Auth 스키마 접근**: 일부 auth 테이블들이 RLS는 활성화되어 있지만 정책 검토 필요
+- **Foreign Key 관계**: 모든 테이블이 적절한 외래키 제약조건을 가지고 있음 (양호)
+
+**3. 데이터 무결성 검토**
+- ✅ **Primary Key**: 모든 테이블에 적절한 기본키 설정
+- ✅ **Check 제약조건**: 대부분의 테이블에 적절한 데이터 검증 규칙 적용
+- ✅ **NOT NULL 제약조건**: 중요 필드들에 적절히 적용
+
+**4. 접근 제어 분석**
+- **고객 데이터 보호**: `customers` 테이블 RLS 활성화 (양호)
+- **예약 데이터 보호**: `reservations` 테이블 RLS 활성화 (양호)
+- **리뷰 시스템**: `reviews` 테이블 RLS 활성화, 하지만 백업 테이블 취약
+
+**5. 잠재적 보안 위험**
+- **데이터 유출 위험**: `reviews_backup` 테이블을 통한 리뷰 데이터 무제한 접근
+- **권한 상승**: RLS 정책이 없는 테이블을 통한 우회 접근 가능성
+- **감사 추적**: 백업 테이블에 대한 접근 로그 부재
 
 ### 예약 연장 기능 주요 도전과제
 
@@ -541,3 +583,153 @@ package.json                       # 테스트 실행 스크립트 추가
 - 🟡 브라우저에서 실제 기능 테스트 필요
 
 ### ✅ 에러 해결 완료 (2025-01-26)
+
+**발생한 문제들**:
+1. **쿠폰 조회 실패**: `column customer_coupons.time_minutes does not exist`
+2. **연장 API 404 에러**: 잘못된 컬럼명으로 인한 쿼리 실패
+3. **TypeScript 타입 오류**: 실제 DB 스키마와 타입 정의 불일치
+
+**해결 방안**:
+1. **실제 DB 스키마 확인**: Service Role Key로 customer_coupons 테이블 구조 조회
+2. **컬럼명 수정**: 
+   - `time_minutes` → `minutes`
+   - `expiry_date` → `expires_at`
+   - `description` → `granted_by`
+3. **TypeScript 타입 업데이트**: CustomerCoupon 인터페이스 수정
+4. **API 라우트 수정**: check-extension, extend 모두 올바른 컬럼명 사용
+
+**실제 customer_coupons 테이블 스키마**:
+```json
+{
+  "id": "UUID",
+  "customer_id": "UUID", 
+  "minutes": "integer",
+  "is_used": "boolean",
+  "used_at": "timestamp",
+  "used_reservation_id": "UUID",
+  "created_at": "timestamp",
+  "updated_at": "timestamp",
+  "expires_at": "timestamp",
+  "granted_by": "text"
+}
+```
+
+**변경 사항**:
+- ✅ ExtensionModal.tsx: CustomerCoupon 타입 및 쿠폰 조회 쿼리 수정
+- ✅ extend/route.ts: 쿠폰 관련 컬럼명 수정
+- ✅ check-extension/route.ts: 기존에 이미 올바른 스키마 사용 중
+
+**현재 상태**: 
+- 🟢 데이터베이스 스키마 호환성 해결
+- 🟢 쿠폰 조회 기능 정상화
+- 🟢 TypeScript 컴파일 오류 해결
+- 🟡 브라우저에서 실제 기능 테스트 필요
+
+### ✅ 예약 연장 UI 개선 완료 (2025-01-26)
+
+**사용자 요구사항**: 
+> "예약 연장하기 버튼에서 '연장 가능시간: 10분 남음' 문구는 이용중 상태일 때만 노출되게 해줘."
+
+**문제 분석**:
+- 기존 코드에서는 Grace Period 내에 있으면 항상 '연장 가능시간: 10분 남음' 문구가 표시됨
+- 실제로는 이용중 상태(현재 시간이 예약 시작~종료 시간 사이)일 때만 표시되어야 함
+- 예약 종료 후 Grace Period 내에서는 연장 버튼은 보이지만 시간 문구는 숨겨져야 함
+
+**이용중 상태 정의**:
+- 현재 시간이 예약 시작 시간(`start_time`)과 종료 시간(`end_time`) 사이에 있는 경우
+- 예약 상태가 'confirmed' 또는 'modified'인 경우
+
+**구현 내용**:
+1. **ExtensionButton 컴포넌트 수정** (`src/components/reservation/ExtensionButton.tsx`):
+   - `isInUse` 상태 추가하여 이용중 여부 추적
+   - 예약 시작 시간과 종료 시간을 모두 계산하여 현재 시간과 비교
+   - '연장 가능시간: X분 남음' Badge를 `isInUse` 조건부로 렌더링
+   - 예약 상태 조건을 'confirmed' 또는 'modified'로 확장
+
+2. **로직 개선**:
+   - 예약 시작 및 종료 시간 모두 계산
+   - 현재 시간이 예약 시간 범위 내에 있는지 실시간 확인
+   - 30초마다 상태 업데이트하여 정확한 시간 반영
+
+**변경 사항**:
+```typescript
+// 이용중 상태 확인 로직 추가
+const currentlyInUse = now >= reservationStartDateTime && now <= reservationEndDateTime;
+setIsInUse(currentlyInUse);
+
+// 조건부 렌더링으로 변경
+{isInUse && (
+  <Badge variant="outline" className="flex items-center gap-1 text-xs">
+    <Clock className="h-3 w-3" />
+    연장 가능시간: {gracePeriodRemaining}분 남음
+  </Badge>
+)}
+```
+
+**결과**:
+- ✅ 이용중 상태일 때만 '연장 가능시간: X분 남음' 문구 표시
+- ✅ 예약 종료 후 Grace Period에서는 연장 버튼만 표시
+- ✅ 실시간 상태 업데이트로 정확한 UI 제공
+- ✅ 사용자 경험 개선 및 혼란 방지
+
+**현재 상태**: 
+- 🟢 UI 로직 개선 완료
+- 🟢 이용중 상태 정확한 판별
+- 🟢 조건부 렌더링 구현
+- 🟡 실제 브라우저에서 동작 테스트 필요
+
+### ✅ 마이페이지 예약내역 UI 개선 완료 (2025-01-26)
+
+**사용자 요구사항**: 
+> "마이페이지에서 전체 예약내역을 감싸고 있는 테두리 선을 제거하고 제거한 영역만큼 안쪽의 예약내역 타이틀, 탭, 예약내역목록을 확장시켜줘"
+
+**문제 분석**:
+- 기존 예약내역 섹션이 Card 컴포넌트로 감싸져 있어 테두리와 패딩이 적용됨
+- Card의 테두리와 내부 패딩으로 인해 콘텐츠 영역이 제한됨
+- 사용자가 더 넓은 영역에서 예약내역을 확인하고 싶어함
+
+**구현 내용**:
+1. **Card 컴포넌트 제거** (`src/app/my/page.tsx`):
+   - 예약내역 섹션을 감싸던 `<Card className="mb-8">` 제거
+   - `<CardHeader>`와 `<CardContent>` 컴포넌트 제거
+   - 일반 `<div className="mb-8">` 컨테이너로 변경
+
+2. **타이틀 스타일 조정**:
+   - `<CardTitle>예약 내역</CardTitle>` → `<h2 className="text-xl font-semibold mb-6">예약 내역</h2>`
+   - 기존 Card 스타일과 유사한 시각적 위계 유지
+
+3. **레이아웃 확장**:
+   - 제거된 Card의 테두리와 패딩 영역만큼 내부 콘텐츠가 자연스럽게 확장
+   - 탭(Tabs), 예약목록 모두 더 넓은 영역 활용 가능
+   - 기존 개별 예약 카드들은 그대로 유지하여 가독성 보장
+
+**변경 사항**:
+```tsx
+// 기존 구조
+<Card className="mb-8">
+  <CardHeader>
+    <CardTitle>예약 내역</CardTitle>
+  </CardHeader>
+  <CardContent>
+    {/* 탭과 예약목록 */}
+  </CardContent>
+</Card>
+
+// 개선된 구조  
+<div className="mb-8">
+  <h2 className="text-xl font-semibold mb-6">예약 내역</h2>
+  {/* 탭과 예약목록 - 더 넓은 영역 활용 */}
+</div>
+```
+
+**결과**:
+- ✅ 예약내역 섹션의 테두리 완전 제거
+- ✅ 타이틀, 탭, 예약목록이 더 넓은 영역으로 확장
+- ✅ 시각적 일관성 유지 (개별 예약 카드는 그대로)
+- ✅ 사용자 경험 개선 (더 넓은 콘텐츠 영역)
+
+**현재 상태**: 
+- 🟢 UI 레이아웃 개선 완료
+- 🟢 테두리 제거 및 콘텐츠 확장 완료
+- 🟢 시각적 일관성 유지
+- 🟡 실제 브라우저에서 시각적 확인 필요

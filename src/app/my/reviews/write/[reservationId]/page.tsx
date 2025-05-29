@@ -204,10 +204,25 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
   };
   
   const onSubmit = async (data: FormData) => {
-    if (!user || !reservation) return;
+    if (!user || !reservation) {
+      console.error("사용자 또는 예약 정보가 없습니다:", { user: !!user, reservation: !!reservation });
+      toast({
+        title: "오류",
+        description: "사용자 인증 정보가 없습니다. 다시 로그인해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     try {
       setIsSubmitting(true);
+      
+      console.log("리뷰 작성 시작:", {
+        userId: user.id,
+        userEmail: user.email,
+        reservationId: reservation.id,
+        serviceId: reservation.service_id
+      });
       
       try {
         const { data: review, error: reviewError } = await supabase
@@ -223,6 +238,13 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           .single();
           
         if (reviewError) {
+          console.error("리뷰 저장 오류:", {
+            message: reviewError.message,
+            details: reviewError.details,
+            hint: reviewError.hint,
+            code: reviewError.code
+          });
+          
           if (reviewError.code === '42P01' || reviewError.message?.includes("does not exist")) {
             toast({
               title: "알림",
@@ -235,7 +257,9 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
             throw new Error(reviewError.message);
           }
         }
-        
+
+        console.log("리뷰 저장 성공:", review);
+
         // 이미지 처리 (간소화)
         if (selectedImages.length > 0 && review) {
           try {
@@ -252,35 +276,68 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           }
         }
 
-        // 적립시간 부여 로직 추가 (직접 데이터베이스 업데이트)
+        // 적립시간 부여 로직 추가 (Edge Function 사용)
         try {
-          // 현재 사용자의 적립시간 조회
-          const { data: currentUser, error: userError } = await supabase
-            .from('customers')
-            .select('accumulated_time_minutes')
-            .eq('id', user.id)
-            .single();
-
-          if (userError) {
-            console.error("사용자 정보 조회 오류:", userError);
-            throw userError;
-          }
-
-          // 적립시간 10분 추가
-          const newAccumulatedTime = (currentUser?.accumulated_time_minutes || 0) + 10;
+          console.log("적립시간 부여 시작 - 사용자 ID:", user.id);
+          console.log("리뷰 ID:", review.id);
+          console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
           
-          const { error: updateError } = await supabase
-            .from('customers')
-            .update({ 
-              accumulated_time_minutes: newAccumulatedTime,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', user.id);
-
-          if (updateError) {
-            console.error("적립시간 업데이트 오류:", updateError);
-            throw updateError;
+          // 현재 세션 확인
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          console.log("현재 세션:", { session: !!session, sessionError });
+          
+          if (!session) {
+            console.error("세션이 없습니다. 다시 로그인이 필요합니다.");
+            toast({
+              title: "인증 오류",
+              description: "세션이 만료되었습니다. 다시 로그인해주세요.",
+              variant: "destructive"
+            });
+            return;
           }
+          
+          const { data: rewardResult, error: rewardError } = await supabase.functions.invoke('review-reward', {
+            body: {
+              customer_id: user.id,
+              review_id: review.id,
+              reward_minutes: 10
+            }
+          });
+
+          console.log("Edge Function 응답:", { data: rewardResult, error: rewardError });
+
+          if (rewardError) {
+            // 에러 객체의 모든 속성을 안전하게 추출
+            const errorDetails = {
+              message: rewardError.message || "알 수 없는 오류",
+              name: rewardError.name || "Unknown",
+              code: rewardError.code || null,
+              details: rewardError.details || null,
+              hint: rewardError.hint || null,
+              status: rewardError.status || null,
+              statusText: rewardError.statusText || null,
+              userId: user.id,
+              reviewId: review.id,
+              // 에러 객체의 모든 열거 가능한 속성들
+              ...Object.getOwnPropertyNames(rewardError).reduce((acc, key) => {
+                try {
+                  acc[key] = rewardError[key];
+                } catch (e: any) {
+                  acc[key] = `[접근 불가: ${e?.message || String(e)}]`;
+                }
+                return acc;
+              }, {} as any)
+            };
+            
+            console.error("적립시간 부여 오류 (Edge Function):", errorDetails);
+            console.error("원본 에러 객체:", rewardError);
+            console.error("에러 타입:", typeof rewardError);
+            console.error("에러 생성자:", rewardError.constructor?.name);
+            
+            throw rewardError;
+          }
+
+          console.log("적립시간 부여 성공:", rewardResult);
 
           toast({
             title: "성공",
@@ -290,18 +347,94 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
             title: "적립 완료",
             description: "리뷰 작성으로 10분의 적립 시간이 추가되었습니다."
           });
-        } catch (rewardError) {
-          console.error("적립시간 부여 오류:", rewardError);
-          // 적립시간 부여 실패해도 리뷰 작성은 성공으로 처리
-          toast({
-            title: "성공",
-            description: "소중한 리뷰를 작성해주셔서 감사합니다."
-          });
-          toast({
-            title: "알림",
-            description: "적립 시간 부여 중 오류가 발생했습니다. 고객센터에 문의해주세요.",
-            variant: "destructive"
-          });
+        } catch (rewardError: any) {
+          // 에러 객체를 안전하게 로깅하기 위한 함수
+          const logError = (error: any) => {
+            const errorInfo: any = {
+              message: error?.message || "알 수 없는 오류",
+              name: error?.name || "Unknown",
+              code: error?.code || null,
+              details: error?.details || null,
+              hint: error?.hint || null,
+              userId: user.id,
+              userEmail: user.email,
+              timestamp: new Date().toISOString()
+            };
+            
+            // 추가 속성들도 포함
+            if (error && typeof error === 'object') {
+              Object.keys(error).forEach(key => {
+                if (!errorInfo.hasOwnProperty(key) && error[key] !== undefined) {
+                  errorInfo[key] = error[key];
+                }
+              });
+            }
+            
+            return errorInfo;
+          };
+
+          console.error("적립시간 부여 오류:", logError(rewardError));
+          
+          // Edge Function 실패 시 백업 로직: 직접 데이터베이스 업데이트
+          try {
+            console.log("백업 로직 시작: 직접 데이터베이스 업데이트");
+            
+            // 현재 사용자의 적립시간 조회
+            const { data: currentUser, error: userError } = await supabase
+              .from('customers')
+              .select('accumulated_time_minutes')
+              .eq('id', user.id)
+              .single();
+
+            if (userError) {
+              console.error("사용자 정보 조회 오류:", userError);
+              throw userError;
+            }
+
+            // 적립시간 10분 추가
+            const newAccumulatedTime = (currentUser?.accumulated_time_minutes || 0) + 10;
+            
+            const { error: updateError } = await supabase
+              .from('customers')
+              .update({ 
+                accumulated_time_minutes: newAccumulatedTime,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
+
+            if (updateError) {
+              console.error("적립시간 업데이트 오류:", updateError);
+              throw updateError;
+            }
+
+            console.log("백업 로직 성공: 적립시간 업데이트 완료", {
+              previousTime: currentUser?.accumulated_time_minutes || 0,
+              newTime: newAccumulatedTime
+            });
+
+            toast({
+              title: "성공",
+              description: "소중한 리뷰를 작성해주셔서 감사합니다."
+            });
+            toast({
+              title: "적립 완료",
+              description: "리뷰 작성으로 10분의 적립 시간이 추가되었습니다."
+            });
+
+          } catch (backupError: any) {
+            console.error("백업 로직도 실패:", logError(backupError));
+            
+            // 적립시간 부여 실패해도 리뷰 작성은 성공으로 처리
+            toast({
+              title: "성공",
+              description: "소중한 리뷰를 작성해주셔서 감사합니다."
+            });
+            toast({
+              title: "알림",
+              description: "적립 시간 부여 중 오류가 발생했습니다. 고객센터에 문의해주세요.",
+              variant: "destructive"
+            });
+          }
         }
         
         router.push("/my");
