@@ -14,6 +14,7 @@ import type { Studio } from "@/domains/studio/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/shared/hooks/useToast";
 import { useQuery } from "@tanstack/react-query";
+import { useAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
 
 interface ServiceDetailClientProps {
   service: Service;
@@ -56,6 +57,12 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   });
   
   const holidays = holidaysData?.holidays || [];
+  
+  // 시간 슬라이더 실시간 반영을 위한 useAvailableTimes 훅
+  const { refetch: refetchAvailableTimes } = useAvailableTimes({
+    serviceId: service.id,
+    selectedDate: selectedDate
+  });
   
   // 서비스를 스튜디오 형태로 변환
   const studioData: Studio = useMemo(() => ({
@@ -210,7 +217,13 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
             {/* 예약 폼 */}
             <div data-section="reservation" className="p-4 lg:p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
               <h3 className="text-lg font-semibold mb-3 lg:mb-4">예약 정보</h3>
-              <BookingForm serviceId={service.id} />
+              <BookingForm 
+                serviceId={service.id} 
+                onReservationComplete={() => {
+                  console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
+                  refetchAvailableTimes();
+                }}
+              />
             </div>
           </div>
         </div>

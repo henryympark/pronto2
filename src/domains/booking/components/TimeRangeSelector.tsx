@@ -35,18 +35,17 @@ export default function TimeRangeSelector({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // React Query 훅 사용
+  // Supabase 직접 호출 방식의 useAvailableTimes 훅 사용
   const {
     timeSlots,
     operatingHours,
     currentTime,
     isLoading,
-    isError,
     error
   } = useAvailableTimes({
     serviceId,
     selectedDate,
-    prefetchDays: 7 // 앞뒤 7일씩 프리로딩 (총 15일)
+    prefetchDays: 7 // 향후 확장 가능
   });
 
   // 날짜가 변경될 때 선택된 슬롯 초기화
@@ -59,10 +58,8 @@ export default function TimeRangeSelector({
 
   // 시간 슬롯 클릭 핸들러
   const handleSlotClick = useCallback((slot: TimeSlot) => {
-    if (!selectedDate || slot.status === 'unavailable') {
-      return;
-    }
-
+    if (slot.status === 'unavailable' || slot.status === 'reserved') return;
+    
     let newSelectedSlots: string[] = [];
 
     if (selectedSlots.includes(slot.time)) {
@@ -216,14 +213,14 @@ export default function TimeRangeSelector({
   }, [initialStartTime, initialEndTime, timeSlots, initialTimeSet, isLoading]);
 
   // 에러 상태 처리
-  if (isError) {
+  if (error) {
     return (
       <div className="p-4 bg-red-50 border border-red-200 rounded-md">
         <p className="text-red-700 text-sm">
           시간 정보를 불러오는 중 오류가 발생했습니다.
         </p>
         <p className="text-red-600 text-xs mt-1">
-          {error instanceof Error ? error.message : '알 수 없는 오류'}
+          {typeof error === 'string' ? error : '알 수 없는 오류'}
         </p>
       </div>
     );

@@ -35,6 +35,16 @@ export interface TimeSlot {
 }
 
 /**
+ * 운영시간 타입
+ */
+export interface OperatingHours {
+  start: string;
+  end: string;
+  isClosed: boolean;
+  message: string | null;
+}
+
+/**
  * 사용자 역할 타입
  */
 export type UserRole = 'customer' | 'admin';

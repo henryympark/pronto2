@@ -24,8 +24,6 @@ import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline"
 // 예약 연장 관련 컴포넌트 import
 import { ExtensionButton, ExtensionModal } from "@/components/reservation";
 import type { Reservation, ReservationHistory } from '@/types/reservation';
-// 시간 슬라이더 캐시 무효화를 위한 import 추가
-import { useInvalidateAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
 
 type FilterType = 'upcoming' | 'completed' | 'cancelled';
 
@@ -62,8 +60,25 @@ export default function MyPage() {
     selectedReservation?.id || null
   );
 
-  // 시간 슬라이더 캐시 무효화 훅 추가
-  const invalidateAvailableTimes = useInvalidateAvailableTimes();
+  // 예약 생성 이벤트 수신하여 실시간 새로고침
+  useEffect(() => {
+    const handleReservationCreated = (event: CustomEvent) => {
+      console.log('[MyPage] 새 예약 생성 이벤트 수신:', event.detail);
+      
+      // 예약 목록 즉시 새로고침
+      if (!isLoading) {
+        console.log('[MyPage] 예약 목록 새로고침 실행');
+        fetchReservations();
+      }
+    };
+
+    // 커스텀 이벤트 리스너 등록
+    window.addEventListener('reservation-created', handleReservationCreated as EventListener);
+    
+    return () => {
+      window.removeEventListener('reservation-created', handleReservationCreated as EventListener);
+    };
+  }, [isLoading]);
 
   // 실시간 상태 업데이트를 위한 타이머
   useEffect(() => {
@@ -363,17 +378,6 @@ export default function MyPage() {
       setCancelingReservation(null);
       fetchReservations();
       
-      // 시간 슬라이더 캐시 무효화 (예약 취소로 인한 시간 해제 반영)
-      if (cancelingReservation.service?.id) {
-        const reservationDate = new Date(cancelingReservation.reservation_date);
-        console.log('[MyPage] 예약 취소 성공 - 시간 슬라이더 캐시 무효화:', {
-          serviceId: cancelingReservation.service.id,
-          date: cancelingReservation.reservation_date,
-          cancelledTimeSlot: `${cancelingReservation.start_time}-${cancelingReservation.end_time}`
-        });
-        invalidateAvailableTimes(cancelingReservation.service.id, reservationDate);
-      }
-      
       toast({
         title: "예약 취소 완료",
         description: "예약이 성공적으로 취소되었습니다.",
@@ -422,18 +426,6 @@ export default function MyPage() {
 
     // 간단한 데이터도 새로고침 (적립 시간 등이 변경될 수 있음)
     fetchSimplifiedData();
-
-    // 시간 슬라이더 캐시 무효화 (예약 연장으로 인한 시간 변경 반영)
-    if (updatedReservation.service?.id) {
-      const reservationDate = new Date(updatedReservation.reservation_date);
-      console.log('[MyPage] 예약 연장 성공 - 시간 슬라이더 캐시 무효화:', {
-        serviceId: updatedReservation.service.id,
-        date: updatedReservation.reservation_date,
-        originalEndTime: extendingReservation?.end_time,
-        newEndTime: updatedReservation.end_time
-      });
-      invalidateAvailableTimes(updatedReservation.service.id, reservationDate);
-    }
   };
 
   // 초기 로드
