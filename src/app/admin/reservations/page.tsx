@@ -137,20 +137,34 @@ export default function AdminReservationsPage() {
         } else {
           console.log('[Realtime] 📡 상태 변경:', status);
         }
+
+        // 구독 완료 후 즉시 실제 연결 상태 확인
+        setTimeout(() => {
+          const actualState = channel.state;
+          const actuallyConnected = actualState === 'joined';
+          console.log('[Realtime] 구독 후 실제 상태 확인:', { actualState, actuallyConnected });
+          
+          if (actuallyConnected && !isRealtimeConnected) {
+            console.log('[Realtime] 🔄 연결 상태 동기화: false → true');
+            setIsRealtimeConnected(true);
+          }
+        }, 100);
       });
 
-    // 정기적인 연결 상태 체크 (10초마다)
+    // 짧은 주기로 연결 상태 체크 (3초마다)
     const healthCheck = setInterval(() => {
-      // 채널의 상태를 확인
       const channelState = channel.state;
       const isConnected = channelState === 'joined';
-      console.log('[Realtime] 연결 상태 체크:', { channelState, isConnected });
       
       if (isConnected !== isRealtimeConnected) {
-        console.log('[Realtime] 연결 상태 불일치 감지, 동기화 중...');
+        console.log('[Realtime] 연결 상태 불일치 감지, 동기화 중...', { 
+          channelState, 
+          isConnected, 
+          currentUIState: isRealtimeConnected 
+        });
         setIsRealtimeConnected(isConnected);
       }
-    }, 10000);
+    }, 3000);
 
     // 컴포넌트 언마운트 시 정리
     return () => {
@@ -159,7 +173,7 @@ export default function AdminReservationsPage() {
       supabase.removeChannel(channel);
       setIsRealtimeConnected(false);
     };
-  }, [supabase]);
+  }, [supabase, isRealtimeConnected]);
   
   const openReservationDetail = (reservation: Reservation) => {
     setSelectedReservation(reservation);
