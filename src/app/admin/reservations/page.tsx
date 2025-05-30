@@ -85,6 +85,7 @@ export default function AdminReservationsPage() {
   
   useEffect(() => {
     console.log("[어드민 예약 페이지] 초기 데이터 로드 및 Realtime 구독 시작");
+    console.log("[Realtime Debug] Realtime 연결 가능 여부:", !!supabase.realtime);
     
     // 초기 데이터 로드
     fetchReservations();
@@ -106,55 +107,59 @@ export default function AdminReservationsPage() {
       )
       .subscribe((status) => {
         console.log('[Realtime] 구독 상태:', status);
-        setIsRealtimeConnected(status === 'SUBSCRIBED');
         
         if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] ✅ 구독 성공');
+          setIsRealtimeConnected(true);
           toast({
             title: "실시간 연결됨",
             description: "예약 변경사항이 실시간으로 반영됩니다.",
           });
         } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Realtime] ❌ 채널 오류');
+          setIsRealtimeConnected(false);
           toast({
             title: "실시간 연결 오류",
-            description: "실시간 업데이트에 문제가 발생했습니다. 주기적 업데이트로 전환합니다.",
+            description: "실시간 업데이트에 문제가 발생했습니다.",
             variant: "destructive",
           });
+        } else if (status === 'TIMED_OUT') {
+          console.error('[Realtime] ⏰ 연결 타임아웃');
+          setIsRealtimeConnected(false);
+          toast({
+            title: "연결 타임아웃",
+            description: "실시간 연결이 타임아웃되었습니다.",
+            variant: "destructive",
+          });
+        } else if (status === 'CLOSED') {
+          console.warn('[Realtime] 🔒 연결 종료');
+          setIsRealtimeConnected(false);
+        } else {
+          console.log('[Realtime] 📡 상태 변경:', status);
         }
       });
 
-    // 주기적 폴링 설정 (Realtime 연결이 끊어졌을 때를 대비)
-    const pollingInterval = setInterval(() => {
-      if (!isRealtimeConnected) {
-        console.log('[Polling] Realtime 연결 끊김, 수동 새로고침 실행');
-        fetchReservations();
+    // 정기적인 연결 상태 체크 (10초마다)
+    const healthCheck = setInterval(() => {
+      // 채널의 상태를 확인
+      const channelState = channel.state;
+      const isConnected = channelState === 'joined';
+      console.log('[Realtime] 연결 상태 체크:', { channelState, isConnected });
+      
+      if (isConnected !== isRealtimeConnected) {
+        console.log('[Realtime] 연결 상태 불일치 감지, 동기화 중...');
+        setIsRealtimeConnected(isConnected);
       }
-    }, 30000); // 30초마다 폴링
-
-    // 연결 상태 모니터링
-    const connectionCheckInterval = setInterval(() => {
-      // Supabase 연결 상태 확인
-      if (supabase.realtime.isConnected()) {
-        if (!isRealtimeConnected) {
-          console.log('[Connection] Realtime 재연결됨');
-          setIsRealtimeConnected(true);
-        }
-      } else {
-        if (isRealtimeConnected) {
-          console.log('[Connection] Realtime 연결 끊어짐');
-          setIsRealtimeConnected(false);
-        }
-      }
-    }, 5000); // 5초마다 연결 상태 확인
+    }, 10000);
 
     // 컴포넌트 언마운트 시 정리
     return () => {
-      console.log('[Realtime] 구독 해제 및 폴링 정리');
+      console.log('[Realtime] 구독 해제 및 리스너 정리');
+      clearInterval(healthCheck);
       supabase.removeChannel(channel);
-      clearInterval(pollingInterval);
-      clearInterval(connectionCheckInterval);
       setIsRealtimeConnected(false);
     };
-  }, [supabase, isRealtimeConnected]);
+  }, [supabase]);
   
   const openReservationDetail = (reservation: Reservation) => {
     setSelectedReservation(reservation);
@@ -669,7 +674,7 @@ export default function AdminReservationsPage() {
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full animate-pulse ${isRealtimeConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <span className={`text-sm ${isRealtimeConnected ? 'text-green-600' : 'text-red-600'}`}>
-              {isRealtimeConnected ? '실시간 연결됨' : '연결 끊김 (30초마다 자동 업데이트)'}
+              {isRealtimeConnected ? '실시간 연결됨' : '실시간 연결 끊김'}
             </span>
             {!isRealtimeConnected && (
               <Button 
