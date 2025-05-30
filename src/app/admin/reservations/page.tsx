@@ -173,7 +173,7 @@ export default function AdminReservationsPage() {
       supabase.removeChannel(channel);
       setIsRealtimeConnected(false);
     };
-  }, [supabase, isRealtimeConnected]);
+  }, [supabase]);
   
   const openReservationDetail = (reservation: Reservation) => {
     setSelectedReservation(reservation);
