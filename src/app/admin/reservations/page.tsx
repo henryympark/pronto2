@@ -116,19 +116,45 @@ export default function AdminReservationsPage() {
         } else if (status === 'CHANNEL_ERROR') {
           toast({
             title: "실시간 연결 오류",
-            description: "실시간 업데이트에 문제가 발생했습니다.",
+            description: "실시간 업데이트에 문제가 발생했습니다. 주기적 업데이트로 전환합니다.",
             variant: "destructive",
           });
         }
       });
 
-    // 컴포넌트 언마운트 시 구독 해제
+    // 주기적 폴링 설정 (Realtime 연결이 끊어졌을 때를 대비)
+    const pollingInterval = setInterval(() => {
+      if (!isRealtimeConnected) {
+        console.log('[Polling] Realtime 연결 끊김, 수동 새로고침 실행');
+        fetchReservations();
+      }
+    }, 30000); // 30초마다 폴링
+
+    // 연결 상태 모니터링
+    const connectionCheckInterval = setInterval(() => {
+      // Supabase 연결 상태 확인
+      if (supabase.realtime.isConnected()) {
+        if (!isRealtimeConnected) {
+          console.log('[Connection] Realtime 재연결됨');
+          setIsRealtimeConnected(true);
+        }
+      } else {
+        if (isRealtimeConnected) {
+          console.log('[Connection] Realtime 연결 끊어짐');
+          setIsRealtimeConnected(false);
+        }
+      }
+    }, 5000); // 5초마다 연결 상태 확인
+
+    // 컴포넌트 언마운트 시 정리
     return () => {
-      console.log('[Realtime] 구독 해제');
+      console.log('[Realtime] 구독 해제 및 폴링 정리');
       supabase.removeChannel(channel);
+      clearInterval(pollingInterval);
+      clearInterval(connectionCheckInterval);
       setIsRealtimeConnected(false);
     };
-  }, [supabase]);
+  }, [supabase, isRealtimeConnected]);
   
   const openReservationDetail = (reservation: Reservation) => {
     setSelectedReservation(reservation);
@@ -641,10 +667,20 @@ export default function AdminReservationsPage() {
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">예약 현황</h1>
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isRealtimeConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${isRealtimeConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <span className={`text-sm ${isRealtimeConnected ? 'text-green-600' : 'text-red-600'}`}>
-              {isRealtimeConnected ? '실시간 연결됨' : '연결 끊김'}
+              {isRealtimeConnected ? '실시간 연결됨' : '연결 끊김 (30초마다 자동 업데이트)'}
             </span>
+            {!isRealtimeConnected && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => window.location.reload()}
+                className="text-xs px-2 py-1 h-6"
+              >
+                재연결
+              </Button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">
