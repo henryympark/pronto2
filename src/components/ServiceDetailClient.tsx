@@ -13,7 +13,6 @@ import { Calendar } from "@/components/ui/calendar";
 import type { Studio } from "@/domains/studio/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/shared/hooks/useToast";
-import { useQuery } from "@tanstack/react-query";
 import { useAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
 
 interface ServiceDetailClientProps {
@@ -41,22 +40,34 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   // 현재 표시 중인 월 상태
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   
-  // 휴무일 정보 로드
-  const { data: holidaysData } = useQuery({
-    queryKey: ['holidays', service.id, currentMonth.getFullYear(), currentMonth.getMonth() + 1],
-    queryFn: async () => {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth() + 1;
-      const response = await fetch(`/api/services/${service.id}/holidays?year=${year}&month=${month}`);
+  // 휴무일 정보 상태 (Supabase 직접 호출)
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [holidaysLoading, setHolidaysLoading] = useState(false);
+  
+  // 휴무일 정보 로드 함수
+  const fetchHolidays = useCallback(async (month: Date) => {
+    setHolidaysLoading(true);
+    try {
+      const year = month.getFullYear();
+      const monthNum = month.getMonth() + 1;
+      const response = await fetch(`/api/services/${service.id}/holidays?year=${year}&month=${monthNum}`);
       if (!response.ok) {
         throw new Error('휴무일 정보를 가져오는데 실패했습니다.');
       }
-      return response.json();
-    },
-    staleTime: 1000 * 60 * 5, // 5분간 캐시
-  });
+      const data = await response.json();
+      setHolidays(data?.holidays || []);
+    } catch (error) {
+      console.error('휴무일 정보 로드 실패:', error);
+      setHolidays([]);
+    } finally {
+      setHolidaysLoading(false);
+    }
+  }, [service.id]);
   
-  const holidays = holidaysData?.holidays || [];
+  // 월이 변경될 때마다 휴무일 정보 다시 로드
+  useEffect(() => {
+    fetchHolidays(currentMonth);
+  }, [fetchHolidays, currentMonth]);
   
   // 시간 슬라이더 실시간 반영을 위한 useAvailableTimes 훅
   const { refetch: refetchAvailableTimes } = useAvailableTimes({

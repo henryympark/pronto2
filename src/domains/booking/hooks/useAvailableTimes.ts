@@ -275,7 +275,4 @@ export const useAvailableTimes = ({
     error,
     refetch: fetchAvailableTimes
   };
-};
-
-// 기존 React Query 관련 함수들 제거
-// useGetCachedAvailableTimes, useInvalidateAvailableTimes, invalidateAvailableTimesGlobally 삭제 
+}; 
