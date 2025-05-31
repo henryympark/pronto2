@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase";
 import { createSupabaseServerClient } from "@/lib/supabase";
-import { createSupabaseServerClientFromRequest } from "@/lib/supabase-server-request";
 import { parse, isValid } from "date-fns";
 import { timeToMinutes } from "@/lib/date-utils";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { 
   calculateAccumulatedTimeDiscount, 
   calculateCouponDiscount, 
