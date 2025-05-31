@@ -1,4 +1,11 @@
 import { create } from 'zustand';
+import { getUserTimeAndCoupons } from '@/lib/supabase-queries';
+import { 
+  calculateAccumulatedTimeDiscount, 
+  calculateCouponDiscount, 
+  calculateTotalDiscount,
+  calculateFinalPrice 
+} from '@/lib/discount-utils';
 
 export interface CustomerFormData {
   customerName: string;
@@ -141,47 +148,28 @@ export const useBookingFormStore = create<BookingFormStore>((set, get) => ({
       console.log('[BookingFormStore] 적립/쿠폰 시간 정보 로딩:', userId);
       set({ isLoadingTimeData: true });
 
-      // 1. 적립 시간 조회
-      const { data: customerData, error: customerError } = await supabase
-        .from('customers')
-        .select('accumulated_time_minutes')
-        .eq('id', userId)
-        .single();
+      // 공통 함수를 사용하여 적립시간과 쿠폰 정보 조회
+      const { accumulatedTime, coupons, errors } = await getUserTimeAndCoupons(supabase, userId);
 
-      if (customerError) {
-        console.error('[BookingFormStore] 고객 정보 조회 오류:', customerError);
-        return;
+      if (errors.customer) {
+        console.error('[BookingFormStore] 고객 정보 조회 오류:', errors.customer);
       }
 
-      // 2. 사용 가능한 쿠폰 조회 (미사용, 미만료)
-      const { data: couponsData, error: couponsError } = await supabase
-        .from('customer_coupons')
-        .select('id, minutes, expires_at, created_at')
-        .eq('customer_id', userId)
-        .eq('is_used', false)
-        .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
-        .order('created_at', { ascending: true });
-
-      if (couponsError) {
-        console.error('[BookingFormStore] 쿠폰 정보 조회 오류:', couponsError);
-        return;
+      if (errors.coupons) {
+        console.error('[BookingFormStore] 쿠폰 정보 조회 오류:', errors.coupons);
       }
 
+      // 에러가 있어도 정상적으로 로드된 데이터는 사용
       console.log('[BookingFormStore] 적립/쿠폰 정보 로드됨:', {
-        accumulated: customerData?.accumulated_time_minutes || 0,
-        coupons: couponsData || []
+        accumulated: accumulatedTime,
+        coupons: coupons
       });
 
       set((state) => ({
         timeUsageData: {
           ...state.timeUsageData,
-          accumulatedTimeMinutes: customerData?.accumulated_time_minutes || 0,
-          availableCoupons: (couponsData || []).map((coupon: any) => ({
-            id: coupon.id,
-            minutes: coupon.minutes,
-            expires_at: coupon.expires_at,
-            created_at: coupon.created_at
-          }))
+          accumulatedTimeMinutes: accumulatedTime,
+          availableCoupons: coupons
         }
       }));
     } catch (err) {
@@ -222,26 +210,37 @@ export const useBookingFormStore = create<BookingFormStore>((set, get) => ({
     const excessMinutes = totalMinutes - 60;
     const actualDiscountMinutes = Math.min(totalDiscountMinutes, excessMinutes);
     
-    // 할인 금액 계산
-    const discountAmount = (actualDiscountMinutes / 60) * hourlyRate;
+    // ✅ 새로운 고정 할인 방식: 30분 = 11,000원
+    const accumulatedDiscountAmount = calculateAccumulatedTimeDiscount(
+      Math.min(timeUsageData.selectedAccumulatedMinutes, actualDiscountMinutes)
+    );
+    const couponDiscountAmount = calculateCouponDiscount(
+      Math.min(selectedCouponMinutes, actualDiscountMinutes - timeUsageData.selectedAccumulatedMinutes)
+    );
+    const totalDiscountAmount = accumulatedDiscountAmount + couponDiscountAmount;
+    
     const originalPrice = (totalMinutes / 60) * hourlyRate;
-    const finalPrice = originalPrice - discountAmount;
+    const finalPrice = calculateFinalPrice(originalPrice, totalDiscountAmount);
 
-    console.log('[BookingFormStore] 할인 계산:', {
+    console.log('[BookingFormStore] 고정 할인 계산:', {
       totalMinutes,
       excessMinutes,
       selectedCouponMinutes,
       selectedAccumulatedMinutes: timeUsageData.selectedAccumulatedMinutes,
       actualDiscountMinutes,
-      discountAmount,
-      finalPrice
+      accumulatedDiscountAmount,
+      couponDiscountAmount,
+      totalDiscountAmount,
+      originalPrice,
+      finalPrice,
+      note: '30분당 11,000원 고정 할인 적용'
     });
 
     set((state) => ({
       timeUsageData: {
         ...state.timeUsageData,
         totalDiscountMinutes: actualDiscountMinutes,
-        discountAmount,
+        discountAmount: totalDiscountAmount,
         finalPrice
       }
     }));

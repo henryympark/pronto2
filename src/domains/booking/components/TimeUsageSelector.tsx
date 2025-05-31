@@ -9,6 +9,10 @@ import { Label } from "@/shared/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { formatTimeDisplay } from "@/lib/date-utils";
 import { useBookingFormStore, CouponInfo } from "../stores/bookingFormStore";
+import { 
+  calculateAccumulatedTimeDiscount, 
+  calculateCouponDiscount 
+} from "@/lib/discount-utils";
 
 interface TimeUsageSelectorProps {
   totalMinutes: number;
@@ -256,7 +260,9 @@ export const TimeUsageSelector: React.FC<TimeUsageSelectorProps> = ({
                             <div>
                               <div className="flex items-center space-x-2 mb-1">
                                 <span className="font-semibold text-lg">{formatTimeDisplay(coupon.minutes)}</span>
-                                <span className="text-purple-600 font-medium">{savingAmount.toLocaleString()}원 할인</span>
+                                <span className="text-purple-600 font-medium">
+                                  {calculateCouponDiscount(coupon.minutes).toLocaleString()}원 할인
+                                </span>
                               </div>
                               {coupon.expires_at && (
                                 <p className="text-xs text-gray-500">
@@ -378,7 +384,7 @@ export const TimeUsageSelector: React.FC<TimeUsageSelectorProps> = ({
                         쿠폰 할인 ({formatTimeDisplay(selectedCouponMinutes)})
                       </span>
                       <span className="font-medium text-purple-600">
-                        -{Math.round((selectedCouponMinutes / 60) * hourlyRate).toLocaleString()}원
+                        -{calculateCouponDiscount(selectedCouponMinutes).toLocaleString()}원
                       </span>
                     </div>
                   )}
@@ -389,7 +395,7 @@ export const TimeUsageSelector: React.FC<TimeUsageSelectorProps> = ({
                         적립시간 할인 ({formatTimeDisplay(timeUsageData.selectedAccumulatedMinutes)})
                       </span>
                       <span className="font-medium text-blue-600">
-                        -{Math.round((timeUsageData.selectedAccumulatedMinutes / 60) * hourlyRate).toLocaleString()}원
+                        -{calculateAccumulatedTimeDiscount(timeUsageData.selectedAccumulatedMinutes).toLocaleString()}원
                       </span>
                     </div>
                   )}

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { createSupabaseServerClientFromRequest } from "@/lib/supabase-server-request";
 import { parse, isValid } from "date-fns";
 import { timeToMinutes } from "@/lib/date-utils";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { 
+  calculateAccumulatedTimeDiscount, 
+  calculateCouponDiscount, 
+  calculateTotalDiscount 
+} from "@/lib/discount-utils";
 
 /**
  * 예약 생성 API
@@ -310,27 +317,42 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 할인 금액 계산
-      const hourlyRate = totalPrice / totalHours;
+      // 할인 금액 계산 - 새로운 고정 할인 방식
+      const couponMinutes = selectedCouponIds.length > 0 ? 
+        (await supabaseServer
+          .from('customer_coupons')
+          .select('minutes')
+          .in('id', selectedCouponIds)
+        ).data?.reduce((sum: number, c: any) => sum + c.minutes, 0) || 0 : 0;
+      
       const totalDiscountMinutes = Math.min(
-        selectedAccumulatedMinutes + 
-        (selectedCouponIds.length > 0 ? 
-          (await supabaseServer
-            .from('customer_coupons')
-            .select('minutes')
-            .in('id', selectedCouponIds)
-          ).data?.reduce((sum: number, c: any) => sum + c.minutes, 0) || 0 : 0),
+        selectedAccumulatedMinutes + couponMinutes,
         excessMinutes
       );
       
-      discountAmount = (totalDiscountMinutes / 60) * hourlyRate;
-      finalPrice = totalPrice - discountAmount;
+      // ✅ 새로운 고정 할인 방식: 30분 = 11,000원
+      const actualAccumulatedMinutes = Math.min(selectedAccumulatedMinutes, totalDiscountMinutes);
+      const actualCouponMinutes = Math.min(couponMinutes, totalDiscountMinutes - actualAccumulatedMinutes);
+      
+      const accumulatedDiscount = calculateAccumulatedTimeDiscount(actualAccumulatedMinutes);
+      const couponDiscount = calculateCouponDiscount(actualCouponMinutes);
+      discountAmount = accumulatedDiscount + couponDiscount;
+      
+      finalPrice = Math.max(0, totalPrice - discountAmount);
       isUsingDiscount = true;
 
-      console.log('[예약 생성] 할인 계산 완료:', {
+      console.log('[예약 생성] 고정 할인 계산 완료:', {
+        selectedAccumulatedMinutes,
+        couponMinutes,
         totalDiscountMinutes,
-        discountAmount,
-        finalPrice
+        actualAccumulatedMinutes,
+        actualCouponMinutes,
+        accumulatedDiscount,
+        couponDiscount,
+        totalDiscountAmount: discountAmount,
+        originalPrice: totalPrice,
+        finalPrice,
+        note: '30분당 11,000원 고정 할인 적용'
       });
     }
 
