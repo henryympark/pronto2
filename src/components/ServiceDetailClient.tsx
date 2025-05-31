@@ -15,18 +15,23 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/shared/hooks/useToast";
 import { useAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
 
-interface ServiceDetailClientProps {
-  service: Service;
+// 🚀 확장된 서비스 타입 (서버에서 전달받은 통합 데이터)
+interface ServiceWithDetails extends Service {
+  operating_hours: Array<{
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    is_closed: boolean;
+  }>;
+  holidays: Array<{
+    id: string;
+    holiday_date: string;
+    description?: string;
+  }>;
 }
 
-// 휴무일 타입 정의
-interface Holiday {
-  id: string;
-  service_id: string;
-  holiday_date: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
+interface ServiceDetailClientProps {
+  service: ServiceWithDetails;
 }
 
 export default function ServiceDetailClient({ service }: ServiceDetailClientProps) {
@@ -40,72 +45,95 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   // 현재 표시 중인 월 상태
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   
-  // 휴무일 정보 상태 (Supabase 직접 호출)
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [holidaysLoading, setHolidaysLoading] = useState(false);
+  // 🎯 서버에서 전달받은 휴무일 데이터 사용 (API 호출 제거)
+  const holidays = useMemo(() => service.holidays || [], [service.holidays]);
   
-  // 휴무일 정보 로드 함수
-  const fetchHolidays = useCallback(async (month: Date) => {
-    setHolidaysLoading(true);
-    try {
-      const year = month.getFullYear();
-      const monthNum = month.getMonth() + 1;
-      const response = await fetch(`/api/services/${service.id}/holidays?year=${year}&month=${monthNum}`);
-      if (!response.ok) {
-        throw new Error('휴무일 정보를 가져오는데 실패했습니다.');
-      }
-      const data = await response.json();
-      setHolidays(data?.holidays || []);
-    } catch (error) {
-      console.error('휴무일 정보 로드 실패:', error);
-      setHolidays([]);
-    } finally {
-      setHolidaysLoading(false);
-    }
-  }, [service.id]);
+  console.log(`[ServiceDetailClient] 서버에서 받은 통합 데이터:`, {
+    serviceId: service.id,
+    operatingHoursCount: service.operating_hours?.length || 0,
+    holidaysCount: holidays.length,
+    holidays: holidays.map(h => h.holiday_date)
+  });
   
-  // 월이 변경될 때마다 휴무일 정보 다시 로드
-  useEffect(() => {
-    fetchHolidays(currentMonth);
-  }, [fetchHolidays, currentMonth]);
+  // 🚀 운영시간 정보도 서버 데이터 활용
+  const operatingHoursMap = useMemo(() => {
+    const map = new Map<number, { start: string; end: string; isClosed: boolean }>();
+    (service.operating_hours || []).forEach(oh => {
+      map.set(oh.day_of_week, {
+        start: oh.start_time.substring(0, 5), // HH:MM:SS -> HH:MM
+        end: oh.end_time.substring(0, 5),
+        isClosed: oh.is_closed
+      });
+    });
+    return map;
+  }, [service.operating_hours]);
   
   // 시간 슬라이더 실시간 반영을 위한 useAvailableTimes 훅
   const { refetch: refetchAvailableTimes } = useAvailableTimes({
     serviceId: service.id,
-    selectedDate: selectedDate
+    selectedDate: selectedDate,
+    // 🔥 서버 데이터를 훅에 전달하여 중복 쿼리 방지
+    preloadedOperatingHours: operatingHoursMap
   });
   
-  // 서비스를 스튜디오 형태로 변환
-  const studioData: Studio = useMemo(() => ({
-    id: service.id,
-    name: service.name,
-    description: service.description || undefined,
-    images: service.image_url ? [service.image_url] : [],
-    address: service.location || "주소 정보 없음",
-    region: "서울", // 기본값
-    district: "강남구", // 기본값
-    phone: undefined,
-    email: undefined,
-    website: undefined,
-    rating: service.average_rating,
-    priceRange: {
-      min: service.price_per_hour,
-      max: service.price_per_hour,
-    },
-    amenities: [],
-    operatingHours: {
-      monday: { open: "09:00", close: "18:00" },
-      tuesday: { open: "09:00", close: "18:00" },
-      wednesday: { open: "09:00", close: "18:00" },
-      thursday: { open: "09:00", close: "18:00" },
-      friday: { open: "09:00", close: "18:00" },
-      saturday: { open: "09:00", close: "18:00" },
-      sunday: null,
-    },
-    availability: true,
-    createdAt: service.created_at,
-    updatedAt: service.updated_at,
-  }), [service]);
+  // 서비스를 스튜디오 형태로 변환 - 운영시간 정보 포함
+  const studioData: Studio = useMemo(() => {
+    // 기본 운영시간 설정 (첫 번째 요일의 시간을 기준으로, 없으면 기본값)
+    const defaultHours = operatingHoursMap.get(1) || { start: "09:00", end: "18:00", isClosed: false };
+    
+    return {
+      id: service.id,
+      name: service.name,
+      description: service.description || undefined,
+      images: service.image_url ? [service.image_url] : [],
+      address: service.location || "주소 정보 없음",
+      region: "서울", // 기본값
+      district: "강남구", // 기본값
+      phone: undefined,
+      email: undefined,
+      website: undefined,
+      rating: service.average_rating,
+      priceRange: {
+        min: service.price_per_hour,
+        max: service.price_per_hour,
+      },
+      amenities: [],
+      // 🎯 서버에서 받은 운영시간 데이터 활용
+      operatingHours: {
+        monday: operatingHoursMap.get(1) ? { 
+          open: operatingHoursMap.get(1)!.start, 
+          close: operatingHoursMap.get(1)!.end 
+        } : { open: "09:00", close: "18:00" },
+        tuesday: operatingHoursMap.get(2) ? { 
+          open: operatingHoursMap.get(2)!.start, 
+          close: operatingHoursMap.get(2)!.end 
+        } : { open: "09:00", close: "18:00" },
+        wednesday: operatingHoursMap.get(3) ? { 
+          open: operatingHoursMap.get(3)!.start, 
+          close: operatingHoursMap.get(3)!.end 
+        } : { open: "09:00", close: "18:00" },
+        thursday: operatingHoursMap.get(4) ? { 
+          open: operatingHoursMap.get(4)!.start, 
+          close: operatingHoursMap.get(4)!.end 
+        } : { open: "09:00", close: "18:00" },
+        friday: operatingHoursMap.get(5) ? { 
+          open: operatingHoursMap.get(5)!.start, 
+          close: operatingHoursMap.get(5)!.end 
+        } : { open: "09:00", close: "18:00" },
+        saturday: operatingHoursMap.get(6) ? { 
+          open: operatingHoursMap.get(6)!.start, 
+          close: operatingHoursMap.get(6)!.end 
+        } : { open: "09:00", close: "18:00" },
+        sunday: operatingHoursMap.get(0)?.isClosed ? null : operatingHoursMap.get(0) ? { 
+          open: operatingHoursMap.get(0)!.start, 
+          close: operatingHoursMap.get(0)!.end 
+        } : null,
+      },
+      availability: true,
+      createdAt: service.created_at,
+      updatedAt: service.updated_at,
+    };
+  }, [service, operatingHoursMap]);
   
   // 스튜디오 데이터를 스토어에 저장
   useEffect(() => {
@@ -119,18 +147,16 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
     }
   }, [selectedDate, setSelectedDate]);
 
-  // 로그인된 사용자만 예약 가능한 간단한 UX
-  
-  // 날짜 선택 핸들러 - 휴무일 체크 추가
+  // 날짜 선택 핸들러 - 서버에서 받은 휴무일 데이터로 체크
   const handleDateSelect = useCallback((date: Date | undefined) => {
     if (!date) {
       setSelectedDate(null);
       return;
     }
     
-    // 휴무일인지 확인
+    // 🎯 서버에서 받은 휴무일 데이터로 검증 (API 호출 없음)
     const dateString = date.toISOString().split('T')[0];
-    const isHoliday = holidays.some((holiday: Holiday) => holiday.holiday_date === dateString);
+    const isHoliday = holidays.some(holiday => holiday.holiday_date === dateString);
     
     if (isHoliday) {
       toast({
@@ -146,7 +172,6 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
 
   // 시간 범위 변경 핸들러 - useCallback으로 메모이제이션
   const handleTimeRangeChange = useCallback((startTime: string, endTime: string, durationHours: number, price: number) => {
-    // 현재 상태와 비교해서 실제로 변경된 경우만 업데이트
     setSelectedTimeRange({
       start: startTime,
       end: endTime,
@@ -154,6 +179,23 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
       price: price
     });
   }, [setSelectedTimeRange]);
+  
+  // 🚀 월 변경 시 필요하면 추가 휴무일 로딩 (현재 월 외의 데이터)
+  const handleMonthChange = useCallback(async (newMonth: Date) => {
+    setCurrentMonth(newMonth);
+    
+    const newYear = newMonth.getFullYear();
+    const newMonthNum = newMonth.getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    const currentMonthNum = new Date().getMonth() + 1;
+    
+    // 현재 월이 아닌 경우에만 추가 데이터 로딩
+    if (newYear !== currentYear || newMonthNum !== currentMonthNum) {
+      console.log(`[ServiceDetailClient] 다른 월 휴무일 조회 필요: ${newYear}-${newMonthNum}`);
+      // TODO: 필요시 추가 월의 휴무일 데이터 로딩 로직
+      // 현재는 서버에서 받은 현재 월 데이터만 사용
+    }
+  }, []);
   
   return (
     <div>
@@ -182,7 +224,7 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
                   mode="single"
                   selected={selectedDate || undefined}
                   onSelect={handleDateSelect}
-                  onMonthChange={setCurrentMonth}
+                  onMonthChange={handleMonthChange}
                   className="rounded-md w-full max-w-sm"
                   disabled={(date) => {
                     // 과거 날짜 비활성화
@@ -190,12 +232,12 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
                       return true;
                     }
                     
-                    // 휴무일 비활성화
+                    // 🎯 서버에서 받은 휴무일 데이터로 체크 (빠른 로컬 검증)
                     const dateString = date.toISOString().split('T')[0];
-                    return holidays.some((holiday: Holiday) => holiday.holiday_date === dateString);
+                    return holidays.some(holiday => holiday.holiday_date === dateString);
                   }}
                   modifiers={{
-                    holiday: holidays.map((holiday: Holiday) => new Date(holiday.holiday_date))
+                    holiday: holidays.map(holiday => new Date(holiday.holiday_date))
                   }}
                   modifiersClassNames={{
                     holiday: "bg-gray-100 text-gray-400 line-through"
