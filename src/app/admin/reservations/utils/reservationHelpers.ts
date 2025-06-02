@@ -75,20 +75,39 @@ export function getStatusText(status: string): string {
 }
 
 /**
- * 예약 행 스타일링 (날짜 기반) 함수
+ * 예약 행 스타일링 (날짜 기반) 함수 - 안전한 버전
  */
 export function getReservationRowClass(reservationTime: string): string {
-  const date = parseISO(reservationTime);
-  
-  if (isToday(date)) {
-    return "border-l-4 border-l-blue-500 bg-blue-50/30";
+  // 빈 문자열이나 null/undefined 처리
+  if (!reservationTime || reservationTime.trim() === '') {
+    return "hover:bg-gray-50/50";
   }
   
-  if (isPast(date)) {
-    return "opacity-70 bg-gray-50/50";
+  try {
+    // 안전한 날짜 파싱
+    const date = parseISO(reservationTime);
+    
+    // 유효한 날짜인지 확인
+    if (isNaN(date.getTime())) {
+      return "hover:bg-gray-50/50";
+    }
+    
+    // 오늘 날짜 확인
+    if (isToday(date)) {
+      return "border-l-4 border-l-blue-500 bg-blue-50/30";
+    }
+    
+    // 과거 날짜 확인
+    if (isPast(date)) {
+      return "opacity-70 bg-gray-50/50";
+    }
+    
+    return "hover:bg-gray-50/50";
+  } catch (error) {
+    // 에러 발생 시 기본 스타일 반환
+    console.warn('getReservationRowClass: Invalid date format:', reservationTime);
+    return "hover:bg-gray-50/50";
   }
-  
-  return "hover:bg-gray-50/50";
 }
 
 /**
@@ -138,19 +157,4 @@ export function getCompactDisplayClass(): string {
  */
 export function getDesktopDisplayClass(): string {
   return "hidden md:table-cell";
-}
-
-// 모든 함수를 명시적으로 export하여 import 문제 방지
-export default {
-  formatDateTime,
-  getStatusIcon,
-  getStatusBadgeClass,
-  getEnhancedStatusBadgeClass,
-  getStatusText,
-  getReservationRowClass,
-  getActionButtonClass,
-  getCustomerPriorityIndicator,
-  getTableCellClass,
-  getCompactDisplayClass,
-  getDesktopDisplayClass
-};
+} 

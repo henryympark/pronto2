@@ -11,16 +11,6 @@ import { useRouter } from "next/navigation";
 
 // 분리된 타입과 유틸리티 import
 import { Reservation } from "./utils/reservationTypes";
-import { 
-  formatDateTime, 
-  getStatusIcon,
-  getEnhancedStatusBadgeClass,
-  getStatusText,
-  getReservationRowClass,
-  getActionButtonClass,
-  getTableCellClass,
-  getCompactDisplayClass
-} from "./utils/reservationHelpers";
 
 // 검색 하이라이트 컴포넌트 import
 import { HighlightText } from "./utils/searchHighlight";
@@ -42,9 +32,112 @@ import SortableTableHeader from "./components/SortableTableHeader";
 import { useReservationRealtime } from "./hooks/useReservationRealtime";
 import { useReservationData } from "./hooks/useReservationData";
 import { useReservationActions } from "./hooks/useReservationActions";
+import { parseISO, isToday as dateIsToday, isPast as dateIsPast } from "date-fns";
+import { Check, Clock, XCircle, Calendar } from "lucide-react";
 
-// 데스크톱 디스플레이 클래스를 상수로 정의
-const DESKTOP_DISPLAY_CLASS = "hidden md:table-cell";
+// 데스크톱 디스플레이 클래스를 상수로 정의 - 테스트를 위해 모든 컬럼 표시
+const DESKTOP_DISPLAY_CLASS = "";
+
+// 모든 helper 함수들을 직접 정의 (임시 해결책)
+function formatDateTime(dateString: string): string {
+  const date = parseISO(dateString);
+  return format(date, "MM/dd HH:mm", { locale: ko });
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case "confirmed":
+      return Check;
+    case "pending":
+      return Clock;
+    case "cancelled":
+      return XCircle;
+    default:
+      return Calendar;
+  }
+}
+
+function getEnhancedStatusBadgeClass(status: string): string {
+  switch (status) {
+    case "confirmed":
+      return "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm ring-1 ring-emerald-600/20";
+    case "pending":
+      return "bg-amber-50 text-amber-700 border border-amber-200 shadow-sm ring-1 ring-amber-600/20";
+    case "cancelled":
+      return "bg-red-50 text-red-700 border border-red-200 shadow-sm ring-1 ring-red-600/20";
+    default:
+      return "bg-slate-50 text-slate-700 border border-slate-200 shadow-sm ring-1 ring-slate-600/20";
+  }
+}
+
+function getStatusText(status: string): string {
+  switch (status) {
+    case "confirmed":
+      return "확정";
+    case "pending":
+      return "대기";
+    case "cancelled":
+      return "취소";
+    default:
+      return status;
+  }
+}
+
+function getReservationRowClass(reservationTime: string): string {
+  // 빈 문자열이나 null/undefined 처리
+  if (!reservationTime || reservationTime.trim() === '') {
+    return "hover:bg-gray-50/50";
+  }
+  
+  try {
+    // 안전한 날짜 파싱
+    const date = parseISO(reservationTime);
+    
+    // 유효한 날짜인지 확인
+    if (isNaN(date.getTime())) {
+      return "hover:bg-gray-50/50";
+    }
+    
+    // 오늘 날짜 확인
+    if (dateIsToday(date)) {
+      return "border-l-4 border-l-blue-500 bg-blue-50/30";
+    }
+    
+    // 과거 날짜 확인
+    if (dateIsPast(date)) {
+      return "opacity-70 bg-gray-50/50";
+    }
+    
+    return "hover:bg-gray-50/50";
+  } catch (error) {
+    // 에러 발생 시 기본 스타일 반환
+    console.warn('getReservationRowClass: Invalid date format:', reservationTime);
+    return "hover:bg-gray-50/50";
+  }
+}
+
+function getActionButtonClass(variant: 'view' | 'edit' | 'cancel' = 'view'): string {
+  const baseClass = "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background";
+  
+  switch (variant) {
+    case 'view':
+      return `${baseClass} border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3`;
+    case 'edit':
+      return `${baseClass} bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-3`;
+    case 'cancel':
+      return `${baseClass} bg-destructive text-destructive-foreground hover:bg-destructive/90 h-8 px-3`;
+    default:
+      return `${baseClass} border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3`;
+  }
+}
+
+function getTableCellClass(isHighlighted: boolean = false): string {
+  return `px-4 py-3 text-sm ${isHighlighted ? 'font-medium' : 'text-gray-900'} border-b border-gray-200`;
+}
+
+function getCompactDisplayClass(): string {
+  return "block lg:hidden space-y-1 text-xs";
+}
 
 export default function AdminReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
@@ -194,8 +287,22 @@ export default function AdminReservationsPage() {
       {/* 페이지 헤더 */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">예약 관리</h1>
-          <p className="text-gray-600 mt-1">예약 현황을 조회하고 관리할 수 있습니다.</p>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">예약 관리</h1>
+            {/* 실시간 연결 상태 인디케이터 */}
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${isRealtimeConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+              <span className={`text-xs font-medium ${isRealtimeConnected ? 'text-green-600' : 'text-red-600'}`}>
+                {isRealtimeConnected ? '실시간 연결됨' : '연결 끊어짐'}
+              </span>
+            </div>
+          </div>
+          <p className="text-gray-600 mt-1">
+            예약 현황을 조회하고 관리할 수 있습니다. 
+            {isRealtimeConnected && (
+              <span className="text-green-600 font-medium"> 실시간 업데이트 활성화</span>
+            )}
+          </p>
         </div>
         
         <div className="flex items-center space-x-3">
@@ -278,12 +385,12 @@ export default function AdminReservationsPage() {
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
               <tr>
                 <SortableTableHeader
-                  column="id"
+                  column="status"
                   onSort={updateSort}
-                  sortState={getSortState('id')}
-                  className="w-24"
+                  sortState={getSortState('status')}
+                  className="w-28"
                 >
-                  ID
+                  상태
                 </SortableTableHeader>
                 <SortableTableHeader
                   column="customer_name"
@@ -294,14 +401,6 @@ export default function AdminReservationsPage() {
                   고객
                 </SortableTableHeader>
                 <SortableTableHeader
-                  column="service_name"
-                  onSort={updateSort}
-                  sortState={getSortState('service_name')}
-                  className={`${DESKTOP_DISPLAY_CLASS} min-w-32`}
-                >
-                  서비스
-                </SortableTableHeader>
-                <SortableTableHeader
                   column="reservation_time"
                   onSort={updateSort}
                   sortState={getSortState('reservation_time')}
@@ -310,20 +409,12 @@ export default function AdminReservationsPage() {
                   예약 시간
                 </SortableTableHeader>
                 <SortableTableHeader
-                  column="status"
-                  onSort={updateSort}
-                  sortState={getSortState('status')}
-                  className="w-28"
-                >
-                  상태
-                </SortableTableHeader>
-                <SortableTableHeader
                   column="created_at"
                   onSort={updateSort}
                   sortState={getSortState('created_at')}
                   className={`${DESKTOP_DISPLAY_CLASS} w-28`}
                 >
-                  예약일
+                  생성일
                 </SortableTableHeader>
                 <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
                   관리
@@ -341,13 +432,12 @@ export default function AdminReservationsPage() {
                     key={reservation.id} 
                     className={`${getReservationRowClass(reservation.reservation_date || reservation.created_at || '')} transition-colors`}
                   >
-                    {/* ID */}
+                    {/* 상태 */}
                     <td className={getTableCellClass()}>
-                      <HighlightText
-                        text={reservation.id.substring(0, 8) + '...'}
-                        searchQuery={currentSearchQuery}
-                        className={isPast ? 'text-gray-500' : 'font-mono text-xs'}
-                      />
+                      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${getEnhancedStatusBadgeClass(reservation.status)}`}>
+                        <StatusIcon className="h-3 w-3" />
+                        <span>{getStatusText(reservation.status)}</span>
+                      </div>
                     </td>
                     
                     {/* 고객명 */}
@@ -366,43 +456,40 @@ export default function AdminReservationsPage() {
                       
                       {/* 모바일 전용 컴팩트 정보 */}
                       <div className={getCompactDisplayClass()}>
-                        <div className="text-gray-600">
-                          {reservation.services?.name || '알 수 없음'}
-                        </div>
                         <div className="text-gray-500">
-                          {reservation.start_time ? formatDateTime(`${reservation.reservation_date} ${reservation.start_time}`) : '알 수 없음'}
+                          {reservation.reservation_date && reservation.start_time 
+                            ? formatDateTime(`${reservation.reservation_date}T${reservation.start_time}`) 
+                            : '예약 시간 없음'}
                         </div>
                       </div>
-                    </td>
-                    
-                    {/* 서비스 (데스크톱만) */}
-                    <td className={`${getTableCellClass()} ${DESKTOP_DISPLAY_CLASS}`}>
-                      <HighlightText
-                        text={reservation.services?.name || '알 수 없음'}
-                        searchQuery={currentSearchQuery}
-                        className={isPast ? 'text-gray-500' : ''}
-                      />
                     </td>
                     
                     {/* 예약 시간 (데스크톱만) */}
                     <td className={`${getTableCellClass()} ${DESKTOP_DISPLAY_CLASS}`}>
-                      <span className={`${isPast ? 'text-gray-500' : ''} font-mono text-sm`}>
-                        {reservation.start_time ? formatDateTime(`${reservation.reservation_date} ${reservation.start_time}`) : '알 수 없음'}
-                      </span>
-                    </td>
-                    
-                    {/* 상태 */}
-                    <td className={getTableCellClass()}>
-                      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${getEnhancedStatusBadgeClass(reservation.status)}`}>
-                        <StatusIcon className="h-3 w-3" />
-                        <span>{getStatusText(reservation.status)}</span>
+                      <div className={`${isPast ? 'text-gray-500' : ''} font-mono text-sm`}>
+                        {reservation.reservation_date && reservation.start_time ? (
+                          <div>
+                            <div className="font-medium">
+                              {formatDateTime(`${reservation.reservation_date}T${reservation.start_time}`)}
+                            </div>
+                            {reservation.end_time && (
+                              <div className="text-xs text-gray-500">
+                                ~ {reservation.end_time}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-red-500 text-xs">예약 시간 없음</span>
+                        )}
                       </div>
                     </td>
                     
-                    {/* 예약일 (데스크톱만) */}
+                    {/* 생성일 (데스크톱만) */}
                     <td className={`${getTableCellClass()} ${DESKTOP_DISPLAY_CLASS}`}>
                       <span className={`${isPast ? 'text-gray-500' : ''} text-sm`}>
-                        {reservation.created_at ? format(new Date(reservation.created_at), 'yyyy-MM-dd', { locale: ko }) : '알 수 없음'}
+                        {reservation.created_at 
+                          ? format(new Date(reservation.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }) 
+                          : '생성일 없음'}
                       </span>
                     </td>
                     
@@ -416,30 +503,17 @@ export default function AdminReservationsPage() {
                           상세
                         </button>
                         
-                        {!isPast && (
-                          <>
-                            <button 
-                              className={getActionButtonClass('edit')}
-                              onClick={() => {
-                                setSelectedReservation(reservation);
-                                openChangeModal();
-                              }}
-                            >
-                              변경
-                            </button>
-                            
-                            {reservation.status !== 'cancelled' && (
-                              <button 
-                                className={getActionButtonClass('cancel')}
-                                onClick={() => {
-                                  setSelectedReservation(reservation);
-                                  openCancelModal();
-                                }}
-                              >
-                                취소
-                              </button>
-                            )}
-                          </>
+                        {/* 취소 버튼은 과거 예약이 아니고 이미 취소되지 않은 경우에만 표시 */}
+                        {!isPast && reservation.status !== 'cancelled' && (
+                          <button 
+                            className={getActionButtonClass('cancel')}
+                            onClick={() => {
+                              setSelectedReservation(reservation);
+                              openCancelModal();
+                            }}
+                          >
+                            취소
+                          </button>
                         )}
                       </div>
                     </td>
