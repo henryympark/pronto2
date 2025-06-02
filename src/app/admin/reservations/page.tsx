@@ -11,8 +11,6 @@ import { useRouter } from "next/navigation";
 
 // 분리된 타입과 유틸리티 import
 import { Reservation } from "./utils/reservationTypes";
-
-// 명시적으로 각 함수를 import
 import { 
   formatDateTime, 
   getStatusIcon,
@@ -21,8 +19,7 @@ import {
   getReservationRowClass,
   getActionButtonClass,
   getTableCellClass,
-  getCompactDisplayClass,
-  getDesktopDisplayClass
+  getCompactDisplayClass
 } from "./utils/reservationHelpers";
 
 // 검색 하이라이트 컴포넌트 import
@@ -45,6 +42,9 @@ import SortableTableHeader from "./components/SortableTableHeader";
 import { useReservationRealtime } from "./hooks/useReservationRealtime";
 import { useReservationData } from "./hooks/useReservationData";
 import { useReservationActions } from "./hooks/useReservationActions";
+
+// 데스크톱 디스플레이 클래스를 상수로 정의
+const DESKTOP_DISPLAY_CLASS = "hidden md:table-cell";
 
 export default function AdminReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
@@ -297,7 +297,7 @@ export default function AdminReservationsPage() {
                   column="service_name"
                   onSort={updateSort}
                   sortState={getSortState('service_name')}
-                  className={`${getDesktopDisplayClass()} min-w-32`}
+                  className={`${DESKTOP_DISPLAY_CLASS} min-w-32`}
                 >
                   서비스
                 </SortableTableHeader>
@@ -305,7 +305,7 @@ export default function AdminReservationsPage() {
                   column="reservation_time"
                   onSort={updateSort}
                   sortState={getSortState('reservation_time')}
-                  className={`${getDesktopDisplayClass()} min-w-36`}
+                  className={`${DESKTOP_DISPLAY_CLASS} min-w-36`}
                 >
                   예약 시간
                 </SortableTableHeader>
@@ -321,7 +321,7 @@ export default function AdminReservationsPage() {
                   column="created_at"
                   onSort={updateSort}
                   sortState={getSortState('created_at')}
-                  className={`${getDesktopDisplayClass()} w-28`}
+                  className={`${DESKTOP_DISPLAY_CLASS} w-28`}
                 >
                   예약일
                 </SortableTableHeader>
@@ -376,7 +376,7 @@ export default function AdminReservationsPage() {
                     </td>
                     
                     {/* 서비스 (데스크톱만) */}
-                    <td className={`${getTableCellClass()} ${getDesktopDisplayClass()}`}>
+                    <td className={`${getTableCellClass()} ${DESKTOP_DISPLAY_CLASS}`}>
                       <HighlightText
                         text={reservation.services?.name || '알 수 없음'}
                         searchQuery={currentSearchQuery}
@@ -385,7 +385,7 @@ export default function AdminReservationsPage() {
                     </td>
                     
                     {/* 예약 시간 (데스크톱만) */}
-                    <td className={`${getTableCellClass()} ${getDesktopDisplayClass()}`}>
+                    <td className={`${getTableCellClass()} ${DESKTOP_DISPLAY_CLASS}`}>
                       <span className={`${isPast ? 'text-gray-500' : ''} font-mono text-sm`}>
                         {reservation.start_time ? formatDateTime(`${reservation.reservation_date} ${reservation.start_time}`) : '알 수 없음'}
                       </span>
@@ -400,7 +400,7 @@ export default function AdminReservationsPage() {
                     </td>
                     
                     {/* 예약일 (데스크톱만) */}
-                    <td className={`${getTableCellClass()} ${getDesktopDisplayClass()}`}>
+                    <td className={`${getTableCellClass()} ${DESKTOP_DISPLAY_CLASS}`}>
                       <span className={`${isPast ? 'text-gray-500' : ''} text-sm`}>
                         {reservation.created_at ? format(new Date(reservation.created_at), 'yyyy-MM-dd', { locale: ko }) : '알 수 없음'}
                       </span>
