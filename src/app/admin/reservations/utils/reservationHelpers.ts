@@ -138,4 +138,19 @@ export function getCompactDisplayClass(): string {
  */
 export function getDesktopDisplayClass(): string {
   return "hidden md:table-cell";
-} 
+}
+
+// 모든 함수를 명시적으로 export하여 import 문제 방지
+export default {
+  formatDateTime,
+  getStatusIcon,
+  getStatusBadgeClass,
+  getEnhancedStatusBadgeClass,
+  getStatusText,
+  getReservationRowClass,
+  getActionButtonClass,
+  getCustomerPriorityIndicator,
+  getTableCellClass,
+  getCompactDisplayClass,
+  getDesktopDisplayClass
+};
