@@ -12,10 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/shared/hooks";
-import { Loader2, Gift, AlertCircle, CheckCircle2, UserPlus } from "lucide-react";
+import { Loader2, Gift, AlertCircle, CheckCircle2, UserPlus, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import axios from "axios";
 
 export default function AdminCustomersPage() {
@@ -25,8 +27,7 @@ export default function AdminCustomersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [couponCount, setCouponCount] = useState("1");
-  const [couponDialogOpen, setCouponDialogOpen] = useState(false);
+  const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
   const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
   const [newCustomerData, setNewCustomerData] = useState({
     email: "",
@@ -34,8 +35,15 @@ export default function AdminCustomersPage() {
     phone: "",
     password: ""
   });
+
+  // 새로운 쿠폰/적립시간 부여 관련 상태
+  const [grantType, setGrantType] = useState<'coupon' | 'time'>('coupon');
+  const [couponMinutes, setCouponMinutes] = useState(30);
+  const [timeMinutes, setTimeMinutes] = useState(10);
+  const [grantLoading, setGrantLoading] = useState(false);
   
   const supabase = useSupabase();
+  const { user } = useAuth();
   const customersPerPage = 10;
   
   // 고객 목록 조회 함수
@@ -84,11 +92,13 @@ export default function AdminCustomersPage() {
     }
   };
   
-  // 쿠폰 부여 처리
-  const handleGrantCoupon = (customer: Customer) => {
+  // 쿠폰/적립시간 부여 다이얼로그 열기
+  const handleGrantRewards = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setCouponCount("1");
-    setCouponDialogOpen(true);
+    setGrantType('coupon');
+    setCouponMinutes(30);
+    setTimeMinutes(10);
+    setRewardDialogOpen(true);
   };
 
   // 신규 고객 등록 다이얼로그 열기
@@ -168,49 +178,60 @@ export default function AdminCustomersPage() {
     }
   };
 
-  // 쿠폰 부여 처리
-  const handleConfirmGrantCoupon = async () => {
-    if (!selectedCustomer) return;
+  // 새로운 쿠폰/적립시간 부여 처리 함수
+  const handleConfirmGrantRewards = async () => {
+    if (!selectedCustomer || !user) return;
 
     try {
-      const couponMinutes = parseInt(couponCount) * 30; // 30분 단위
+      setGrantLoading(true);
 
-      // customer_coupons 테이블에 쿠폰 추가 (올바른 스키마 사용)
-      const { error } = await supabase
-        .from('customer_coupons')
-        .insert({
-          customer_id: selectedCustomer.id,
-          minutes: couponMinutes,
-          is_used: false,
-          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1년 후 만료
-          granted_by: null, // 관리자 ID를 넣을 수 있지만 현재는 null로 설정
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+      // Edge Function 호출
+      const { data, error } = await supabase.functions.invoke('admin-grant-rewards', {
+        body: {
+          target_customer_id: selectedCustomer.id,
+          grant_type: grantType,
+          coupon_minutes: grantType === 'coupon' ? couponMinutes : undefined,
+          time_minutes: grantType === 'time' ? timeMinutes : undefined,
+          reason: `관리자에 의한 ${grantType === 'coupon' ? '쿠폰' : '적립시간'} 부여`
+        }
+      });
 
       if (error) {
-        console.error('쿠폰 부여 상세 오류:', error);
-        throw error;
+        console.error('Edge Function 오류:', error);
+        throw new Error(error.message || '부여 처리 중 오류가 발생했습니다.');
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || '부여 처리에 실패했습니다.');
+      }
+
+      // 성공 메시지 생성
+      let successMessage = '';
+      if (grantType === 'coupon') {
+        successMessage = `${selectedCustomer.nickname || selectedCustomer.email}님에게 ${couponMinutes}분 쿠폰이 부여되었습니다.`;
+      } else if (grantType === 'time') {
+        successMessage = `${selectedCustomer.nickname || selectedCustomer.email}님에게 ${timeMinutes}분 적립시간이 부여되었습니다.`;
       }
 
       toast({
         title: "성공",
-        description: `${selectedCustomer.nickname || selectedCustomer.email}님에게 ${couponMinutes}분 쿠폰이 부여되었습니다.`,
+        description: successMessage,
       });
 
-      setCouponDialogOpen(false);
+      setRewardDialogOpen(false);
       setSelectedCustomer(null);
-      setCouponCount('1'); // 쿠폰 개수 초기화
       
       // 고객 목록 새로고침
       fetchCustomers();
     } catch (error: any) {
-      console.error('쿠폰 부여 오류:', error);
+      console.error('쿠폰/적립시간 부여 오류:', error);
       toast({
         title: "오류",
-        description: error.message || "쿠폰 부여에 실패했습니다.",
+        description: error.message || "부여 처리에 실패했습니다.",
         variant: "destructive",
       });
+    } finally {
+      setGrantLoading(false);
     }
   };
 
@@ -287,7 +308,7 @@ export default function AdminCustomersPage() {
                   <th className="py-3 px-4 text-left">적립 시간</th>
                   <th className="py-3 px-4 text-left">가입일</th>
                   <th className="py-3 px-4 text-left">상태</th>
-                  <th className="py-3 px-4 text-left">쿠폰 부여</th>
+                  <th className="py-3 px-4 text-left">쿠폰/적립시간 부여</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,11 +335,10 @@ export default function AdminCustomersPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleGrantCoupon(customer)}
+                        onClick={() => handleGrantRewards(customer)}
                         className="flex items-center"
                       >
-                        <Gift className="h-4 w-4 mr-1" />
-                        30분 쿠폰
+                        <Plus className="h-4 w-4" />
                       </Button>
                     </td>
                   </tr>
@@ -350,7 +370,7 @@ export default function AdminCustomersPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`px-3 py-1 rounded-md ${
                         currentPage === page
-                                                      ? 'bg-blue-600 text-white'
+                          ? 'bg-blue-600 text-white'
                           : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                     >
@@ -374,67 +394,114 @@ export default function AdminCustomersPage() {
             </div>
           )}
           
-          {/* 쿠폰 부여 다이얼로그 */}
-          <Dialog open={couponDialogOpen} onOpenChange={setCouponDialogOpen}>
-            <DialogContent>
+          {/* 쿠폰/적립시간 부여 다이얼로그 */}
+          <Dialog open={rewardDialogOpen} onOpenChange={setRewardDialogOpen}>
+            <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>30분 쿠폰 부여</DialogTitle>
+                <DialogTitle>쿠폰/적립시간 부여</DialogTitle>
               </DialogHeader>
               
               {selectedCustomer && (
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-500">고객 정보</p>
-                    <p className="font-medium">
-                      {selectedCustomer.nickname || selectedCustomer.email || '이름 없음'}
-                    </p>
+                <div className="space-y-6 py-4">
+                  {/* 고객 정보 */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">고객 정보</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <p className="font-medium">
+                          {selectedCustomer.nickname || selectedCustomer.email || '이름 없음'}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          현재 적립시간: {formatTimeDisplay(selectedCustomer.accumulated_time_minutes)}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* 부여 유형 선택 */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium">부여 유형</Label>
+                    <Tabs value={grantType} onValueChange={(value) => setGrantType(value as 'coupon' | 'time')}>
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="coupon">쿠폰</TabsTrigger>
+                        <TabsTrigger value="time">적립시간</TabsTrigger>
+                      </TabsList>
+
+                      <div className="mt-4">
+                        <TabsContent value="coupon" className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="coupon-minutes">쿠폰 시간 (분)</Label>
+                            <Select
+                              value={couponMinutes.toString()}
+                              onValueChange={(value) => setCouponMinutes(parseInt(value))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="30">30분</SelectItem>
+                                <SelectItem value="60">60분</SelectItem>
+                                <SelectItem value="90">90분</SelectItem>
+                                <SelectItem value="120">120분</SelectItem>
+                                <SelectItem value="180">180분</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="time" className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="time-minutes">적립시간 (분)</Label>
+                            <Select
+                              value={timeMinutes.toString()}
+                              onValueChange={(value) => setTimeMinutes(parseInt(value))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="10">10분</SelectItem>
+                                <SelectItem value="20">20분</SelectItem>
+                                <SelectItem value="30">30분</SelectItem>
+                                <SelectItem value="60">60분</SelectItem>
+                                <SelectItem value="120">120분</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </TabsContent>
+                      </div>
+                    </Tabs>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="coupon-count">부여할 쿠폰 개수</Label>
-                    <Select
-                      value={couponCount}
-                      onValueChange={setCouponCount}
-                    >
-                      <SelectTrigger id="coupon-count" className="w-full">
-                        <SelectValue placeholder="쿠폰 개수 선택" />
-                      </SelectTrigger>
-                      <SelectContent position="popper">
-                        {[1, 2, 3, 4, 5].map(num => (
-                          <SelectItem key={num} value={num.toString()}>
-                            {num}개 ({num * 30}분)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <p className="text-sm text-gray-500">
-                    쿠폰 1개당 30분의 이용 시간이 제공됩니다.
-                  </p>
                 </div>
               )}
               
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setCouponDialogOpen(false)}
+                  onClick={() => setRewardDialogOpen(false)}
+                  disabled={grantLoading}
                 >
                   취소
                 </Button>
                 <Button
-                  onClick={handleConfirmGrantCoupon}
+                  onClick={handleConfirmGrantRewards}
+                  disabled={grantLoading}
                 >
-                  {selectedCustomer ? (
-                    '쿠폰 부여'
+                  {grantLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      처리 중...
+                    </>
                   ) : (
-                    '고객 선택'
+                    '부여하기'
                   )}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          
+
           {/* 고객 등록 다이얼로그 */}
           <Dialog open={addCustomerDialogOpen} onOpenChange={setAddCustomerDialogOpen}>
             <DialogContent>

@@ -14,14 +14,30 @@ import { Reservation } from "./utils/reservationTypes";
 import { 
   formatDateTime, 
   getStatusIcon,
-  getStatusBadgeClass,
-  getStatusText
+  getEnhancedStatusBadgeClass,
+  getStatusText,
+  getReservationRowClass,
+  getActionButtonClass,
+  getTableCellClass,
+  getCompactDisplayClass,
+  getDesktopDisplayClass
 } from "./utils/reservationHelpers";
+
+// 검색 하이라이트 컴포넌트 import
+import { HighlightText } from "./utils/searchHighlight";
 
 // 분리된 모달 컴포넌트들 import
 import ReservationDetailModal from "./components/ReservationDetailModal";
 import ReservationChangeModal from "./components/ReservationChangeModal";
 import ReservationCancelModal from "./components/ReservationCancelModal";
+
+// 필터링 관련 import
+import ReservationFilters from "./components/ReservationFilters";
+import { useReservationFilters } from "./hooks/useReservationFilters";
+
+// 정렬 관련 import 추가
+import { useReservationSort } from "./hooks/useReservationSort";
+import SortableTableHeader from "./components/SortableTableHeader";
 
 // 분리된 훅들 import
 import { useReservationRealtime } from "./hooks/useReservationRealtime";
@@ -53,6 +69,31 @@ export default function AdminReservationsPage() {
     isAdmin,
     authLoading
   });
+
+  // 필터링 훅
+  const {
+    filters,
+    filteredReservations,
+    updateDateRange,
+    updateCustomDateRange,
+    updateStatus,
+    updateServiceId,
+    updateSearchQuery,
+    resetFilters,
+    totalCount,
+    filteredCount,
+    isSearching,
+    getCurrentSearchQuery,
+  } = useReservationFilters(reservations);
+
+  // 정렬 훅 추가 (필터링된 데이터에 적용)
+  const {
+    sortedReservations,
+    updateSort,
+    resetSort,
+    getSortState,
+    isSorted,
+  } = useReservationSort(filteredReservations);
   
   // Realtime 훅 사용
   const { isRealtimeConnected } = useReservationRealtime({
@@ -60,6 +101,9 @@ export default function AdminReservationsPage() {
     authLoading,
     onReservationsUpdate: setReservations
   });
+
+  // 현재 검색어 가져오기
+  const currentSearchQuery = getCurrentSearchQuery();
 
   // 모달 닫기 핸들러
   const handleCloseModals = () => {
@@ -102,6 +146,25 @@ export default function AdminReservationsPage() {
     setIsModalOpen(false);
   };
 
+  // 필터와 정렬 초기화
+  const handleResetAll = () => {
+    resetFilters();
+    resetSort();
+  };
+
+  // 오늘 날짜인지 확인하는 함수
+  const isToday = (dateString: string) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    return dateString === today;
+  };
+
+  // 지난 예약인지 확인하는 함수  
+  const isPastReservation = (reservation: Reservation) => {
+    if (!reservation.reservation_date || !reservation.end_time) return false;
+    const endDateTime = new Date(`${reservation.reservation_date}T${reservation.end_time}`);
+    return endDateTime < new Date();
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -125,46 +188,46 @@ export default function AdminReservationsPage() {
   }
 
   return (
-    <div className="container py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold">예약 현황</h1>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${isRealtimeConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className={`text-sm ${isRealtimeConnected ? 'text-green-600' : 'text-red-600'}`}>
-              {isRealtimeConnected ? '실시간 연결됨' : '실시간 연결 끊김'}
-            </span>
-            {!isRealtimeConnected && (
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => window.location.reload()}
-                className="text-xs px-2 py-1 h-6"
-              >
-                재연결
-              </Button>
-            )}
-          </div>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      {/* 페이지 헤더 */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">예약 관리</h1>
+          <p className="text-gray-600 mt-1">예약 현황을 조회하고 관리할 수 있습니다.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button 
+        
+        <div className="flex items-center space-x-3">
+          <Button
             variant="outline"
+            size="sm"
             onClick={() => refreshData()}
             disabled={loading}
-            className="flex items-center gap-2"
+            className="flex items-center space-x-2"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            수동 새로고침
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>새로고침</span>
           </Button>
-          <Button 
-            onClick={() => router.push('/admin/reservations/create')}
-            className="flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            예약등록
+          
+          <Button className="flex items-center space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>새 예약</span>
           </Button>
         </div>
       </div>
+
+      {/* 필터 영역 */}
+      <ReservationFilters
+        filters={filters}
+        onUpdateDateRange={updateDateRange}
+        onUpdateCustomDateRange={updateCustomDateRange}
+        onUpdateStatus={updateStatus}
+        onUpdateServiceId={updateServiceId}
+        onUpdateSearchQuery={updateSearchQuery}
+        onResetFilters={resetFilters}
+        totalCount={totalCount}
+        filteredCount={filteredCount}
+        isSearching={isSearching}
+      />
       
       {loading ? (
         <div className="flex justify-center">
@@ -186,69 +249,195 @@ export default function AdminReservationsPage() {
             현재는 테이블이 없어도 사용할 수 있도록 페이지를 표시합니다:
           </p>
         </div>
-      ) : reservations.length === 0 ? (
+      ) : sortedReservations.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg">
-          <p className="text-gray-500">예약 내역이 없습니다</p>
-          <p className="text-sm text-gray-400 mt-2">예약이 생성되면 여기에 표시됩니다</p>
+          {filters.isFiltered ? (
+            <>
+              <p className="text-gray-500">필터 조건에 맞는 예약이 없습니다</p>
+              <p className="text-sm text-gray-400 mt-2">다른 조건으로 검색해보세요</p>
+              <Button 
+                variant="outline" 
+                onClick={handleResetAll}
+                className="mt-4"
+              >
+                전체 보기
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-500">예약 내역이 없습니다</p>
+              <p className="text-sm text-gray-400 mt-2">예약이 생성되면 여기에 표시됩니다</p>
+            </>
+          )}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
           <table className="min-w-full table-auto">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <SortableTableHeader
+                  column="id"
+                  onSort={updateSort}
+                  sortState={getSortState('id')}
+                  className="w-24"
+                >
                   ID
-                </th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </SortableTableHeader>
+                <SortableTableHeader
+                  column="customer_name"
+                  onSort={updateSort}
+                  sortState={getSortState('customer_name')}
+                  className="min-w-40"
+                >
                   고객
-                </th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </SortableTableHeader>
+                <SortableTableHeader
+                  column="service_name"
+                  onSort={updateSort}
+                  sortState={getSortState('service_name')}
+                  className={`${getDesktopDisplayClass()} min-w-32`}
+                >
                   서비스
-                </th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </SortableTableHeader>
+                <SortableTableHeader
+                  column="reservation_time"
+                  onSort={updateSort}
+                  sortState={getSortState('reservation_time')}
+                  className={`${getDesktopDisplayClass()} min-w-36`}
+                >
                   예약 시간
-                </th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </SortableTableHeader>
+                <SortableTableHeader
+                  column="status"
+                  onSort={updateSort}
+                  sortState={getSortState('status')}
+                  className="w-28"
+                >
                   상태
-                </th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </SortableTableHeader>
+                <SortableTableHeader
+                  column="created_at"
+                  onSort={updateSort}
+                  sortState={getSortState('created_at')}
+                  className={`${getDesktopDisplayClass()} w-28`}
+                >
                   예약일
-                </th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </SortableTableHeader>
+                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
                   관리
                 </th>
               </tr>
             </thead>
             <tbody>
-              {reservations.map((reservation) => (
-                <tr key={reservation.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-4">{reservation.id.substring(0, 8)}...</td>
-                  <td className="py-3 px-4">
-                    {reservation.customers?.nickname || reservation.customers?.email || '알 수 없음'}
-                  </td>
-                  <td className="py-3 px-4">{reservation.services?.name || '알 수 없음'}</td>
-                  <td className="py-3 px-4">
-                    {reservation.start_time ? formatDateTime(reservation.reservation_date || '', reservation.start_time) : '알 수 없음'}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(reservation)}`}>
-                      {getStatusIcon(reservation)}
-                      {getStatusText(reservation)}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    {reservation.created_at ? format(new Date(reservation.created_at), 'yyyy-MM-dd', { locale: ko }) : '알 수 없음'}
-                  </td>
-                  <td className="py-3 px-4">
-                    <button 
-                      className="text-blue-600 hover:text-blue-800 mr-2 font-medium"
-                      onClick={() => openReservationDetail(reservation)}
-                    >
-                      상세
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {sortedReservations.map((reservation) => {
+                const isReservationToday = reservation.reservation_date && isToday(reservation.reservation_date);
+                const isPast = isPastReservation(reservation);
+                const StatusIcon = getStatusIcon(reservation.status);
+                
+                return (
+                  <tr 
+                    key={reservation.id} 
+                    className={`${getReservationRowClass(reservation.reservation_date || reservation.created_at || '')} transition-colors`}
+                  >
+                    {/* ID */}
+                    <td className={getTableCellClass()}>
+                      <HighlightText
+                        text={reservation.id.substring(0, 8) + '...'}
+                        searchQuery={currentSearchQuery}
+                        className={isPast ? 'text-gray-500' : 'font-mono text-xs'}
+                      />
+                    </td>
+                    
+                    {/* 고객명 */}
+                    <td className={getTableCellClass(true)}>
+                      <div className="flex items-center space-x-2">
+                        <HighlightText
+                          text={reservation.customers?.nickname || reservation.customers?.email || '알 수 없음'}
+                          searchQuery={currentSearchQuery}
+                          className={isPast ? 'text-gray-500' : 'font-medium'}
+                        />
+                        {/* VIP 고객 표시 (향후 확장용) - 타입 오류로 주석 처리 */}
+                        {/* {reservation.customers?.is_vip && (
+                          <span className="text-yellow-500 text-xs">★</span>
+                        )} */}
+                      </div>
+                      
+                      {/* 모바일 전용 컴팩트 정보 */}
+                      <div className={getCompactDisplayClass()}>
+                        <div className="text-gray-600">
+                          {reservation.services?.name || '알 수 없음'}
+                        </div>
+                        <div className="text-gray-500">
+                          {reservation.start_time ? formatDateTime(`${reservation.reservation_date} ${reservation.start_time}`) : '알 수 없음'}
+                        </div>
+                      </div>
+                    </td>
+                    
+                    {/* 서비스 (데스크톱만) */}
+                    <td className={`${getTableCellClass()} ${getDesktopDisplayClass()}`}>
+                      <HighlightText
+                        text={reservation.services?.name || '알 수 없음'}
+                        searchQuery={currentSearchQuery}
+                        className={isPast ? 'text-gray-500' : ''}
+                      />
+                    </td>
+                    
+                    {/* 예약 시간 (데스크톱만) */}
+                    <td className={`${getTableCellClass()} ${getDesktopDisplayClass()}`}>
+                      <span className={`${isPast ? 'text-gray-500' : ''} font-mono text-sm`}>
+                        {reservation.start_time ? formatDateTime(`${reservation.reservation_date} ${reservation.start_time}`) : '알 수 없음'}
+                      </span>
+                    </td>
+                    
+                    {/* 상태 */}
+                    <td className={getTableCellClass()}>
+                      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${getEnhancedStatusBadgeClass(reservation.status)}`}>
+                        <StatusIcon className="h-3 w-3" />
+                        <span>{getStatusText(reservation.status)}</span>
+                      </div>
+                    </td>
+                    
+                    {/* 예약일 (데스크톱만) */}
+                    <td className={`${getTableCellClass()} ${getDesktopDisplayClass()}`}>
+                      <span className={`${isPast ? 'text-gray-500' : ''} text-sm`}>
+                        {reservation.created_at ? format(new Date(reservation.created_at), 'yyyy-MM-dd', { locale: ko }) : '알 수 없음'}
+                      </span>
+                    </td>
+                    
+                    {/* 관리 액션 */}
+                    <td className={getTableCellClass()}>
+                      <div className="flex items-center space-x-1">
+                        <button 
+                          className={getActionButtonClass('view')}
+                          onClick={() => openReservationDetail(reservation)}
+                        >
+                          상세
+                        </button>
+                        
+                        {!isPast && (
+                          <>
+                            <button 
+                              className={getActionButtonClass('edit')}
+                              onClick={() => openChangeModal()}
+                            >
+                              변경
+                            </button>
+                            
+                            {reservation.status !== 'cancelled' && (
+                              <button 
+                                className={getActionButtonClass('cancel')}
+                                onClick={() => openCancelModal()}
+                              >
+                                취소
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

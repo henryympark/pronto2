@@ -126,6 +126,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             source: 'session_JWT'
           });
         } else {
+          // ✅ 세션이 null인 경우에도 loading을 false로 설정
+          debugLog('세션 없음 - 로딩 해제');
           setUser(null);
           setAuthUser(null);
           setLoading(false);
@@ -220,15 +222,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase.auth, debugLog]);
 
-  // ✅ 최적화된 초기화 및 상태 변경 감지
+  // ✅ 최적화된 초기화 및 상태 변경 감지 (getSession 호출 제거)
   useEffect(() => {
-    debugLog('AuthProvider 마운트');
+    debugLog('AuthProvider 마운트 - onAuthStateChange만 사용');
     mountedRef.current = true;
     
-    // 초기 세션 가져오기
-    getSession();
-    
-    // 인증 상태 변경 감지
+    // ✅ onAuthStateChange만 사용하여 초기 세션과 상태 변경 모두 처리
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         debugLog('인증 상태 변경', { event, hasSession: !!newSession });
@@ -285,6 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             break;
             
           case 'INITIAL_SESSION':
+            debugLog('INITIAL_SESSION 이벤트 처리', { hasSession: !!newSession });
             setSession(newSession);
             if (newSession?.user) {
               // 초기 세션에서도 즉시 정보 추출
@@ -300,8 +300,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
               setUser(newSession.user);
               setAuthUser(authUserData);
+              debugLog('INITIAL_SESSION: 사용자 정보 설정 완료');
               setLoading(false);
             } else {
+              debugLog('INITIAL_SESSION: 세션 없음, 로딩 해제');
+              setUser(null);
+              setAuthUser(null);
               setLoading(false);
             }
             break;
@@ -323,21 +327,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [supabase.auth, debugLog, getSession]);
+  }, [supabase.auth, debugLog]); // getSession 제거하여 무한 재렌더링 방지
 
-  // ✅ 로딩 타임아웃 (최대 3초 후 강제 해제)
+  // ✅ 로딩 타임아웃 (최대 1초 후 강제 해제)
   useEffect(() => {
     if (loading) {
       const timeoutId = setTimeout(() => {
         if (mountedRef.current && loading) {
-          debugLog('로딩 타임아웃 - 강제 해제');
+          debugLog('로딩 타임아웃 - 강제 해제 (1초)');
           setLoading(false);
         }
-      }, 3000); // 3초 타임아웃으로 단축
+      }, 1000); // 1초 타임아웃으로 더욱 단축
 
       return () => clearTimeout(timeoutId);
     }
   }, [loading, debugLog]);
+
+  // ✅ 초기 로딩 해제 안전장치 (마운트 후 300ms)
+  useEffect(() => {
+    const initialTimeoutId = setTimeout(() => {
+      if (mountedRef.current && loading) {
+        debugLog('초기 로딩 해제 안전장치 실행 (300ms)');
+        setLoading(false);
+      }
+    }, 300); // 300ms 후 초기 로딩 해제
+
+    return () => clearTimeout(initialTimeoutId);
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
 
   const value: AuthContextType = {
     session,
