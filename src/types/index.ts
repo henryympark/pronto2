@@ -91,7 +91,7 @@ export interface JWTPayload {
 }
 
 /**
- * 고객 정보 타입 (수정됨 - 새로운 DB 구조 반영)
+ * 고객 정보 타입 (수정됨 - Phase 2 새로운 필드 포함)
  * 
  * @property id - 고객 ID (UUID, auth.users.id와 동일한 값)
  * @property email - 이메일 주소
@@ -105,6 +105,10 @@ export interface JWTPayload {
  * @property accumulated_time_minutes - 적립된 시간 (분 단위)
  * @property memo - 관리자 메모
  * @property is_active - 활성 상태 여부
+ * @property company_name - 회사명 (기업고객 구분용)
+ * @property last_visit_date - 마지막 방문 일시
+ * @property total_visit_count - 총 방문 횟수
+ * @property is_vip - VIP 고객 여부
  */
 export interface Customer {
   /** 고객 ID (UUID, auth.users.id와 동일한 값) */
@@ -131,6 +135,14 @@ export interface Customer {
   memo?: string;
   /** 활성 상태 여부 */
   is_active: boolean;
+  /** 회사명 (기업고객 구분용) - Phase 2 추가 */
+  company_name?: string;
+  /** 마지막 방문 일시 - Phase 2 추가 */
+  last_visit_date?: string;
+  /** 총 방문 횟수 - Phase 2 추가 */
+  total_visit_count?: number;
+  /** VIP 고객 여부 - Phase 2 추가 */
+  is_vip?: boolean;
 }
 
 /**
