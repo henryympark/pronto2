@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 
 // 분리된 타입과 유틸리티 import
 import { Reservation } from "./utils/reservationTypes";
+
+// 명시적으로 각 함수를 import
 import { 
   formatDateTime, 
   getStatusIcon,
@@ -418,7 +420,10 @@ export default function AdminReservationsPage() {
                           <>
                             <button 
                               className={getActionButtonClass('edit')}
-                              onClick={() => openChangeModal()}
+                              onClick={() => {
+                                setSelectedReservation(reservation);
+                                openChangeModal();
+                              }}
                             >
                               변경
                             </button>
@@ -426,7 +431,10 @@ export default function AdminReservationsPage() {
                             {reservation.status !== 'cancelled' && (
                               <button 
                                 className={getActionButtonClass('cancel')}
-                                onClick={() => openCancelModal()}
+                                onClick={() => {
+                                  setSelectedReservation(reservation);
+                                  openCancelModal();
+                                }}
                               >
                                 취소
                               </button>
