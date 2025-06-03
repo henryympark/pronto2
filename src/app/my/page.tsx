@@ -490,6 +490,11 @@ export default function MyPage() {
     };
   }, [user?.id, supabase]);
 
+  // 통계 카드 클릭 핸들러 추가
+  const handleStatsCardClick = (path: string) => {
+    router.push(path);
+  };
+
   // 로딩 화면
   if (loading) {
     return (
@@ -548,15 +553,24 @@ export default function MyPage() {
           <Card className="mb-8">
             <CardContent className="p-6">
               <div className="grid grid-cols-3 gap-6">
-                <div className="text-center">
+                <div 
+                  className="text-center cursor-pointer hover:bg-gray-50 py-2 px-1 rounded-lg transition-colors"
+                  onClick={() => handleStatsCardClick('/my/rewards')}
+                >
                   <p className="text-2xl font-bold mb-2">{formatTimeDisplay(accumulatedTime)}</p>
                   <p className="text-base text-gray-700">적립시간</p>
                 </div>
-                <div className="text-center">
+                <div 
+                  className="text-center cursor-pointer hover:bg-gray-50 py-2 px-1 rounded-lg transition-colors"
+                  onClick={() => handleStatsCardClick('/my/coupons')}
+                >
                   <p className="text-2xl font-bold mb-2">{couponsCount}장</p>
                   <p className="text-base text-gray-700">보유쿠폰</p>
                 </div>
-                <div className="text-center">
+                <div 
+                  className="text-center cursor-pointer hover:bg-gray-50 py-2 px-1 rounded-lg transition-colors"
+                  onClick={() => handleStatsCardClick('/my/reviews/history')}
+                >
                   <p className="text-2xl font-bold mb-2">{reviewsCount}건</p>
                   <p className="text-base text-gray-700">리뷰작성</p>
                 </div>
