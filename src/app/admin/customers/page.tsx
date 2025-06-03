@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/shared/hooks";
-import { Loader2, Gift, AlertCircle, CheckCircle2, UserPlus, Plus, Crown, UserCheck, Edit } from "lucide-react";
+import { Loader2, Gift, AlertCircle, CheckCircle2, UserPlus, Plus, UserCheck, Edit } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,15 +26,31 @@ import { useCustomerFilters } from "./hooks/useCustomerFilters";
 import { HighlightText } from "../reservations/utils/searchHighlight";
 import { Badge } from "@/components/ui/badge";
 
+// 타입 정의
+interface CustomerTag {
+  id: string;
+  name: string;
+  color?: string;
+  customer_id?: string;
+  tag_id?: string;
+}
+
 export default function AdminCustomersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
-  const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
   const [customerDetailOpen, setCustomerDetailOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    nickname: "",
+    phone: "",
+    company_name: "",
+  });
+
+  // 신규 고객 등록 관련 상태
+  const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
   const [newCustomerData, setNewCustomerData] = useState({
     email: "",
     nickname: "",
@@ -42,18 +58,16 @@ export default function AdminCustomersPage() {
     password: ""
   });
 
+  // 쿠폰/적립시간 부여 관련 상태 (통합됨)
+  const [grantType, setGrantType] = useState<'coupon' | 'time'>('coupon');
+  const [couponMinutes, setCouponMinutes] = useState(30);
+  const [timeMinutes, setTimeMinutes] = useState(10);
+  const [grantLoading, setGrantLoading] = useState(false);
+
   // 태그 시스템 상태
   const [availableTags, setAvailableTags] = useState<Array<{ id: string; name: string; color?: string }>>([]);
   const [customerTags, setCustomerTags] = useState<Array<{ customer_id: string; tag_id: string }>>([]);
   const [tagsLoading, setTagsLoading] = useState(false);
-
-  // 편집 모드 상태
-  const [isEditing, setIsEditing] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    nickname: "",
-    phone: "",
-    company_name: "",
-  });
 
   // 필터링 시스템
   const {
@@ -71,12 +85,6 @@ export default function AdminCustomersPage() {
     isSearching,
   } = useCustomerFilters(allCustomers);
 
-  // 새로운 쿠폰/적립시간 부여 관련 상태
-  const [grantType, setGrantType] = useState<'coupon' | 'time'>('coupon');
-  const [couponMinutes, setCouponMinutes] = useState(30);
-  const [timeMinutes, setTimeMinutes] = useState(10);
-  const [grantLoading, setGrantLoading] = useState(false);
-  
   const supabase = useSupabase();
   const { user } = useAuth();
   
@@ -159,7 +167,7 @@ export default function AdminCustomersPage() {
     }
   };
   
-  // 고객 목록 조회 함수 (전체 고객을 한 번에 로드)
+  // 고객 목록 조회 함수
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -177,7 +185,6 @@ export default function AdminCustomersPage() {
     } catch (err: unknown) {
       console.error('고객 정보 로딩 오류:', err);
       
-      // PostgrestError 타입인지 확인
       if (typeof err === 'object' && err !== null) {
         const postgrestError = err as PostgrestError;
         setError(postgrestError.message || '고객 정보를 불러오는데 실패했습니다.');
@@ -189,18 +196,76 @@ export default function AdminCustomersPage() {
     }
   };
   
-  // 쿠폰/적립시간 부여 다이얼로그 열기
-  const handleGrantRewards = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setGrantType('coupon');
-    setCouponMinutes(30);
-    setTimeMinutes(10);
-    setRewardDialogOpen(true);
+  // 쿠폰/적립시간 부여 함수 (통합됨)
+  const handleGrantRewards = async () => {
+    if (!selectedCustomer) return;
+
+    try {
+      setGrantLoading(true);
+
+      if (grantType === 'coupon') {
+        // 쿠폰 생성 로직
+        const { error: couponError } = await supabase
+          .from('coupons')
+          .insert([{
+            customer_id: selectedCustomer.id,
+            minutes: couponMinutes,
+            is_active: true,
+            created_at: new Date().toISOString(),
+          }]);
+
+        if (couponError) throw couponError;
+
+        toast({
+          title: "성공",
+          description: `${couponMinutes}분 쿠폰이 발급되었습니다.`,
+        });
+      } else {
+        // 적립시간 추가 로직
+        const newAccumulatedTime = (selectedCustomer.accumulated_time_minutes || 0) + timeMinutes;
+        
+        const { error: updateError } = await supabase
+          .from('customers')
+          .update({ accumulated_time_minutes: newAccumulatedTime })
+          .eq('id', selectedCustomer.id);
+
+        if (updateError) throw updateError;
+
+        toast({
+          title: "성공",
+          description: `${timeMinutes}분이 적립되었습니다.`,
+        });
+
+        // 선택된 고객 정보 업데이트
+        setSelectedCustomer(prev => prev ? {
+          ...prev,
+          accumulated_time_minutes: newAccumulatedTime
+        } : null);
+      }
+
+      // 고객 목록 새로고침
+      fetchCustomers();
+    } catch (error: any) {
+      toast({
+        title: "오류",
+        description: grantType === 'coupon' ? "쿠폰 발급에 실패했습니다." : "적립시간 추가에 실패했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setGrantLoading(false);
+    }
   };
 
-  // 고객 상세 보기
+  // 고객 상세 보기 (편집 상태 초기화 추가)
   const handleViewCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
+    setIsEditing(false);
+    setEditingCustomer(null);
+    setEditFormData({
+      nickname: "",
+      phone: "",
+      company_name: "",
+    });
     setCustomerDetailOpen(true);
   };
 
@@ -270,31 +335,6 @@ export default function AdminCustomersPage() {
     }
   };
 
-  // VIP 상태 토글
-  const handleToggleVip = async (customer: Customer) => {
-    try {
-      const { error } = await supabase
-        .from('customers')
-        .update({ is_vip: !customer.is_vip })
-        .eq('id', customer.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "성공",
-        description: `${customer.nickname || customer.email}님의 VIP 상태가 ${!customer.is_vip ? '설정' : '해제'}되었습니다.`,
-      });
-
-      fetchCustomers();
-    } catch (error: any) {
-      toast({
-        title: "오류",
-        description: "VIP 상태 변경에 실패했습니다.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // 신규 고객 등록 다이얼로그 열기
   const handleAddCustomer = () => {
     setNewCustomerData({
@@ -306,19 +346,19 @@ export default function AdminCustomersPage() {
     setAddCustomerDialogOpen(true);
   };
 
-  // 신규 고객 등록 처리
+  // 신규 고객 등록
   const handleCreateCustomer = async () => {
-    try {
-      if (!newCustomerData.email || !newCustomerData.password) {
-        toast({
-          title: "오류",
-          description: "이메일과 비밀번호는 필수입니다.",
-          variant: "destructive",
-        });
-        return;
-      }
+    if (!newCustomerData.email || !newCustomerData.password) {
+      toast({
+        title: "오류",
+        description: "이메일과 비밀번호는 필수입니다.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      // Supabase Auth를 통한 사용자 생성
+    try {
+      // Supabase Auth를 통한 고객 등록
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newCustomerData.email,
         password: newCustomerData.password,
@@ -326,44 +366,39 @@ export default function AdminCustomersPage() {
           data: {
             nickname: newCustomerData.nickname,
             phone: newCustomerData.phone,
-            role: 'customer'
           }
         }
       });
 
-      if (authError) {
-        throw authError;
-      }
+      if (authError) throw authError;
 
+      // customers 테이블에 추가 정보 저장
       if (authData.user) {
-        // customers 테이블에 추가 정보 저장
-        const { error: customerError } = await supabase
+        const { error: insertError } = await supabase
           .from('customers')
           .insert({
             id: authData.user.id,
             email: newCustomerData.email,
-            nickname: newCustomerData.nickname,
-            phone: newCustomerData.phone,
-            role: 'customer',
-            auth_provider: 'email',
+            nickname: newCustomerData.nickname || null,
+            phone: newCustomerData.phone || null,
+            is_active: true,
+            is_vip: false,
             accumulated_time_minutes: 0,
-            is_active: true
+            total_visit_count: 0,
+            auth_provider: 'email',
           });
 
-        if (customerError) {
-          throw customerError;
-        }
-
-        toast({
-          title: "성공",
-          description: "신규 고객이 등록되었습니다.",
-        });
-
-        setAddCustomerDialogOpen(false);
-        fetchCustomers(); // 목록 새로고침
+        if (insertError) throw insertError;
       }
+
+      toast({
+        title: "성공",
+        description: "신규 고객이 등록되었습니다.",
+      });
+
+      setAddCustomerDialogOpen(false);
+      fetchCustomers();
     } catch (error: any) {
-      console.error('고객 등록 오류:', error);
       toast({
         title: "오류",
         description: error.message || "고객 등록에 실패했습니다.",
@@ -372,94 +407,36 @@ export default function AdminCustomersPage() {
     }
   };
 
-  // 새로운 쿠폰/적립시간 부여 처리 함수
-  const handleConfirmGrantRewards = async () => {
-    if (!selectedCustomer || !user) return;
-
-    try {
-      setGrantLoading(true);
-
-      // Edge Function 호출
-      const { data, error } = await supabase.functions.invoke('admin-grant-rewards', {
-        body: {
-          target_customer_id: selectedCustomer.id,
-          grant_type: grantType,
-          coupon_minutes: grantType === 'coupon' ? couponMinutes : undefined,
-          time_minutes: grantType === 'time' ? timeMinutes : undefined,
-          reason: `관리자에 의한 ${grantType === 'coupon' ? '쿠폰' : '적립시간'} 부여`
-        }
-      });
-
-      if (error) {
-        console.error('Edge Function 오류:', error);
-        throw new Error(error.message || '부여 처리 중 오류가 발생했습니다.');
-      }
-
-      if (!data?.success) {
-        throw new Error(data?.error || '부여 처리에 실패했습니다.');
-      }
-
-      // 성공 메시지 생성
-      let successMessage = '';
-      if (grantType === 'coupon') {
-        successMessage = `${selectedCustomer.nickname || selectedCustomer.email}님에게 ${couponMinutes}분 쿠폰이 부여되었습니다.`;
-      } else if (grantType === 'time') {
-        successMessage = `${selectedCustomer.nickname || selectedCustomer.email}님에게 ${timeMinutes}분 적립시간이 부여되었습니다.`;
-      }
-
-      toast({
-        title: "성공",
-        description: successMessage,
-      });
-
-      setRewardDialogOpen(false);
-      setSelectedCustomer(null);
-      
-      // 고객 목록 새로고침
-      fetchCustomers();
-    } catch (error: any) {
-      console.error('쿠폰/적립시간 부여 오류:', error);
-      toast({
-        title: "오류",
-        description: error.message || "부여 처리에 실패했습니다.",
-        variant: "destructive",
-      });
-    } finally {
-      setGrantLoading(false);
-    }
-  };
-
   // 시간 표시 포맷팅
-  const formatTimeDisplay = (minutes: number) => {
+  const formatTimeDisplayLocal = (minutes: number) => {
+    if (!minutes || minutes === 0) return '0시간';
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    
-    if (hours > 0) {
+    if (hours > 0 && remainingMinutes > 0) {
       return `${hours}시간 ${remainingMinutes}분`;
+    } else if (hours > 0) {
+      return `${hours}시간`;
     } else {
       return `${remainingMinutes}분`;
     }
   };
 
-  // 페이지 변경 시 데이터 새로고침
+  // 가입 방식 텍스트 변환
+  const getAuthProviderText = (provider: string) => {
+    switch (provider) {
+      case 'email': return '이메일';
+      case 'google': return 'Google';
+      case 'kakao': return '카카오';
+      default: return provider || '알 수 없음';
+    }
+  };
+
+  // 컴포넌트 마운트 시 데이터 로드
   useEffect(() => {
     fetchCustomers();
     fetchTags();
   }, []);
 
-  const getAuthProviderText = (provider: string) => {
-    switch (provider) {
-      case 'email':
-        return '이메일';
-      case 'kakao':
-        return '카카오';
-      case 'naver':
-        return '네이버';
-      default:
-        return provider;
-    }
-  };
-  
   return (
     <div className="container py-8">
       <div className="flex justify-between items-center mb-6">
@@ -535,26 +512,20 @@ export default function AdminCustomersPage() {
                   <th className="py-3 px-4 text-left">이메일</th>
                   <th className="py-3 px-4 text-left">전화번호</th>
                   <th className="py-3 px-4 text-left">회사명</th>
-                  <th className="py-3 px-4 text-left">VIP</th>
                   <th className="py-3 px-4 text-left">마지막 방문</th>
                   <th className="py-3 px-4 text-left">가입일</th>
                   <th className="py-3 px-4 text-left">상태</th>
-                  <th className="py-3 px-4 text-left">액션</th>
+                  <th className="py-3 px-4 text-left">상세</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.map((customer) => (
                   <tr key={customer.id} className="border-b hover:bg-gray-50">
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <HighlightText 
-                          text={customer.nickname || '이름 없음'} 
-                          searchQuery={filters.searchQuery} 
-                        />
-                        {customer.is_vip && (
-                          <Crown className="h-4 w-4 text-yellow-500" />
-                        )}
-                      </div>
+                      <HighlightText 
+                        text={customer.nickname || '이름 없음'} 
+                        searchQuery={filters.searchQuery} 
+                      />
                     </td>
                     <td className="py-3 px-4">
                       <HighlightText 
@@ -573,16 +544,6 @@ export default function AdminCustomersPage() {
                         text={customer.company_name || '-'} 
                         searchQuery={filters.searchQuery} 
                       />
-                    </td>
-                    <td className="py-3 px-4">
-                      <Button
-                        size="sm"
-                        variant={customer.is_vip ? "default" : "outline"}
-                        onClick={() => handleToggleVip(customer)}
-                        className="text-xs"
-                      >
-                        {customer.is_vip ? "VIP" : "일반"}
-                      </Button>
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-600">
                       {customer.last_visit_date 
@@ -603,35 +564,14 @@ export default function AdminCustomersPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleViewCustomer(customer)}
-                          className="h-8 w-8 p-0"
-                          title="상세보기"
-                        >
-                          <UserCheck className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEditCustomer(customer)}
-                          className="h-8 w-8 p-0"
-                          title="편집"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleGrantRewards(customer)}
-                          className="h-8 w-8 p-0"
-                          title="쿠폰/적립시간 부여"
-                        >
-                          <Gift className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewCustomer(customer)}
+                        className="h-8 px-3"
+                      >
+                        상세
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -639,169 +579,58 @@ export default function AdminCustomersPage() {
             </table>
           </div>
           
-          {/* 쿠폰/적립시간 부여 다이얼로그 */}
-          <Dialog open={rewardDialogOpen} onOpenChange={setRewardDialogOpen}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>쿠폰/적립시간 부여</DialogTitle>
-              </DialogHeader>
-              
-              {selectedCustomer && (
-                <div className="space-y-6 py-4">
-                  {/* 고객 정보 */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">고객 정보</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <p className="font-medium">
-                          {selectedCustomer.nickname || selectedCustomer.email || '이름 없음'}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          현재 적립시간: {formatTimeDisplay(selectedCustomer.accumulated_time_minutes)}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* 부여 유형 선택 */}
-                  <div className="space-y-3">
-                    <Label className="text-base font-medium">부여 유형</Label>
-                    <Tabs value={grantType} onValueChange={(value) => setGrantType(value as 'coupon' | 'time')}>
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="coupon">쿠폰</TabsTrigger>
-                        <TabsTrigger value="time">적립시간</TabsTrigger>
-                      </TabsList>
-
-                      <div className="mt-4">
-                        <TabsContent value="coupon" className="space-y-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="coupon-minutes">쿠폰 시간 (분)</Label>
-                            <Select
-                              value={couponMinutes.toString()}
-                              onValueChange={(value) => setCouponMinutes(parseInt(value))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="30">30분</SelectItem>
-                                <SelectItem value="60">60분</SelectItem>
-                                <SelectItem value="90">90분</SelectItem>
-                                <SelectItem value="120">120분</SelectItem>
-                                <SelectItem value="180">180분</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </TabsContent>
-
-                        <TabsContent value="time" className="space-y-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="time-minutes">적립시간 (분)</Label>
-                            <Select
-                              value={timeMinutes.toString()}
-                              onValueChange={(value) => setTimeMinutes(parseInt(value))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="10">10분</SelectItem>
-                                <SelectItem value="20">20분</SelectItem>
-                                <SelectItem value="30">30분</SelectItem>
-                                <SelectItem value="60">60분</SelectItem>
-                                <SelectItem value="120">120분</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </TabsContent>
-                      </div>
-                    </Tabs>
-                  </div>
-                </div>
-              )}
-              
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setRewardDialogOpen(false)}
-                  disabled={grantLoading}
-                >
-                  취소
-                </Button>
-                <Button
-                  onClick={handleConfirmGrantRewards}
-                  disabled={grantLoading}
-                >
-                  {grantLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      처리 중...
-                    </>
-                  ) : (
-                    '부여하기'
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* 고객 등록 다이얼로그 */}
+          {/* 신규 고객 등록 다이얼로그 */}
           <Dialog open={addCustomerDialogOpen} onOpenChange={setAddCustomerDialogOpen}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[400px]">
               <DialogHeader>
                 <DialogTitle>신규 고객 등록</DialogTitle>
               </DialogHeader>
               
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">이메일 (필수)</Label>
+                <div>
+                  <Label htmlFor="email">이메일 *</Label>
                   <Input
                     id="email"
-                    name="email"
                     type="email"
                     value={newCustomerData.email}
                     onChange={(e) => setNewCustomerData(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="이메일 주소"
+                    placeholder="customer@example.com"
                     required
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="password">비밀번호 (필수)</Label>
+                <div>
+                  <Label htmlFor="password">임시 비밀번호 *</Label>
                   <Input
                     id="password"
-                    name="password"
-                    type="text"
+                    type="password"
                     value={newCustomerData.password}
                     onChange={(e) => setNewCustomerData(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="6자 이상 입력"
+                    placeholder="임시 비밀번호"
                     required
                   />
-                  <p className="text-xs text-gray-500">6자 이상의 비밀번호를 입력해주세요.</p>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="nickname">이름/닉네임</Label>
-                  <Input
-                    id="nickname"
-                    name="nickname"
-                    value={newCustomerData.nickname}
-                    onChange={(e) => setNewCustomerData(prev => ({ ...prev, nickname: e.target.value }))}
-                    placeholder="이름 또는 닉네임"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="phone">전화번호</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    value={newCustomerData.phone}
-                    onChange={(e) => setNewCustomerData(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="010-0000-0000"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="nickname">이름/닉네임</Label>
+                    <Input
+                      id="nickname"
+                      value={newCustomerData.nickname}
+                      onChange={(e) => setNewCustomerData(prev => ({ ...prev, nickname: e.target.value }))}
+                      placeholder="홍길동"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">전화번호</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      value={newCustomerData.phone}
+                      onChange={(e) => setNewCustomerData(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="010-0000-0000"
+                    />
+                  </div>
                 </div>
               </div>
               
@@ -821,7 +650,7 @@ export default function AdminCustomersPage() {
             </DialogContent>
           </Dialog>
 
-          {/* 고객 상세/편집 다이얼로그 */}
+          {/* 통합된 고객 상세 다이얼로그 */}
           <Dialog open={customerDetailOpen} onOpenChange={(open) => {
             setCustomerDetailOpen(open);
             if (!open) {
@@ -835,20 +664,21 @@ export default function AdminCustomersPage() {
               });
             }
           }}>
-            <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {editingCustomer ? '고객 정보 편집' : '고객 상세 정보'}
+                  고객 상세 정보
                 </DialogTitle>
               </DialogHeader>
               
               {selectedCustomer && (
                 <div className="space-y-6 py-4">
                   <Tabs defaultValue="basic" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-4">
                       <TabsTrigger value="basic">기본 정보</TabsTrigger>
                       <TabsTrigger value="activity">활동 현황</TabsTrigger>
                       <TabsTrigger value="tags">태그 관리</TabsTrigger>
+                      <TabsTrigger value="rewards">쿠폰/적립시간</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="basic" className="space-y-4 mt-4">
@@ -857,9 +687,6 @@ export default function AdminCustomersPage() {
                           <CardTitle className="text-base flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               고객 기본 정보
-                              {selectedCustomer.is_vip && (
-                                <Badge variant="default" className="text-xs">VIP</Badge>
-                              )}
                             </div>
                             {!isEditing && (
                               <Button 
@@ -915,7 +742,7 @@ export default function AdminCustomersPage() {
                               <div>
                                 <Label className="text-sm font-medium text-gray-600">현재 적립 시간</Label>
                                 <p className="text-sm mt-1 font-medium text-blue-600">
-                                  {formatTimeDisplay(selectedCustomer.accumulated_time_minutes)}
+                                  {formatTimeDisplayLocal(selectedCustomer.accumulated_time_minutes)}
                                 </p>
                               </div>
 
@@ -954,7 +781,7 @@ export default function AdminCustomersPage() {
                               <div>
                                 <Label className="text-sm font-medium text-gray-600">현재 적립 시간</Label>
                                 <p className="text-sm mt-1 font-medium text-blue-600">
-                                  {formatTimeDisplay(selectedCustomer.accumulated_time_minutes)}
+                                  {formatTimeDisplayLocal(selectedCustomer.accumulated_time_minutes)}
                                 </p>
                               </div>
                             </>
@@ -998,19 +825,6 @@ export default function AdminCustomersPage() {
                               </Badge>
                             </div>
                           </div>
-
-                          <div className="pt-4 border-t">
-                            <Label className="text-sm font-medium text-gray-600">고객 등급</Label>
-                            <div className="mt-2">
-                              {(selectedCustomer.total_visit_count || 0) === 0 ? (
-                                <Badge variant="outline">신규 고객</Badge>
-                              ) : (selectedCustomer.total_visit_count || 0) <= 5 ? (
-                                <Badge variant="secondary">재방문 고객</Badge>
-                              ) : (
-                                <Badge variant="default">단골 고객</Badge>
-                              )}
-                            </div>
-                          </div>
                         </CardContent>
                       </Card>
                     </TabsContent>
@@ -1020,66 +834,141 @@ export default function AdminCustomersPage() {
                         <CardHeader>
                           <CardTitle className="text-base">태그 관리</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                          {tagsLoading ? (
-                            <div className="flex justify-center py-4">
-                              <Loader2 className="h-6 w-6 animate-spin" />
+                        <CardContent className="space-y-4">
+                          {/* 현재 태그 표시 */}
+                          <div>
+                            <Label className="text-sm font-medium text-gray-600 mb-2 block">현재 태그</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {customerTags
+                                .filter(tag => tag.customer_id === selectedCustomer.id)
+                                .map((tag) => (
+                                  <Badge 
+                                    key={tag.tag_id} 
+                                    variant="secondary" 
+                                    className="flex items-center gap-1"
+                                  >
+                                    {availableTags.find(t => t.id === tag.tag_id)?.name}
+                                    <button
+                                      onClick={() => removeTagFromCustomer(selectedCustomer.id, tag.tag_id)}
+                                      className="ml-1 text-gray-500 hover:text-red-500"
+                                    >
+                                      ×
+                                    </button>
+                                  </Badge>
+                                ))
+                              }
+                              {customerTags.filter(tag => tag.customer_id === selectedCustomer.id).length === 0 && (
+                                <p className="text-sm text-gray-500">태그가 없습니다</p>
+                              )}
                             </div>
-                          ) : (
-                            <div className="space-y-4">
-                              {/* 현재 태그 목록 */}
-                              <div>
-                                <Label className="text-sm font-medium text-gray-600">현재 태그</Label>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {customerTags
-                                    .filter(mapping => mapping.customer_id === selectedCustomer.id)
-                                    .map(mapping => {
-                                      const tag = availableTags.find(t => t.id === mapping.tag_id);
-                                      if (!tag) return null;
-                                      return (
-                                        <Badge 
-                                          key={mapping.tag_id} 
-                                          variant="default"
-                                          className="cursor-pointer hover:bg-red-500"
-                                          onClick={() => removeTagFromCustomer(selectedCustomer.id, mapping.tag_id)}
-                                          style={{ backgroundColor: tag.color }}
-                                        >
-                                          {tag.name} ×
-                                        </Badge>
-                                      );
-                                    })}
-                                  {customerTags.filter(mapping => mapping.customer_id === selectedCustomer.id).length === 0 && (
-                                    <p className="text-sm text-gray-500">설정된 태그가 없습니다</p>
-                                  )}
-                                </div>
-                              </div>
+                          </div>
 
-                              {/* 사용 가능한 태그 목록 */}
-                              <div>
-                                <Label className="text-sm font-medium text-gray-600">태그 추가</Label>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {availableTags
-                                    .filter(tag => !customerTags.some(mapping => 
-                                      mapping.customer_id === selectedCustomer.id && mapping.tag_id === tag.id
-                                    ))
-                                    .map(tag => (
-                                      <Badge 
-                                        key={tag.id}
-                                        variant="outline"
-                                        className="cursor-pointer hover:bg-blue-50"
-                                        onClick={() => addTagToCustomer(selectedCustomer.id, tag.id)}
-                                        style={{ borderColor: tag.color, color: tag.color }}
-                                      >
-                                        {tag.name} +
-                                      </Badge>
-                                    ))}
-                                  {availableTags.length === 0 && (
-                                    <p className="text-sm text-gray-500">사용 가능한 태그가 없습니다</p>
-                                  )}
-                                </div>
-                              </div>
+                          {/* 태그 추가 */}
+                          <div>
+                            <Label className="text-sm font-medium text-gray-600 mb-2 block">태그 추가</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {availableTags
+                                .filter(tag => !customerTags.some(ct => ct.customer_id === selectedCustomer.id && ct.tag_id === tag.id))
+                                .map((tag) => (
+                                  <Button
+                                    key={tag.id}
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => addTagToCustomer(selectedCustomer.id, tag.id)}
+                                    className="text-xs"
+                                  >
+                                    + {tag.name}
+                                  </Button>
+                                ))
+                              }
                             </div>
-                          )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    <TabsContent value="rewards" className="space-y-4 mt-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">쿠폰/적립시간 부여</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          {/* 고객 정보 */}
+                          <div className="p-4 bg-blue-50 rounded-lg">
+                            <div className="space-y-2">
+                              <p className="font-medium">
+                                {selectedCustomer.nickname || selectedCustomer.email || '이름 없음'}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                현재 적립시간: {formatTimeDisplayLocal(selectedCustomer.accumulated_time_minutes)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 부여 유형 선택 */}
+                          <div className="space-y-3">
+                            <Label className="text-base font-medium">부여 유형</Label>
+                            <Tabs value={grantType} onValueChange={(value) => setGrantType(value as 'coupon' | 'time')}>
+                              <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="coupon">쿠폰</TabsTrigger>
+                                <TabsTrigger value="time">적립시간</TabsTrigger>
+                              </TabsList>
+
+                              <div className="mt-4">
+                                <TabsContent value="coupon" className="space-y-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="coupon-minutes">쿠폰 시간 (분)</Label>
+                                    <Select
+                                      value={couponMinutes.toString()}
+                                      onValueChange={(value) => setCouponMinutes(parseInt(value))}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="30">30분</SelectItem>
+                                        <SelectItem value="60">60분</SelectItem>
+                                        <SelectItem value="90">90분</SelectItem>
+                                        <SelectItem value="120">120분</SelectItem>
+                                        <SelectItem value="180">180분</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </TabsContent>
+
+                                <TabsContent value="time" className="space-y-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="time-minutes">적립시간 (분)</Label>
+                                    <Select
+                                      value={timeMinutes.toString()}
+                                      onValueChange={(value) => setTimeMinutes(parseInt(value))}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="10">10분</SelectItem>
+                                        <SelectItem value="20">20분</SelectItem>
+                                        <SelectItem value="30">30분</SelectItem>
+                                        <SelectItem value="60">60분</SelectItem>
+                                        <SelectItem value="120">120분</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </TabsContent>
+                              </div>
+                            </Tabs>
+                          </div>
+
+                          <div className="pt-4">
+                            <Button
+                              onClick={handleGrantRewards}
+                              disabled={grantLoading}
+                              className="w-full"
+                            >
+                              {grantLoading ? "처리 중..." : (grantType === 'coupon' ? '쿠폰 발급' : '적립시간 추가')}
+                            </Button>
+                          </div>
                         </CardContent>
                       </Card>
                     </TabsContent>
@@ -1094,14 +983,6 @@ export default function AdminCustomersPage() {
                 >
                   닫기
                 </Button>
-                {selectedCustomer && (
-                  <Button
-                    variant={selectedCustomer.is_vip ? "outline" : "default"}
-                    onClick={() => handleToggleVip(selectedCustomer)}
-                  >
-                    {selectedCustomer.is_vip ? 'VIP 해제' : 'VIP 설정'}
-                  </Button>
-                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>

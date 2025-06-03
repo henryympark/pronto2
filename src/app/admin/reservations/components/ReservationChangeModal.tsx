@@ -44,7 +44,7 @@ export default function ReservationChangeModal({
           <div className="bg-blue-50 p-4 rounded-lg">
             <h3 className="font-medium text-blue-900 mb-2">현재 예약 정보</h3>
             <p className="text-sm text-blue-800">
-              {reservation.services?.name} - {formatDateTime(reservation.reservation_date || '', reservation.start_time)} ~ {formatDateTime(reservation.reservation_date || '', reservation.end_time)}
+              {reservation.services?.name} - {formatDateTime(`${reservation.reservation_date}T${reservation.start_time}`)} ~ {formatDateTime(`${reservation.reservation_date}T${reservation.end_time}`)}
             </p>
           </div>
 

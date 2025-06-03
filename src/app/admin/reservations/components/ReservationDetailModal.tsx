@@ -6,9 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import ReservationHistoryTimeline from "@/components/ReservationHistoryTimeline";
 import { Reservation } from "../utils/reservationTypes";
 import { 
-  formatDateTime, 
-  formatTimeOnly, 
-  calculateDurationHours,
+  formatDateTime,
   getStatusIcon,
   getStatusBadgeClass,
   getStatusText
@@ -84,7 +82,7 @@ export default function ReservationDetailModal({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">예약날짜</span>
-                <span className="text-sm">{formatDateTime(reservation.reservation_date || '', reservation.start_time)}</span>
+                <span className="text-sm">{formatDateTime(`${reservation.reservation_date}T${reservation.start_time}`)}</span>
               </div>
             </CardContent>
           </Card>
@@ -102,18 +100,21 @@ export default function ReservationDetailModal({
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">이용날짜</span>
                 <span className="text-sm text-green-600 font-medium">
-                  {formatDateTime(reservation.reservation_date || '', reservation.start_time)}
+                  {formatDateTime(`${reservation.reservation_date}T${reservation.start_time}`)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">이용시간</span>
                 <span className="text-sm">
-                  {formatTimeOnly(reservation.start_time)} ~ {formatTimeOnly(reservation.end_time)}
+                  {reservation.start_time?.substring(0, 5)} ~ {reservation.end_time?.substring(0, 5)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">수량</span>
-                <span className="text-sm">{calculateDurationHours(reservation.start_time, reservation.end_time)}시간</span>
+                <span className="text-sm">
+                  {reservation.start_time && reservation.end_time ? 
+                    Math.round((new Date(`2000-01-01T${reservation.end_time}`).getTime() - new Date(`2000-01-01T${reservation.start_time}`).getTime()) / (1000 * 60 * 60) * 10) / 10 : 0}시간
+                  </span>
               </div>
             </CardContent>
           </Card>
@@ -169,7 +170,7 @@ export default function ReservationDetailModal({
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">예약 상태</span>
                 <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(reservation)}`}>
-                  {getStatusIcon(reservation)}
+                  <span className="flex items-center">{getStatusIcon(reservation)}</span>
                   {getStatusText(reservation)}
                 </div>
               </div>

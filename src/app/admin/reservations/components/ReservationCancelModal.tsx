@@ -36,7 +36,7 @@ export default function ReservationCancelModal({
               정말로 이 예약을 취소하시겠습니까?
             </p>
             <p className="text-xs text-red-600 mt-2">
-              {reservation.services?.name} - {formatDateTime(reservation.reservation_date || '', reservation.start_time)}
+              {reservation.services?.name} - {formatDateTime(`${reservation.reservation_date}T${reservation.start_time}`)}
             </p>
           </div>
 
