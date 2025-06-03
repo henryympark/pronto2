@@ -6,15 +6,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSupabase } from "@/contexts/SupabaseContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Star, MessageSquare, Calendar, TrendingUp, Edit, MapPin, RefreshCw } from "lucide-react";
+import { ArrowLeft, Star, MessageSquare, Calendar, MapPin, Clock, Gift } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import Link from "next/link";
+import { formatTimeDisplay } from "@/lib/date-utils";
 
 interface ReviewHistory {
   id: string;
@@ -30,22 +29,28 @@ interface ReviewHistory {
   service_location: string;
 }
 
+interface AvailableReview {
+  reservation_id: string;
+  service_id: string;
+  service_name: string;
+  service_location: string;
+  completed_at: string;
+  customer_id: string;
+}
+
+const ITEMS_PER_PAGE = 10;
+const REVIEW_REWARD_MINUTES = 10; // 리뷰 1건당 적립되는 분수
+
 export default function ReviewHistoryPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = useSupabase();
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [reviews, setReviews] = useState<ReviewHistory[]>([]);
-  const [filteredReviews, setFilteredReviews] = useState<ReviewHistory[]>([]);
-  const [sortBy, setSortBy] = useState<'latest' | 'oldest' | 'rating_high' | 'rating_low'>('latest');
-  const [ratingFilter, setRatingFilter] = useState<'all' | '5' | '4' | '3' | '2' | '1'>('all');
-  const [stats, setStats] = useState({
-    totalReviews: 0,
-    averageRating: 0,
-    thisMonthReviews: 0,
-    ratingDistribution: [0, 0, 0, 0, 0] // 1~5점 분포
-  });
+  const [availableReviews, setAvailableReviews] = useState<AvailableReview[]>([]);
+  const [activeTab, setActiveTab] = useState<'available' | 'written'>('available');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -53,24 +58,109 @@ export default function ReviewHistoryPage() {
       return;
     }
     if (user) {
-      fetchReviews();
+      if (activeTab === 'available') {
+        fetchAvailableReviews();
+      } else {
+        fetchWrittenReviews();
+      }
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, activeTab, currentPage]);
 
-  useEffect(() => {
-    applyFiltersAndSort();
-  }, [reviews, sortBy, ratingFilter]);
-
-  const fetchReviews = async (showRefreshing = false) => {
+  const fetchAvailableReviews = async () => {
     if (!user?.id) return;
     
     try {
-      if (showRefreshing) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      setLoading(true);
       
+      // 완료된 예약 중 리뷰가 작성되지 않은 것들 조회
+      const { data, error } = await supabase
+        .from('reservations')
+        .select(`
+          id,
+          customer_id,
+          service_id,
+          status,
+          updated_at,
+          services:service_id (
+            name,
+            location
+          )
+        `)
+        .eq('customer_id', user.id)
+        .eq('status', 'completed')
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      // 이미 리뷰가 작성된 예약들 조회
+      const { data: existingReviews, error: reviewError } = await supabase
+        .from('reviews')
+        .select('reservation_id')
+        .eq('customer_id', user.id)
+        .is('deleted_at', null);
+
+      if (reviewError) throw reviewError;
+
+      const reviewedReservationIds = new Set(
+        existingReviews?.map(review => review.reservation_id) || []
+      );
+
+      // 리뷰가 작성되지 않은 완료된 예약들 필터링
+      const availableReviewsData = (data as any[])?.filter(reservation => 
+        !reviewedReservationIds.has(reservation.id) &&
+        reservation.status === 'completed'
+      ).map(item => ({
+        reservation_id: item.id,
+        service_id: item.service_id,
+        service_name: item.services?.name || '서비스 정보 없음',
+        service_location: item.services?.location || '위치 정보 없음',
+        completed_at: item.updated_at,
+        customer_id: item.customer_id
+      })) as AvailableReview[] || [];
+
+      // 페이지네이션 적용
+      const totalCount = availableReviewsData.length;
+      const calculatedTotalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+      setTotalPages(calculatedTotalPages);
+
+      const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+      const endIndex = startIndex + ITEMS_PER_PAGE;
+      const paginatedData = availableReviewsData.slice(startIndex, endIndex);
+      
+      setAvailableReviews(paginatedData);
+      
+    } catch (error) {
+      console.error('작성 가능한 리뷰 조회 실패:', error);
+      toast({
+        title: "오류",
+        description: "데이터를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWrittenReviews = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      
+      // 전체 개수 조회
+      const { count, error: countError } = await supabase
+        .from('reviews')
+        .select('*', { count: 'exact', head: true })
+        .eq('customer_id', user.id)
+        .is('deleted_at', null);
+
+      if (countError) throw countError;
+
+      const totalCount = count || 0;
+      const calculatedTotalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+      setTotalPages(calculatedTotalPages);
+
+      // 페이지별 데이터 조회
       const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -90,7 +180,8 @@ export default function ReviewHistoryPage() {
         `)
         .eq('customer_id', user.id)
         .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1);
 
       if (error) {
         console.error('리뷰 조회 오류:', error);
@@ -108,40 +199,6 @@ export default function ReviewHistoryPage() {
         })) as ReviewHistory[] || [];
         
         setReviews(reviewList);
-        
-        // 통계 계산
-        const totalReviews = reviewList.length;
-        const averageRating = totalReviews > 0 
-          ? reviewList.reduce((sum, r) => sum + r.rating, 0) / totalReviews 
-          : 0;
-        
-        const thisMonth = new Date();
-        thisMonth.setDate(1);
-        const thisMonthReviews = reviewList.filter(r => 
-          new Date(r.created_at) >= thisMonth
-        ).length;
-        
-        // 별점 분포 계산
-        const ratingDistribution = [0, 0, 0, 0, 0];
-        reviewList.forEach(r => {
-          if (r.rating >= 1 && r.rating <= 5) {
-            ratingDistribution[r.rating - 1]++;
-          }
-        });
-        
-        setStats({
-          totalReviews,
-          averageRating,
-          thisMonthReviews,
-          ratingDistribution
-        });
-
-        if (showRefreshing) {
-          toast({
-            title: "새로고침 완료",
-            description: "리뷰 정보가 업데이트되었습니다.",
-          });
-        }
       }
       
     } catch (error) {
@@ -153,40 +210,33 @@ export default function ReviewHistoryPage() {
       });
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const handleRefresh = async () => {
-    await fetchReviews(true);
+  const handleTabChange = (value: string) => {
+    const tab = value as 'available' | 'written';
+    setActiveTab(tab);
+    setCurrentPage(1); // 탭 변경 시 첫 페이지로
   };
 
-  const applyFiltersAndSort = () => {
-    let filtered = [...reviews];
-    
-    // 별점 필터 적용
-    if (ratingFilter !== 'all') {
-      const targetRating = parseInt(ratingFilter);
-      filtered = filtered.filter(review => review.rating === targetRating);
+  const getEarnableMinutes = () => {
+    if (activeTab === 'available') {
+      return availableReviews.length * REVIEW_REWARD_MINUTES;
     }
-    
-    // 정렬 적용
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'latest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        case 'rating_high':
-          return b.rating - a.rating;
-        case 'rating_low':
-          return a.rating - b.rating;
-        default:
-          return 0;
+    return 0;
+  };
+
+  const getRewardMessage = () => {
+    const earnableMinutes = getEarnableMinutes();
+    if (activeTab === 'available') {
+      if (earnableMinutes > 0) {
+        return `리뷰 작성하고 ${formatTimeDisplay(earnableMinutes)}의 혜택을 받아가세요`;
+      } else {
+        return '현재 작성 가능한 리뷰가 없습니다';
       }
-    });
-    
-    setFilteredReviews(filtered);
+    } else {
+      return '작성해주신 리뷰로 적립시간을 받으셨습니다';
+    }
   };
 
   const getRatingStars = (rating: number) => {
@@ -207,6 +257,41 @@ export default function ReviewHistoryPage() {
     if (rating >= 2) return "bg-orange-100 text-orange-700";
     return "bg-red-100 text-red-700";
   };
+
+  const AvailableReviewCard = ({ availableReview }: { availableReview: AvailableReview }) => (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="p-6">
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-lg text-gray-900 flex items-center">
+                <MessageSquare className="h-5 w-5 mr-2 text-blue-600" />
+                {availableReview.service_name}
+              </h3>
+              <Badge className="bg-blue-100 text-blue-700">
+                작성 가능
+              </Badge>
+            </div>
+            <div className="flex items-center mb-3">
+              <MapPin className="h-4 w-4 mr-1 text-gray-500" />
+              <p className="text-sm text-gray-600">{availableReview.service_location}</p>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                완료일: {availableReview.completed_at ? 
+                  format(parseISO(availableReview.completed_at), 'yyyy.MM.dd', { locale: ko }) : 
+                  '날짜 없음'}
+              </span>
+              <div className="flex items-center text-green-600">
+                <Gift className="h-4 w-4 mr-1" />
+                <span className="text-sm font-medium">+{formatTimeDisplay(REVIEW_REWARD_MINUTES)} 적립 가능</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   const ReviewCard = ({ review }: { review: ReviewHistory }) => (
     <Card className="hover:shadow-md transition-shadow">
@@ -229,7 +314,7 @@ export default function ReviewHistoryPage() {
             <div className="flex items-center mb-3">
               {getRatingStars(review.rating)}
               <span className="ml-2 text-sm text-gray-600">
-                {format(parseISO(review.created_at), 'yyyy.MM.dd HH:mm', { locale: ko })}
+                {review.created_at ? format(parseISO(review.created_at), 'yyyy.MM.dd HH:mm', { locale: ko }) : '날짜 없음'}
               </span>
             </div>
             <p className="text-gray-700 leading-relaxed">
@@ -244,9 +329,9 @@ export default function ReviewHistoryPage() {
         </div>
         <div className="flex justify-between items-center text-xs text-gray-500">
           <span>
-            작성일: {format(parseISO(review.created_at), 'yyyy년 MM월 dd일', { locale: ko })}
+            작성일: {review.created_at ? format(parseISO(review.created_at), 'yyyy년 MM월 dd일', { locale: ko }) : '날짜 없음'}
           </span>
-          {review.updated_at !== review.created_at && (
+          {review.updated_at && review.updated_at !== review.created_at && (
             <span>
               수정일: {format(parseISO(review.updated_at), 'yyyy.MM.dd', { locale: ko })}
             </span>
@@ -256,12 +341,51 @@ export default function ReviewHistoryPage() {
     </Card>
   );
 
+  const Pagination = () => {
+    if (totalPages <= 1) return null;
+
+    return (
+      <div className="flex justify-center items-center space-x-2 mt-6">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+        >
+          이전
+        </Button>
+        
+        <div className="flex space-x-1">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+            <Button
+              key={page}
+              variant={currentPage === page ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCurrentPage(page)}
+              className="w-8 h-8"
+            >
+              {page}
+            </Button>
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+        >
+          다음
+        </Button>
+      </div>
+    );
+  };
+
   if (authLoading || loading) {
     return (
       <div className="container mx-auto p-6 max-w-4xl">
         <div className="space-y-6">
           <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-32 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       </div>
@@ -270,198 +394,94 @@ export default function ReviewHistoryPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
-      {/* 브레드크럼 네비게이션 */}
-      <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-6">
-        <Link href="/my" className="hover:text-blue-600 transition-colors">
-          마이페이지
-        </Link>
-        <span>/</span>
-        <span className="text-gray-900">리뷰 히스토리</span>
-      </nav>
-
-      {/* 헤더 섹션 */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.back()}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>뒤로가기</span>
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-              <Star className="h-8 w-8 text-green-600 mr-3" />
-              내 리뷰 히스토리
-            </h1>
-            <p className="text-gray-600 mt-1">
-              작성한 리뷰들을 확인하고 관리하세요
-            </p>
-          </div>
-        </div>
+      {/* 헤더 섹션 - 간소화 */}
+      <div className="flex items-center mb-8">
         <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="flex items-center space-x-2"
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="mr-4"
         >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          <span>새로고침</span>
+          <ArrowLeft className="h-5 w-5" />
         </Button>
+        <h1 className="text-2xl font-bold text-gray-900">내 리뷰</h1>
       </div>
 
-      {/* 리뷰 통계 카드 */}
-      <Card className="mb-8 bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
-        <CardHeader>
-          <CardTitle className="flex items-center text-green-800">
-            <TrendingUp className="h-5 w-5 mr-2" />
-            리뷰 작성 현황
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-700 mb-2">
-                {stats.totalReviews}건
-              </div>
-              <p className="text-green-600 text-sm">총 작성 리뷰</p>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-700 mb-2 flex items-center justify-center">
-                {stats.averageRating.toFixed(1)}
-                <Star className="h-5 w-5 ml-1 text-yellow-400 fill-current" />
-              </div>
-              <p className="text-green-600 text-sm">평균 별점</p>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-semibold text-gray-700 mb-2">
-                {stats.thisMonthReviews}건
-              </div>
-              <p className="text-gray-600 text-sm">이번 달</p>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-semibold text-gray-700 mb-2">
-                {stats.ratingDistribution.filter(count => count > 0).length}개
-              </div>
-              <p className="text-gray-600 text-sm">이용 서비스</p>
-            </div>
-          </div>
-          <Separator className="my-4" />
-          <div className="flex items-center justify-center space-x-6">
-            {[5, 4, 3, 2, 1].map(rating => (
-              <div key={rating} className="text-center">
-                <div className="flex items-center mb-1">
-                  <span className="text-sm font-medium mr-1">{rating}</span>
-                  <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                </div>
-                <div className="text-sm text-gray-600">
-                  {stats.ratingDistribution[rating - 1]}건
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* 리뷰 탭 섹션 */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="available" className="flex items-center space-x-2">
+            <Clock className="h-4 w-4" />
+            <span>작성 가능한 리뷰</span>
+          </TabsTrigger>
+          <TabsTrigger value="written" className="flex items-center space-x-2">
+            <MessageSquare className="h-4 w-4" />
+            <span>내가 작성한 리뷰</span>
+          </TabsTrigger>
+        </TabsList>
 
-      {/* 필터 및 정렬 섹션 */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">별점 필터:</span>
-                <Select value={ratingFilter} onValueChange={(value: any) => setRatingFilter(value)}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    <SelectItem value="5">5점</SelectItem>
-                    <SelectItem value="4">4점</SelectItem>
-                    <SelectItem value="3">3점</SelectItem>
-                    <SelectItem value="2">2점</SelectItem>
-                    <SelectItem value="1">1점</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* 적립 메시지 영역 */}
+        <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-center">
+              <Gift className="h-5 w-5 mr-2 text-green-600" />
+              <p className="text-green-700 font-medium">
+                {getRewardMessage()}
+              </p>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">정렬:</span>
-                <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="latest">최신순</SelectItem>
-                    <SelectItem value="oldest">오래된순</SelectItem>
-                    <SelectItem value="rating_high">별점 높은순</SelectItem>
-                    <SelectItem value="rating_low">별점 낮은순</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="text-sm text-gray-600">
-                총 {filteredReviews.length}건
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 리뷰 목록 */}
-      {filteredReviews.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-600 mb-2">
-              {ratingFilter === 'all' ? '작성한 리뷰가 없습니다' : `${ratingFilter}점 리뷰가 없습니다`}
-            </h3>
-            <p className="text-gray-500 mb-6">
-              서비스 이용 후 리뷰를 작성해보세요
-            </p>
-            <Link href="/">
-              <Button>서비스 둘러보기</Button>
-            </Link>
           </CardContent>
         </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredReviews.map(review => (
-            <ReviewCard key={review.id} review={review} />
-          ))}
-        </div>
-      )}
 
-      {/* 도움말 섹션 */}
-      <Card className="mt-8 bg-gray-50">
-        <CardHeader>
-          <CardTitle className="text-lg">리뷰 관리 안내</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-600">
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-2">리뷰 혜택</h4>
-              <ul className="space-y-1">
-                <li>• 리뷰 작성 시 적립시간 30분 지급</li>
-                <li>• 포토 리뷰 작성 시 추가 혜택</li>
-                <li>• 우수 리뷰 선정 시 쿠폰 지급</li>
-                <li>• 지속적인 리뷰 작성 시 VIP 혜택</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-2">리뷰 정책</h4>
-              <ul className="space-y-1">
-                <li>• 작성 후 24시간 내 수정 가능</li>
-                <li>• 부적절한 내용 포함 시 비공개 처리</li>
-                <li>• 허위 리뷰 작성 시 계정 제재</li>
-                <li>• 서비스 이용 후에만 작성 가능</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="available" className="space-y-4">
+          {availableReviews.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Clock className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-600 mb-2">
+                  작성 가능한 리뷰가 없습니다
+                </h3>
+                <p className="text-gray-500">
+                  서비스 이용 완료 후 리뷰 작성이 가능합니다
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="space-y-4">
+                {availableReviews.map(availableReview => (
+                  <AvailableReviewCard key={availableReview.reservation_id} availableReview={availableReview} />
+                ))}
+              </div>
+              <Pagination />
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="written" className="space-y-4">
+          {reviews.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-600 mb-2">
+                  작성한 리뷰가 없습니다
+                </h3>
+                <p className="text-gray-500">
+                  서비스 이용 후 리뷰를 작성해보세요
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="space-y-4">
+                {reviews.map(review => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              </div>
+              <Pagination />
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 } 
