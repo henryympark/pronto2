@@ -198,87 +198,79 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   }, []);
   
   return (
-    <div>
-      {/* 반응형 레이아웃: lg 이상에서는 2단, 이하에서는 1단 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-        {/* 왼쪽 영역 (정보) - lg 이상에서 2칸 차지 */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* 대표 이미지 영역 */}
-          <StudioImageGallery studio={studioData} />
+    <div className="w-full max-w-[500px] mx-auto px-4 py-6">
+      {/* 단일 열 레이아웃 - 모바일 친화적 */}
+      <div className="space-y-6">
+        {/* 대표 이미지 영역 */}
+        <StudioImageGallery studio={studioData} />
+        
+        {/* 기본 정보 카드 */}
+        <StudioHeader studio={studioData} />
+        
+        {/* 탭 네비게이션 */}
+        <StudioTabs studio={studioData} />
+        
+        {/* 날짜 선택 */}
+        <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+          <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
+          <div className="flex justify-center">
+            <Calendar
+              mode="single"
+              selected={selectedDate || undefined}
+              onSelect={handleDateSelect}
+              onMonthChange={handleMonthChange}
+              className="rounded-md w-full max-w-sm"
+              disabled={(date) => {
+                // 과거 날짜 비활성화
+                if (date < new Date(new Date().setHours(0, 0, 0, 0))) {
+                  return true;
+                }
+                
+                // 🎯 서버에서 받은 휴무일 데이터로 체크 (빠른 로컬 검증)
+                const dateString = date.toISOString().split('T')[0];
+                return holidays.some(holiday => holiday.holiday_date === dateString);
+              }}
+              modifiers={{
+                holiday: holidays.map(holiday => new Date(holiday.holiday_date))
+              }}
+              modifiersClassNames={{
+                holiday: "bg-gray-100 text-gray-400 line-through"
+              }}
+            />
+          </div>
           
-          {/* 기본 정보 카드 */}
-          <StudioHeader studio={studioData} />
-          
-          {/* 탭 네비게이션 */}
-          <StudioTabs studio={studioData} />
+          {/* 휴무일 안내 */}
+          {holidays.length > 0 && (
+            <div className="mt-3 text-sm text-gray-500 text-center">
+              <span className="inline-flex items-center gap-1">
+                <span className="w-3 h-3 bg-gray-100 border rounded"></span>
+                휴무일 (예약 불가)
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 예약 시간 선택 */}
+        <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+          <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
+          <TimeRangeSelector 
+            serviceId={service.id}
+            selectedDate={selectedDate}
+            onTimeRangeChange={handleTimeRangeChange}
+            pricePerHour={service.price_per_hour}
+          />
         </div>
         
-        {/* 오른쪽 영역 (예약) - lg 이상에서 1칸 차지, 스티키 */}
-        <div className="lg:col-span-1">
-          <div className="lg:sticky lg:top-6 space-y-4 lg:space-y-6">
-            {/* 날짜 선택 */}
-            <div className="p-4 lg:p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
-              <h3 className="text-lg font-semibold mb-3 lg:mb-4">날짜 선택</h3>
-              <div className="flex justify-center">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate || undefined}
-                  onSelect={handleDateSelect}
-                  onMonthChange={handleMonthChange}
-                  className="rounded-md w-full max-w-sm"
-                  disabled={(date) => {
-                    // 과거 날짜 비활성화
-                    if (date < new Date(new Date().setHours(0, 0, 0, 0))) {
-                      return true;
-                    }
-                    
-                    // 🎯 서버에서 받은 휴무일 데이터로 체크 (빠른 로컬 검증)
-                    const dateString = date.toISOString().split('T')[0];
-                    return holidays.some(holiday => holiday.holiday_date === dateString);
-                  }}
-                  modifiers={{
-                    holiday: holidays.map(holiday => new Date(holiday.holiday_date))
-                  }}
-                  modifiersClassNames={{
-                    holiday: "bg-gray-100 text-gray-400 line-through"
-                  }}
-                />
-              </div>
-              
-              {/* 휴무일 안내 */}
-              {holidays.length > 0 && (
-                <div className="mt-3 text-sm text-gray-500 text-center">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-3 h-3 bg-gray-100 border rounded"></span>
-                    휴무일 (예약 불가)
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* 예약 시간 선택 */}
-            <div className="p-4 lg:p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
-              <h3 className="text-lg font-semibold mb-3 lg:mb-4">시간 선택</h3>
-              <TimeRangeSelector 
-                serviceId={service.id}
-                selectedDate={selectedDate}
-                onTimeRangeChange={handleTimeRangeChange}
-                pricePerHour={service.price_per_hour}
-              />
-            </div>
-            
-            {/* 예약 폼 */}
-            <div data-section="reservation" className="p-4 lg:p-6 border border-gray-200 rounded-lg bg-white shadow-sm">
-              <h3 className="text-lg font-semibold mb-3 lg:mb-4">예약 정보</h3>
-              <BookingForm 
-                serviceId={service.id} 
-                onReservationComplete={() => {
-                  console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
-                  refetchAvailableTimes();
-                }}
-              />
-            </div>
-          </div>
+        {/* 예약 폼 */}
+        <div data-section="reservation" className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+          <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
+          <BookingForm 
+            serviceId={service.id} 
+            onReservationComplete={() => {
+              console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
+              refetchAvailableTimes();
+            }}
+          />
         </div>
       </div>
     </div>
