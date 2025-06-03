@@ -5,7 +5,7 @@
 // 헤더 스타일 
 export const headerStyles = {
   container: "sticky top-0 z-50 w-full bg-white shadow-sm",
-  innerContainer: "container flex h-16 items-center px-4 md:px-6",
+  innerContainer: "w-full max-w-[500px] mx-auto flex h-16 items-center px-4",
   
   // 로고 영역
   logoContainer: "flex items-center",
@@ -15,7 +15,7 @@ export const headerStyles = {
   // ✅ 올바른 해결책 - 모바일 우선 접근법
   desktopNav: "flex lg:flex-1 lg:items-center lg:justify-end lg:space-x-4 max-lg:hidden",
   mobileMenuButtonContainer: "flex flex-1 items-center justify-end lg:hidden",
-  mobileNavContainer: "container lg:hidden",
+  mobileNavContainer: "w-full max-w-[500px] mx-auto lg:hidden",
   mobileNav: "flex flex-col space-y-4 p-4",
 };
 

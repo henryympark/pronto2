@@ -32,7 +32,7 @@ export default function RootLayout({
       >
         <Providers>
           <Header />
-          <main className="flex-1 container py-2 md:py-8">
+          <main className="flex-1">
             {children}
           </main>
           <Footer />

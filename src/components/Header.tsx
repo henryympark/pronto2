@@ -118,8 +118,8 @@ export function Header() {
 
       {/* ✅ 모바일 메뉴 (완전히 숨김 보장) */}
       {isMenuOpen && (
-        <div className="container lg:hidden">
-          <nav className="flex flex-col space-y-4 p-4">
+        <div className={headerStyles.mobileNavContainer}>
+          <nav className={headerStyles.mobileNav}>
             <HeaderMenuItems 
               shouldRenderUserButtons={shouldRenderUserButtons}
               shouldRenderLoginButton={shouldRenderLoginButton}

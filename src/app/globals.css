@@ -29,6 +29,16 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+    
+    /* 레이아웃 관련 변수 */
+    --content-width: 500px;
+    --content-padding: 1rem;
+    --sidebar-width: calc((100vw - var(--content-width)) / 2);
+    
+    /* 반응형 브레이크포인트 */
+    --breakpoint-mobile: 500px;
+    --breakpoint-tablet: 768px;
+    --breakpoint-desktop: 1024px;
   }
 
   .dark {
@@ -70,6 +80,33 @@
 
 /* 자주 사용되는 Tailwind 클래스 조합을 유틸리티 클래스로 정의 */
 @layer components {
+  /* 500px 레이아웃 컨테이너 스타일 */
+  .content-container {
+    width: 100%;
+    max-width: var(--content-width);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--content-padding);
+    padding-right: var(--content-padding);
+  }
+  
+  .layout-wrapper {
+    display: flex;
+    min-height: 100vh;
+    position: relative;
+  }
+  
+  .side-space {
+    flex: 1;
+    display: none;
+  }
+  
+  @media (min-width: 768px) {
+    .side-space {
+      display: block;
+    }
+  }
+
   /* 버튼 스타일 */
   .btn-primary {
     @apply inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring;

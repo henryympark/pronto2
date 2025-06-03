@@ -1,0 +1,20 @@
+'use client';
+
+export function RightSidebar() {
+  return (
+    <aside className="hidden lg:block fixed right-0 top-14 bottom-0 w-[calc((100vw-500px)/2)] max-w-xs p-4">
+      <div className="h-full bg-white dark:bg-gray-900 rounded-lg p-4 border">
+        <h3 className="font-semibold mb-4">추천 콘텐츠</h3>
+        <div className="space-y-2 text-sm text-gray-600">
+          <p>추후 기능 추가 예정:</p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li>인기 스튜디오</li>
+            <li>이벤트 & 프로모션</li>
+            <li>사용자 리뷰</li>
+            <li>도움말 & 팁</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+  );
+} 
