@@ -1,0 +1,131 @@
+"use client";
+
+import { forwardRef } from 'react';
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from '@/lib/utils';
+import { useAccountNavigation } from '@/domains/auth/hooks/useAccountNavigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { NAVIGATION_LABELS } from '@/lib/constants/navigation';
+
+const accountIconVariants = cva(
+  "relative flex items-center justify-center rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 font-semibold uppercase",
+  {
+    variants: {
+      variant: {
+        authenticated: [
+          "bg-primary text-primary-foreground",
+          "hover:bg-primary/90",
+          "focus-visible:ring-primary",
+        ],
+        unauthenticated: [
+          "bg-muted text-muted-foreground border border-input",
+          "hover:bg-muted/80 hover:text-foreground",
+          "focus-visible:ring-ring",
+        ],
+      },
+      size: {
+        sm: "h-8 w-8 text-xs",
+        md: "h-10 w-10 text-sm",
+        lg: "h-12 w-12 text-base",
+      },
+      state: {
+        default: "",
+        loading: "animate-pulse",
+        navigating: "opacity-70 pointer-events-none",
+        disabled: "opacity-50 cursor-not-allowed pointer-events-none",
+      }
+    },
+    defaultVariants: {
+      variant: "unauthenticated",
+      size: "md",
+      state: "default",
+    },
+  },
+);
+
+export interface AccountIconProps 
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof accountIconVariants> {
+  showTooltip?: boolean;
+  className?: string;
+}
+
+export const AccountIcon = forwardRef<HTMLButtonElement, AccountIconProps>(
+  ({ className, size, showTooltip = true, ...props }, ref) => {
+    const { user, loading } = useAuth();
+    const { handleAccountClick, isNavigating, canNavigate, navigationTarget } = useAccountNavigation();
+
+    // 상태에 따른 variant 결정
+    const variant = user ? 'authenticated' : 'unauthenticated';
+    
+    // 현재 상태 결정
+    const currentState = loading 
+      ? 'loading' 
+      : isNavigating 
+        ? 'navigating' 
+        : !canNavigate 
+          ? 'disabled' 
+          : 'default';
+
+    // 툴팁 텍스트 결정
+    const tooltipText = loading 
+      ? NAVIGATION_LABELS.LOADING 
+      : user 
+        ? NAVIGATION_LABELS.MY_PAGE 
+        : NAVIGATION_LABELS.LOGIN;
+
+    // aria-label 결정
+    const ariaLabel = `${tooltipText}로 이동`;
+
+    return (
+      <div className="relative inline-block group">
+        <button
+          ref={ref}
+          onClick={handleAccountClick}
+          disabled={!canNavigate}
+          aria-label={ariaLabel}
+          className={cn(
+            accountIconVariants({ variant, size, state: currentState }),
+            className
+          )}
+          {...props}
+        >
+          {/* 로딩 스피너 */}
+          {loading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className={cn(
+                "border-2 border-current border-t-transparent rounded-full animate-spin",
+                size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
+              )} />
+            </div>
+          ) : (
+            /* MY 텍스트 */
+            <span className="select-none">MY</span>
+          )}
+
+          {/* 네비게이션 중 인디케이터 */}
+          {isNavigating && !loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-current/10 rounded-full">
+              <div className={cn(
+                "border-2 border-current border-t-transparent rounded-full animate-spin opacity-60",
+                size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
+              )} />
+            </div>
+          )}
+        </button>
+
+        {/* 툴팁 */}
+        {showTooltip && !loading && (
+          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+            <div className="bg-popover text-popover-foreground px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border">
+              {tooltipText}
+              <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-popover border-l border-t rotate-45" />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+
+AccountIcon.displayName = 'AccountIcon'; 
