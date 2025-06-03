@@ -67,59 +67,43 @@ export function Header() {
   }, [isServicePath, specialPathClasses, shouldRenderUserButtons, shouldRenderLoginButton, user, loading, isMounted]);
 
   return (
-    <header className={headerStyles.container}>
-      {/* 데스크탑 헤더 */}
-      <div className={headerStyles.innerContainer}>
-        {/* 로고 영역 */}
-        <div className={headerStyles.logoContainer}>
-          <Link href="/" className={headerStyles.logo}>
-            <span className={headerStyles.logoText}>
-              Pronto2
-            </span>
-          </Link>
-        </div>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      {/* 500px 제한 래퍼 */}
+      <div className="w-full max-w-[500px] mx-auto">
+        {/* 데스크탑 헤더 */}
+        <div className="flex h-16 items-center px-4">
+          {/* 로고 영역 */}
+          <div className={headerStyles.logoContainer}>
+            <Link href="/" className={headerStyles.logo}>
+              <span className={headerStyles.logoText}>
+                Pronto2
+              </span>
+            </Link>
+          </div>
 
-        {/* 모바일 메뉴 버튼 (작은 화면에서만 표시) */}
-        <div className={headerStyles.mobileMenuButtonContainer}>
-          <Button variant="ghost" size="icon" onClick={toggleMenu}>
-            {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </Button>
-        </div>
+          {/* 모바일 메뉴 버튼 (작은 화면에서만 표시) */}
+          <div className={headerStyles.mobileMenuButtonContainer}>
+            <Button variant="ghost" size="icon" onClick={toggleMenu}>
+              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
+          </div>
 
-        {/* 데스크탑 네비게이션 (중간-큰 화면에서만 표시) */}
-        <nav className={headerStyles.desktopNav}>
-          {process.env.NODE_ENV === 'development' && (
-            <div className="hidden">
-              {/* 디버깅 정보 - 브라우저에서 검사할 수 있음 */}
-              <pre>
-                {JSON.stringify({
-                  isServicePath,
-                  shouldRenderUserButtons, 
-                  userLoaded: !!user,
-                  authLoading: loading
-                }, null, 2)}
-              </pre>
-            </div>
-          )}
-          
-          <HeaderMenuItems 
-            shouldRenderUserButtons={shouldRenderUserButtons}
-            shouldRenderLoginButton={shouldRenderLoginButton}
-            isAdmin={isAdmin}
-            isServicePath={isServicePath}
-            specialPathClasses={specialPathClasses}
-            handleSignOut={handleSignOut}
-            isLoading={loading}
-            isMounted={isMounted}
-            isMobile={false}
-          />
-        </nav>
-      </div>
-
-      {/* ✅ 모바일 메뉴 (완전히 숨김 보장) */}
-      {isMenuOpen && (
-        <div className={headerStyles.mobileNavContainer}>
-          <nav className={headerStyles.mobileNav}>
+          {/* 데스크탑 네비게이션 (중간-큰 화면에서만 표시) */}
+          <nav className={headerStyles.desktopNav}>
+            {process.env.NODE_ENV === 'development' && (
+              <div className="hidden">
+                {/* 디버깅 정보 - 브라우저에서 검사할 수 있음 */}
+                <pre>
+                  {JSON.stringify({
+                    isServicePath,
+                    shouldRenderUserButtons, 
+                    userLoaded: !!user,
+                    authLoading: loading
+                  }, null, 2)}
+                </pre>
+              </div>
+            )}
+            
             <HeaderMenuItems 
               shouldRenderUserButtons={shouldRenderUserButtons}
               shouldRenderLoginButton={shouldRenderLoginButton}
@@ -127,14 +111,33 @@ export function Header() {
               isServicePath={isServicePath}
               specialPathClasses={specialPathClasses}
               handleSignOut={handleSignOut}
-              closeMenu={closeMenu}
               isLoading={loading}
               isMounted={isMounted}
-              isMobile={true}
+              isMobile={false}
             />
           </nav>
         </div>
-      )}
+
+        {/* ✅ 모바일 메뉴 (완전히 숨김 보장) */}
+        {isMenuOpen && (
+          <div className="lg:hidden">
+            <nav className="flex flex-col space-y-4 p-4 border-t">
+              <HeaderMenuItems 
+                shouldRenderUserButtons={shouldRenderUserButtons}
+                shouldRenderLoginButton={shouldRenderLoginButton}
+                isAdmin={isAdmin}
+                isServicePath={isServicePath}
+                specialPathClasses={specialPathClasses}
+                handleSignOut={handleSignOut}
+                closeMenu={closeMenu}
+                isLoading={loading}
+                isMounted={isMounted}
+                isMobile={true}
+              />
+            </nav>
+          </div>
+        )}
+      </div>
     </header>
   );
 }
