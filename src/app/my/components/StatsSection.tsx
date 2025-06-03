@@ -1,7 +1,6 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Ticket, Star } from "lucide-react";
 import { formatTimeDisplay } from "@/lib/date-utils";
 
 interface StatsSectionProps {
@@ -23,26 +22,17 @@ export function StatsSection({
     {
       title: "적립시간",
       value: formatTimeDisplay(accumulatedTime),
-      path: "/my/rewards",
-      icon: Clock,
-      color: "text-emerald-600",
-      bgColor: "hover:bg-emerald-50"
+      path: "/my/rewards"
     },
     {
       title: "보유쿠폰",
       value: `${couponsCount}장`,
-      path: "/my/coupons",
-      icon: Ticket,
-      color: "text-blue-600", 
-      bgColor: "hover:bg-blue-50"
+      path: "/my/coupons"
     },
     {
       title: "리뷰작성",
       value: `${reviewsCount}건`,
-      path: "/my/reviews/history",
-      icon: Star,
-      color: "text-amber-600",
-      bgColor: "hover:bg-amber-50"
+      path: "/my/reviews/history"
     }
   ];
 
@@ -51,13 +41,12 @@ export function StatsSection({
       <CardContent className="p-6">
         <div className="grid grid-cols-3 gap-6">
           {statsData.map((stat) => {
-            const IconComponent = stat.icon;
             return (
               <div 
                 key={stat.path}
                 className={`
-                  text-center cursor-pointer py-4 px-2 rounded-lg transition-all duration-200
-                  hover:shadow-md ${stat.bgColor}
+                  text-center cursor-pointer py-1 px-0.5 sm:py-2 sm:px-1 rounded-lg transition-all duration-200
+                  hover:bg-accent hover:text-accent-foreground
                   ${isLoading ? 'pointer-events-none opacity-60' : ''}
                 `}
                 onClick={() => !isLoading && onStatsCardClick(stat.path)}
@@ -70,13 +59,12 @@ export function StatsSection({
                   }
                 }}
               >
-                <div className="flex flex-col items-center space-y-3">
-                  <IconComponent className={`h-8 w-8 ${stat.color}`} />
+                <div className="flex flex-col items-center space-y-1 sm:space-y-2">
                   <div>
-                    <p className="text-2xl font-bold mb-1">
+                    <p className="text-lg sm:text-xl font-bold mb-0.5 sm:mb-1">
                       {isLoading ? '...' : stat.value}
                     </p>
-                    <p className="text-base text-gray-700 font-medium">
+                    <p className="text-xs sm:text-sm text-gray-700 font-medium">
                       {stat.title}
                     </p>
                   </div>
