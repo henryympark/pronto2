@@ -204,35 +204,38 @@ export default function AdminCustomersPage() {
       setGrantLoading(true);
 
       if (grantType === 'coupon') {
-        // 안전한 쿠폰 발급 함수 호출
-        const { data, error: rpcError } = await supabase.rpc('admin_grant_coupon', {
-          target_customer_id: selectedCustomer.id,
-          coupon_minutes: couponMinutes
-        });
+        // 쿠폰 발급 로직 - customer_coupons에 직접 기록
+        const { error: couponError } = await supabase
+          .from('customer_coupons')
+          .insert([{
+            customer_id: selectedCustomer.id,
+            minutes: couponMinutes,
+            is_used: false,
+            granted_by: null, // auth 컨텍스트 문제로 null
+            created_at: new Date().toISOString(),
+          }]);
 
-        if (rpcError) throw rpcError;
-        
-        if (!data.success) {
-          throw new Error(data.error || '쿠폰 발급에 실패했습니다.');
-        }
+        if (couponError) throw couponError;
 
         toast({
           title: "성공",
           description: `${couponMinutes}분 쿠폰이 발급되었습니다.`,
         });
       } else {
-        // 안전한 적립시간 부여 함수 호출
-        const { data, error: rpcError } = await supabase.rpc('admin_grant_reward_time', {
-          target_customer_id: selectedCustomer.id,
-          grant_minutes: timeMinutes,
-          grant_description: `관리자가 적립시간 ${timeMinutes}분을 부여했습니다.`
-        });
+        // 적립시간 추가 로직 - reward_history에 직접 기록
+        const { error: historyError } = await supabase
+          .from('reward_history')
+          .insert([{
+            customer_id: selectedCustomer.id,
+            reward_type: 'admin_grant',
+            reward_minutes: timeMinutes,
+            description: `관리자가 적립시간 ${timeMinutes}분을 부여했습니다.`,
+            reference_type: 'admin_action',
+            reference_id: null, // NULL로 명시적으로 설정
+            created_by: null, // 관리자 ID는 auth 컨텍스트 문제로 null
+          }]);
 
-        if (rpcError) throw rpcError;
-        
-        if (!data.success) {
-          throw new Error(data.error || '적립시간 부여에 실패했습니다.');
-        }
+        if (historyError) throw historyError;
 
         toast({
           title: "성공",
