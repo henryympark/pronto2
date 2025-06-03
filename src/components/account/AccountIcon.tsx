@@ -94,13 +94,25 @@ export const AccountIcon = forwardRef<HTMLButtonElement, AccountIconProps>(
       }
     };
 
+    // 키보드 네비게이션 핸들러 추가
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleClick(event as any);
+      }
+    };
+
     return (
       <div className="relative inline-block group">
         <button
           ref={ref}
           onClick={handleClick}
+          onKeyDown={handleKeyDown}
           disabled={!canNavigate}
           aria-label={ariaLabel}
+          aria-describedby={showTooltip ? `tooltip-${tooltipText.replace(/\s+/g, '-')}` : undefined}
+          role="button"
+          tabIndex={0}
           className={cn(
             accountIconVariants({ variant, size, state: currentState }),
             className
@@ -110,30 +122,43 @@ export const AccountIcon = forwardRef<HTMLButtonElement, AccountIconProps>(
           {/* 로딩 스피너 */}
           {loading ? (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className={cn(
-                "border-2 border-current border-t-transparent rounded-full animate-spin",
-                size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
-              )} />
+              <div 
+                className={cn(
+                  "border-2 border-current border-t-transparent rounded-full animate-spin",
+                  size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
+                )}
+                aria-label="로딩 중"
+                role="status"
+              />
             </div>
           ) : (
             /* MY 텍스트 */
-            <span className="select-none">MY</span>
+            <span className="select-none" aria-hidden="true">MY</span>
           )}
 
           {/* 네비게이션 중 인디케이터 */}
           {isNavigating && !loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-current/10 rounded-full">
-              <div className={cn(
-                "border-2 border-current border-t-transparent rounded-full animate-spin opacity-60",
-                size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
-              )} />
+              <div 
+                className={cn(
+                  "border-2 border-current border-t-transparent rounded-full animate-spin opacity-60",
+                  size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
+                )}
+                aria-label="페이지 이동 중"
+                role="status"
+              />
             </div>
           )}
         </button>
 
         {/* 툴팁 */}
         {showTooltip && !loading && (
-          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+          <div 
+            className="absolute top-full mt-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none z-50"
+            id={`tooltip-${tooltipText.replace(/\s+/g, '-')}`}
+            role="tooltip"
+            aria-live="polite"
+          >
             <div className="bg-popover text-popover-foreground px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border">
               {tooltipText}
               <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-popover border-l border-t rotate-45" />
