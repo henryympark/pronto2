@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LucideIcon, LayoutDashboard, Calendar, Settings, Users, LogOut, MessageSquare } from "lucide-react";
+import { LucideIcon, LayoutDashboard, Calendar, Settings, Users, LogOut, MessageSquare, BarChart3 } from "lucide-react";
 import { AuthGuard } from "@/domains/auth";
 
 type SidebarItem = {
@@ -12,6 +12,11 @@ type SidebarItem = {
 };
 
 const sidebarItems: SidebarItem[] = [
+  {
+    name: "대시보드",
+    href: "/admin/dashboard",
+    icon: BarChart3,
+  },
   {
     name: "예약 현황",
     href: "/admin/reservations",
@@ -40,7 +45,7 @@ function AdminSidebar() {
   return (
     <aside className="w-64 bg-gray-900 text-white">
       <div className="p-4 border-b border-gray-800">
-        <Link href="/admin/reservations" className="flex items-center space-x-2">
+        <Link href="/admin/dashboard" className="flex items-center space-x-2">
           <LayoutDashboard className="w-6 h-6" />
           <span className="text-lg font-bold">프론토 관리자</span>
         </Link>
