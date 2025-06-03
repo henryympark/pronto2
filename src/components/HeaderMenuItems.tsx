@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, User, LogIn } from "lucide-react";
+import { Settings, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AccountIcon } from "@/components/account";
 import { cn } from "@/lib/utils";
 import { menuItemStyles } from "@/components/styles";
 
@@ -53,14 +54,12 @@ export function HeaderMenuItems({
 
   // 백업 렌더링 조건 (sessionStorage 기반)
   const shouldShowUserButtonsBackup = shouldRenderUserButtons || (isMounted && hasUserFromStorage && isLoading);
-  const shouldShowLoginButtonBackup = shouldRenderLoginButton || (isMounted && !hasUserFromStorage && isLoading);
   const shouldShowAdminButton = shouldShowUserButtonsBackup && (isAdmin || isAdminFromStorage);
 
   // 서비스 페이지에서만 디버깅 로그
   if (isServicePath && process.env.NODE_ENV === 'development') {
     console.log('[HeaderMenuItems] 🔍 서비스 페이지:', { 
       shouldShowUserButtonsBackup,
-      shouldShowLoginButtonBackup,
       shouldShowAdminButton,
       hasUserFromStorage,
       isAdmin,
@@ -71,7 +70,7 @@ export function HeaderMenuItems({
 
   return (
     <>
-      {/* 관리자 페이지로 이동 버튼 (관리자만 표시) - 🔧 수정: /admin/reservations로 변경 */}
+      {/* 관리자 페이지로 이동 버튼 (관리자만 표시) */}
       {shouldShowAdminButton && (
         <Link href="/admin/reservations" onClick={isMobile ? closeMenu : undefined}>
           <Button 
@@ -87,23 +86,23 @@ export function HeaderMenuItems({
         </Link>
       )}
       
-      {/* 마이페이지 버튼 (로그인 시 표시) */}
-      {shouldShowUserButtonsBackup && (
-        <Link href="/my" onClick={isMobile ? closeMenu : undefined}>
-          <Button 
-            variant="outline" 
-            className={cn(
-              menuItemStyles.baseButton, 
-              isMobile && menuItemStyles.mobileButton,
-              servicePathClass,
-              specialPathClasses
-            )}
-          >
-            <User className={menuItemStyles.icon} />
-            마이페이지
-          </Button>
-        </Link>
-      )}
+      {/* 계정 아이콘 - 로그인/마이페이지 통합 버튼 */}
+      <div 
+        className={cn(
+          "flex items-center",
+          isMobile && "justify-center"
+        )}
+      >
+        <AccountIcon 
+          size={isMobile ? "lg" : "md"}
+          className={cn(
+            servicePathClass,
+            specialPathClasses
+          )}
+          showTooltip={!isMobile} // 모바일에서는 툴팁 숨김
+          onAfterClick={isMobile ? closeMenu : undefined} // 모바일에서 네비게이션 후 메뉴 닫기
+        />
+      </div>
       
       {/* 로그아웃 버튼 (로그인 시 표시) */}
       {shouldShowUserButtonsBackup && (
@@ -122,23 +121,7 @@ export function HeaderMenuItems({
         </Button>
       )}
       
-      {/* 로그인 버튼 (미로그인 시 표시) */}
-      {shouldShowLoginButtonBackup && (
-        <Link href="/auth/login" onClick={isMobile ? closeMenu : undefined}>
-          <Button 
-            variant="outline" 
-            className={cn(
-              menuItemStyles.baseButton, 
-              isMobile && menuItemStyles.mobileButton
-            )}
-          >
-            <LogIn className={menuItemStyles.icon} />
-            로그인
-          </Button>
-        </Link>
-      )}
-      
-      {/* 로딩 중일 때 표시 */}
+      {/* 로딩 중일 때 표시 (AccountIcon이 로딩을 처리하므로 대부분 불필요) */}
       {showLoadingMessage && (
         <span className={menuItemStyles.loadingText}>로딩 중...</span>
       )}

@@ -48,10 +48,11 @@ export interface AccountIconProps
     VariantProps<typeof accountIconVariants> {
   showTooltip?: boolean;
   className?: string;
+  onAfterClick?: () => void;
 }
 
 export const AccountIcon = forwardRef<HTMLButtonElement, AccountIconProps>(
-  ({ className, size, showTooltip = true, ...props }, ref) => {
+  ({ className, size, showTooltip = true, onAfterClick, onClick, ...props }, ref) => {
     const { user, loading } = useAuth();
     const { handleAccountClick, isNavigating, canNavigate, navigationTarget } = useAccountNavigation();
 
@@ -77,11 +78,27 @@ export const AccountIcon = forwardRef<HTMLButtonElement, AccountIconProps>(
     // aria-label 결정
     const ariaLabel = `${tooltipText}로 이동`;
 
+    // 통합 클릭 핸들러
+    const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
+      // 기본 onClick 먼저 실행
+      if (onClick) {
+        onClick(event);
+      }
+      
+      // 네비게이션 실행
+      await handleAccountClick();
+      
+      // 네비게이션 후 콜백 실행
+      if (onAfterClick) {
+        onAfterClick();
+      }
+    };
+
     return (
       <div className="relative inline-block group">
         <button
           ref={ref}
-          onClick={handleAccountClick}
+          onClick={handleClick}
           disabled={!canNavigate}
           aria-label={ariaLabel}
           className={cn(
