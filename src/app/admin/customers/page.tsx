@@ -204,51 +204,65 @@ export default function AdminCustomersPage() {
       setGrantLoading(true);
 
       if (grantType === 'coupon') {
-        // 쿠폰 생성 로직
-        const { error: couponError } = await supabase
-          .from('coupons')
-          .insert([{
-            customer_id: selectedCustomer.id,
-            minutes: couponMinutes,
-            is_active: true,
-            created_at: new Date().toISOString(),
-          }]);
+        // 안전한 쿠폰 발급 함수 호출
+        const { data, error: rpcError } = await supabase.rpc('admin_grant_coupon', {
+          target_customer_id: selectedCustomer.id,
+          coupon_minutes: couponMinutes
+        });
 
-        if (couponError) throw couponError;
+        if (rpcError) throw rpcError;
+        
+        if (!data.success) {
+          throw new Error(data.error || '쿠폰 발급에 실패했습니다.');
+        }
 
         toast({
           title: "성공",
           description: `${couponMinutes}분 쿠폰이 발급되었습니다.`,
         });
       } else {
-        // 적립시간 추가 로직
-        const newAccumulatedTime = (selectedCustomer.accumulated_time_minutes || 0) + timeMinutes;
-        
-        const { error: updateError } = await supabase
-          .from('customers')
-          .update({ accumulated_time_minutes: newAccumulatedTime })
-          .eq('id', selectedCustomer.id);
+        // 안전한 적립시간 부여 함수 호출
+        const { data, error: rpcError } = await supabase.rpc('admin_grant_reward_time', {
+          target_customer_id: selectedCustomer.id,
+          grant_minutes: timeMinutes,
+          grant_description: `관리자가 적립시간 ${timeMinutes}분을 부여했습니다.`
+        });
 
-        if (updateError) throw updateError;
+        if (rpcError) throw rpcError;
+        
+        if (!data.success) {
+          throw new Error(data.error || '적립시간 부여에 실패했습니다.');
+        }
 
         toast({
           title: "성공",
           description: `${timeMinutes}분이 적립되었습니다.`,
         });
 
-        // 선택된 고객 정보 업데이트
-        setSelectedCustomer(prev => prev ? {
-          ...prev,
-          accumulated_time_minutes: newAccumulatedTime
-        } : null);
+        // 업데이트된 적립시간을 다시 조회하여 UI 업데이트
+        const { data: updatedCustomer, error: fetchError } = await supabase
+          .from('customers')
+          .select('accumulated_time_minutes')
+          .eq('id', selectedCustomer.id)
+          .single();
+
+        if (!fetchError && updatedCustomer) {
+          setSelectedCustomer(prev => prev ? {
+            ...prev,
+            accumulated_time_minutes: updatedCustomer.accumulated_time_minutes
+          } : null);
+        }
       }
 
       // 고객 목록 새로고침
       fetchCustomers();
     } catch (error: any) {
+      console.error('쿠폰/적립시간 부여 오류:', error);
       toast({
         title: "오류",
-        description: grantType === 'coupon' ? "쿠폰 발급에 실패했습니다." : "적립시간 추가에 실패했습니다.",
+        description: grantType === 'coupon' 
+          ? `쿠폰 발급에 실패했습니다: ${error.message}` 
+          : `적립시간 추가에 실패했습니다: ${error.message}`,
         variant: "destructive",
       });
     } finally {
