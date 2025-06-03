@@ -28,14 +28,16 @@ export default function RootLayout({
   return (
     <html suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
       >
         <Providers>
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Footer />
+          <div className="page-wrapper">
+            <Header />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </div>
         </Providers>
       </body>
     </html>

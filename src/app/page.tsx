@@ -7,7 +7,7 @@ import { ArrowRight, Camera, Calendar, Star } from 'lucide-react';
 
 export default function Home() {
   return (
-    <div className="w-full max-w-[500px] mx-auto px-4 py-6">
+    <div className="px-4 py-6">
       {/* 단일 열 레이아웃 - 모바일 친화적 */}
       <div className="space-y-8">
         {/* 히어로 섹션 */}

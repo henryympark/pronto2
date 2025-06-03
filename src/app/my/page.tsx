@@ -515,8 +515,8 @@ export default function MyPage() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col">
-        <div className="w-full max-w-[500px] mx-auto px-4 py-6">
+      <div className="px-4 py-6">
+        <div className="space-y-6">
           {/* 헤더 영역 */}
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">마이페이지</h1>

@@ -198,7 +198,7 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   }, []);
   
   return (
-    <div className="w-full max-w-[500px] mx-auto px-4 py-6">
+    <div className="px-4 py-6">
       {/* 단일 열 레이아웃 - 모바일 친화적 */}
       <div className="space-y-6">
         {/* 대표 이미지 영역 */}
@@ -219,35 +219,12 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
               selected={selectedDate || undefined}
               onSelect={handleDateSelect}
               onMonthChange={handleMonthChange}
-              className="rounded-md w-full max-w-sm"
-              disabled={(date) => {
-                // 과거 날짜 비활성화
-                if (date < new Date(new Date().setHours(0, 0, 0, 0))) {
-                  return true;
-                }
-                
-                // 🎯 서버에서 받은 휴무일 데이터로 체크 (빠른 로컬 검증)
-                const dateString = date.toISOString().split('T')[0];
-                return holidays.some(holiday => holiday.holiday_date === dateString);
-              }}
-              modifiers={{
-                holiday: holidays.map(holiday => new Date(holiday.holiday_date))
-              }}
-              modifiersClassNames={{
-                holiday: "bg-gray-100 text-gray-400 line-through"
-              }}
+              className="rounded-md border"
+              disabled={(date) =>
+                date < new Date() || date < new Date("1900-01-01")
+              }
             />
           </div>
-          
-          {/* 휴무일 안내 */}
-          {holidays.length > 0 && (
-            <div className="mt-3 text-sm text-gray-500 text-center">
-              <span className="inline-flex items-center gap-1">
-                <span className="w-3 h-3 bg-gray-100 border rounded"></span>
-                휴무일 (예약 불가)
-              </span>
-            </div>
-          )}
         </div>
 
         {/* 예약 시간 선택 */}

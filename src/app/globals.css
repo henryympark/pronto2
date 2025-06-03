@@ -75,6 +75,15 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 그라데이션 배경 효과 - 중앙 500px 영역과 사이드 영역 구분 */
+    background: linear-gradient(
+      to right,
+      hsl(var(--muted)) 0%,
+      hsl(var(--background)) 20%,
+      hsl(var(--background)) 80%,
+      hsl(var(--muted)) 100%
+    );
+    background-attachment: fixed;
   }
 }
 
@@ -88,6 +97,10 @@
     margin-right: auto;
     padding-left: var(--content-padding);
     padding-right: var(--content-padding);
+    /* 중앙 콘텐츠 영역에 배경색 추가 */
+    background: hsl(var(--background));
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+    min-height: 100vh;
   }
   
   .layout-wrapper {
@@ -104,6 +117,23 @@
   @media (min-width: 768px) {
     .side-space {
       display: block;
+    }
+  }
+
+  /* 페이지 콘텐츠 래퍼 - 500px 중앙 정렬과 배경 효과 */
+  .page-wrapper {
+    width: 100%;
+    max-width: var(--content-width);
+    margin: 0 auto;
+    background: hsl(var(--background));
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.08);
+    min-height: 100vh;
+    position: relative;
+  }
+  
+  @media (max-width: 500px) {
+    .page-wrapper {
+      box-shadow: none;
     }
   }
 
