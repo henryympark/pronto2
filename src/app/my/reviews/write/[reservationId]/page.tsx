@@ -296,32 +296,41 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
             body: {
               customer_id: user.id,
               review_id: review.id,
-              reward_minutes: 10
+              reward_minutes: 10  // Edge Function에서 기대하는 파라미터명
             },
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`
             }
           });
 
           console.log("Edge Function 응답:", { 
             data: rewardResult, 
-            error: rewardError,
+            error: rewardError ? {
+              name: rewardError.name,
+              message: rewardError.message,
+              details: rewardError.details || rewardError,
+              context: rewardError.context
+            } : null,
             hasData: !!rewardResult,
             dataSuccess: rewardResult?.success
           });
 
           if (rewardError) {
             console.error("Edge Function 호출 오류:", {
-              message: rewardError.message,
               name: rewardError.name,
-              stack: rewardError.stack
+              message: rewardError.message,
+              details: rewardError.details,
+              context: rewardError.context,
+              stack: rewardError.stack,
+              fullError: JSON.stringify(rewardError, null, 2)
             });
             
             throw rewardError;
           }
 
           if (!rewardResult?.success) {
-            console.error("Edge Function 응답 오류:", rewardResult);
+            console.error("Edge Function 응답 오류:", JSON.stringify(rewardResult, null, 2));
             throw new Error(rewardResult?.error || "적립시간 부여 실패");
           }
 
@@ -340,9 +349,12 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           console.error("적립시간 부여 실패:", {
             errorType: typeof rewardError,
             errorConstructor: rewardError?.constructor?.name,
+            errorName: rewardError?.name,
             errorMessage: rewardError?.message,
             errorCode: rewardError?.code,
-            fullError: rewardError
+            errorDetails: rewardError?.details,
+            errorContext: rewardError?.context,
+            fullError: JSON.stringify(rewardError, null, 2)
           });
           
           // Edge Function 실패 시 백업 로직: 직접 데이터베이스 업데이트
@@ -360,7 +372,9 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
               console.error("사용자 정보 조회 오류:", {
                 message: userError.message,
                 code: userError.code,
-                details: userError.details
+                details: userError.details,
+                hint: userError.hint,
+                fullError: JSON.stringify(userError, null, 2)
               });
               throw userError;
             }
@@ -384,7 +398,8 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
                 message: updateError.message,
                 code: updateError.code,
                 details: updateError.details,
-                hint: updateError.hint
+                hint: updateError.hint,
+                fullError: JSON.stringify(updateError, null, 2)
               });
               throw updateError;
             }
@@ -407,10 +422,12 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
           } catch (backupError: any) {
             console.error("백업 로직 실패:", {
               errorType: typeof backupError,
+              errorName: backupError?.name,
               errorMessage: backupError?.message,
               errorCode: backupError?.code,
               errorDetails: backupError?.details,
-              fullError: backupError
+              errorHint: backupError?.hint,
+              fullError: JSON.stringify(backupError, null, 2)
             });
             
             // 적립시간 부여 실패해도 리뷰 작성은 성공으로 처리

@@ -11,6 +11,7 @@ import {
   getStatusBadgeClass,
   getStatusText
 } from "../utils/reservationHelpers";
+import React from "react";
 
 interface ReservationDetailModalProps {
   isOpen: boolean;
@@ -169,9 +170,9 @@ export default function ReservationDetailModal({
             <CardContent>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">예약 상태</span>
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(reservation)}`}>
-                  <span className="flex items-center">{getStatusIcon(reservation)}</span>
-                  {getStatusText(reservation)}
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border ${getStatusBadgeClass(reservation.status)}`}>
+                  <span className="flex items-center">{React.createElement(getStatusIcon(reservation.status), { size: 16 })}</span>
+                  {getStatusText(reservation.status)}
                 </div>
               </div>
             </CardContent>
