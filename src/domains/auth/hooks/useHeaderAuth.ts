@@ -11,11 +11,10 @@ interface HeaderAuthReturn {
   isAdmin: boolean;
   shouldRenderUserButtons: boolean;
   shouldRenderLoginButton: boolean;
-  handleSignOut: () => Promise<void>;
 }
 
 export function useHeaderAuth(): HeaderAuthReturn {
-  const { user, authUser, isAdmin, loading, signOut } = useAuth();
+  const { user, authUser, isAdmin, loading } = useAuth();
   const isMounted = useIsMounted();
   const pathname = usePathname();
   
@@ -100,19 +99,6 @@ export function useHeaderAuth(): HeaderAuthReturn {
     return result;
   }, [isMounted, loading, authUser, isServicePage, pathname]);
   
-  // 단순한 로그아웃 처리
-  const handleSignOut = async () => {
-    try {
-      console.log('[HeaderAuth] 로그아웃 시작');
-      await signOut();
-    } catch (error) {
-      console.error('[HeaderAuth] 로그아웃 오류:', error);
-      if (typeof window !== 'undefined') {
-        window.location.href = `/auth/login?error=logout_failed&t=${Date.now()}`;
-      }
-    }
-  };
-  
   // 전체 상태 디버깅 로그
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
@@ -150,6 +136,5 @@ export function useHeaderAuth(): HeaderAuthReturn {
     isAdmin,
     shouldRenderUserButtons,
     shouldRenderLoginButton,
-    handleSignOut
   };
 }

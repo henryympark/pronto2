@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, LogIn } from "lucide-react";
+import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AccountIcon } from "@/components/account";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,6 @@ interface HeaderMenuItemsProps {
   isAdmin: boolean;
   isServicePath: boolean;
   specialPathClasses: string;
-  handleSignOut: () => Promise<void>;
   closeMenu?: () => void;
   isMobile?: boolean;
   isLoading: boolean;
@@ -26,7 +25,6 @@ export function HeaderMenuItems({
   isAdmin,
   isServicePath,
   specialPathClasses,
-  handleSignOut,
   closeMenu = () => {},
   isMobile = false,
   isLoading,
@@ -103,23 +101,6 @@ export function HeaderMenuItems({
           onAfterClick={isMobile ? closeMenu : undefined} // 모바일에서 네비게이션 후 메뉴 닫기
         />
       </div>
-      
-      {/* 로그아웃 버튼 (로그인 시 표시) */}
-      {shouldShowUserButtonsBackup && (
-        <Button 
-          variant="ghost" 
-          onClick={handleSignOut} 
-          className={cn(
-            menuItemStyles.baseButton, 
-            isMobile && menuItemStyles.mobileButton,
-            servicePathClass,
-            specialPathClasses
-          )}
-        >
-          <LogIn className={menuItemStyles.icon} />
-          로그아웃
-        </Button>
-      )}
       
       {/* 로딩 중일 때 표시 (AccountIcon이 로딩을 처리하므로 대부분 불필요) */}
       {showLoadingMessage && (

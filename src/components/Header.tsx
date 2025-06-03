@@ -32,8 +32,7 @@ export function Header() {
     loading,
     isAdmin,
     shouldRenderUserButtons,
-    shouldRenderLoginButton,
-    handleSignOut
+    shouldRenderLoginButton
   } = useHeaderAuth();
   
   // 디버깅 로그 (개발 모드에서만)
@@ -115,7 +114,6 @@ export function Header() {
               isAdmin={isAdmin}
               isServicePath={isServicePath}
               specialPathClasses={specialPathClasses}
-              handleSignOut={handleSignOut}
               isLoading={loading}
               isMounted={isMounted}
               isMobile={false}
@@ -133,7 +131,6 @@ export function Header() {
                 isAdmin={isAdmin}
                 isServicePath={isServicePath}
                 specialPathClasses={specialPathClasses}
-                handleSignOut={handleSignOut}
                 closeMenu={closeMenu}
                 isLoading={loading}
                 isMounted={isMounted}
