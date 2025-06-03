@@ -186,11 +186,6 @@
     @apply text-destructive;
   }
 
-  /* 폼 필드 그룹 스타일 */
-  .form-group {
-    @apply space-y-2;
-  }
-
   /* 에러 메시지 스타일 */
   .error-message {
     @apply text-xs text-destructive;
@@ -198,7 +193,21 @@
 
   /* 성공 메시지 스타일 */
   .success-message {
-    @apply text-sm text-green-600 bg-green-50 p-2 rounded-md border border-green-200;
+    @apply text-xs text-green-600;
+  }
+
+  /* 관리자 페이지 전체 너비 오버라이드 */
+  .admin-full-width {
+    max-width: none !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  /* 관리자 페이지 헤더 오버라이드 */
+  .admin-header {
+    max-width: none !important;
+    width: 100% !important;
   }
 
   /* 헤더 스타일 */

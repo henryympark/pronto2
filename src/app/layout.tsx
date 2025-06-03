@@ -4,6 +4,7 @@ import './globals.css';
 import Providers from './providers';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { ConditionalWrapper } from '@/components/layout/ConditionalWrapper';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -31,13 +32,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
       >
         <Providers>
-          <div className="page-wrapper">
+          <ConditionalWrapper>
             <Header />
             <main className="flex-1">
               {children}
             </main>
             <Footer />
-          </div>
+          </ConditionalWrapper>
         </Providers>
       </body>
     </html>

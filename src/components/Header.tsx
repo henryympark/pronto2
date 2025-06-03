@@ -10,9 +10,12 @@ import { useIsMounted } from "@/shared/hooks";
 import { HeaderMenuItems } from "@/components/HeaderMenuItems";
 import { cn } from "@/lib/utils";
 import { headerStyles } from "@/components/styles";
+import { usePathname } from "next/navigation";
 
 export function Header() {
   const isMounted = useIsMounted();
+  const pathname = usePathname();
+  const isAdminPage = pathname.startsWith('/admin');
   
   // 내비게이션 관련 상태 및 기능
   const { 
@@ -68,7 +71,10 @@ export function Header() {
 
   return (
     <div className="sticky top-0 z-50 w-full">
-      <header className="w-full max-w-[500px] mx-auto border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className={cn(
+        "border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        isAdminPage ? "w-full" : "w-full max-w-[500px] mx-auto"
+      )}>
         {/* 데스크탑 헤더 */}
         <div className="flex h-16 items-center px-4">
           {/* 로고 영역 */}
