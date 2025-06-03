@@ -520,10 +520,6 @@ export default function MyPage() {
           {/* 헤더 영역 */}
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">마이페이지</h1>
-            <Button variant="ghost" onClick={handleSignOut} className="flex items-center gap-2">
-              <LogOut className="h-4 w-4" />
-              <span>로그아웃</span>
-            </Button>
           </div>
           
           {/* 로딩 중 표시 */}
@@ -549,61 +545,24 @@ export default function MyPage() {
           )}
 
           {/* 통계 카드 섹션 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* 적립 시간 카드 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Clock className="h-5 w-5 mr-2 text-pronto-primary" />
-                  적립 시간
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{formatTimeDisplay(accumulatedTime)}</p>
-                <p className="text-sm text-gray-500">
-                  {accumulatedTime > 0 
-                    ? `리뷰 작성으로 적립된 시간입니다` 
-                    : '리뷰 작성으로 적립 시간을 모아보세요!'}
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 보유 쿠폰 카드 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Ticket className="h-5 w-5 mr-2 text-pronto-primary" />
-                  보유 쿠폰
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{couponsCount}장</p>
-                <p className="text-sm text-gray-500">
-                  {couponsCount > 0 
-                    ? `사용 가능한 쿠폰이 ${couponsCount}장 있습니다` 
-                    : '사용 가능한 쿠폰이 없습니다'}
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 리뷰 작성 카드 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Star className="h-5 w-5 mr-2 text-pronto-primary" />
-                  리뷰 작성
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{reviewsCount}건</p>
-                <p className="text-sm text-gray-500">
-                  {reviewsCount > 0 
-                    ? `작성한 리뷰가 ${reviewsCount}건 있습니다` 
-                    : '서비스 이용 후 리뷰를 작성해보세요!'}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="mb-8">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-3 gap-6">
+                <div className="text-center">
+                  <p className="text-2xl font-bold mb-2">{formatTimeDisplay(accumulatedTime)}</p>
+                  <p className="text-base text-gray-700">적립시간</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold mb-2">{couponsCount}장</p>
+                  <p className="text-base text-gray-700">보유쿠폰</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold mb-2">{reviewsCount}건</p>
+                  <p className="text-base text-gray-700">리뷰작성</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* 예약 내역 섹션 */}
           <div className="mb-8">
@@ -731,6 +690,10 @@ export default function MyPage() {
                 내 정보
               </Button>
             </Link>
+            <Button variant="outline" onClick={handleSignOut} className="flex items-center justify-center w-40">
+              <LogOut className="h-4 w-4 mr-2" />
+              <span>로그아웃</span>
+            </Button>
           </div>
 
           {/* 예약 상세 정보 모달 */}
