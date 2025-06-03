@@ -218,9 +218,21 @@ export function useCustomerData() {
       return true;
     } catch (error: any) {
       console.error('리워드 부여 오류:', error);
+      
+      // 에러 메시지 개선
+      let errorMessage = "리워드 부여에 실패했습니다.";
+      
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.details) {
+        errorMessage = error.details;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "오류",
-        description: "리워드 부여에 실패했습니다.",
+        description: errorMessage,
         variant: "destructive",
       });
       return false;

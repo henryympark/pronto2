@@ -21,8 +21,9 @@ interface RewardHistory {
   reward_minutes: number;
   description: string;
   reference_id: string | null;
+  reference_type: string | null;
   created_at: string;
-  updated_at: string;
+  created_by: string | null;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -52,11 +53,15 @@ export default function RewardsPage() {
     try {
       setLoading(true);
       
+      console.log('🔍 Fetching rewards for user:', user.id);
+      
       // 전체 개수 조회
       const { count, error: countError } = await supabase
         .from('reward_history')
         .select('*', { count: 'exact', head: true })
         .eq('customer_id', user.id);
+
+      console.log('📊 Total count result:', { count, countError });
 
       if (countError) throw countError;
 
@@ -72,6 +77,8 @@ export default function RewardsPage() {
         .order('created_at', { ascending: false })
         .range((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1);
 
+      console.log('📄 Data query result:', { data, error, dataLength: data?.length });
+
       if (error) {
         console.error('적립시간 조회 오류:', error);
         toast({
@@ -81,6 +88,7 @@ export default function RewardsPage() {
         });
       } else {
         const rewardList = (data as RewardHistory[]) || [];
+        console.log('✅ Setting rewards:', rewardList);
         setRewards(rewardList);
       }
       
