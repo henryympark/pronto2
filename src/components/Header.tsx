@@ -67,9 +67,8 @@ export function Header() {
   }, [isServicePath, specialPathClasses, shouldRenderUserButtons, shouldRenderLoginButton, user, loading, isMounted]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* 500px 제한 래퍼 */}
-      <div className="w-full max-w-[500px] mx-auto">
+    <div className="sticky top-0 z-50 w-full">
+      <header className="w-full max-w-[500px] mx-auto border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         {/* 데스크탑 헤더 */}
         <div className="flex h-16 items-center px-4">
           {/* 로고 영역 */}
@@ -137,7 +136,7 @@ export function Header() {
             </nav>
           </div>
         )}
-      </div>
-    </header>
+      </header>
+    </div>
   );
 }
