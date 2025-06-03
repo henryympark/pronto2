@@ -261,11 +261,29 @@ export default function AdminCustomersPage() {
       fetchCustomers();
     } catch (error: any) {
       console.error('쿠폰/적립시간 부여 오류:', error);
+      console.error('에러 타입:', typeof error);
+      console.error('에러 키들:', Object.keys(error || {}));
+      console.error('에러 전체 객체:', JSON.stringify(error, null, 2));
+      
+      // Supabase 에러 메시지 추출
+      let errorMessage = '';
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.details) {
+        errorMessage = error.details;
+      } else if (error?.hint) {
+        errorMessage = error.hint;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = '알 수 없는 오류가 발생했습니다.';
+      }
+
       toast({
         title: "오류",
         description: grantType === 'coupon' 
-          ? `쿠폰 발급에 실패했습니다: ${error.message}` 
-          : `적립시간 추가에 실패했습니다: ${error.message}`,
+          ? `쿠폰 발급에 실패했습니다: ${errorMessage}` 
+          : `적립시간 추가에 실패했습니다: ${errorMessage}`,
         variant: "destructive",
       });
     } finally {
