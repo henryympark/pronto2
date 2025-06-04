@@ -17,6 +17,6 @@ export function ConditionalWrapper({ children }: ConditionalWrapperProps) {
     return <div className="admin-full-width min-h-screen">{children}</div>;
   }
   
-  // 일반 페이지: 500px 제약 적용
-  return <div className="page-wrapper">{children}</div>;
+  // 일반 페이지: 전체 너비 사용 (개별 콘텐츠에서 500px 제약 적용)
+  return <div className="min-h-screen bg-background">{children}</div>;
 } 
