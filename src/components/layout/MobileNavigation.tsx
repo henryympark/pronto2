@@ -15,6 +15,11 @@ const navItems = [
 export function MobileNavigation() {
   const pathname = usePathname();
   
+  // 모바일 네비게이션을 숨김
+  return null;
+  
+  // 기존 코드 (주석 처리)
+  /*
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
       <div className="bg-background border-t">
@@ -42,4 +47,5 @@ export function MobileNavigation() {
       </div>
     </nav>
   );
+  */
 } 

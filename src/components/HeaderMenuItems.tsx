@@ -30,7 +30,7 @@ export function HeaderMenuItems({
   isLoading,
   isMounted
 }: HeaderMenuItemsProps) {
-  const servicePathClass = isServicePath ? menuItemStyles.servicePath : "";
+  const servicePathClass = isServicePath && shouldRenderUserButtons ? menuItemStyles.servicePath : "";
   
   // 로딩 메시지 표시 조건 - 초기 마운트 시에만
   const showLoadingMessage = !isMounted;
@@ -92,7 +92,7 @@ export function HeaderMenuItems({
         )}
       >
         <AccountIcon 
-          size={isMobile ? "lg" : "md"}
+          size="sm"
           className={cn(
             servicePathClass,
             specialPathClasses

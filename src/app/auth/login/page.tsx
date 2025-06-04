@@ -195,7 +195,7 @@ function LoginPageContent() {
   };
 
   return (
-    <div className="mx-auto max-w-md space-y-8 py-10">
+    <div className="mx-auto max-w-[340px] md:max-w-[450px] space-y-8 py-10">
       <div className="text-center">
         <h1 className="text-3xl font-bold">로그인</h1>
         <p className="mt-2 text-sm text-gray-500">
@@ -241,18 +241,14 @@ function LoginPageContent() {
         <form onSubmit={handleEmailLogin} className="space-y-4">
           <div className="form-group">
             <Label htmlFor="email">이메일</Label>
-            <div className="relative">
-              <Mail className="input-icon" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="이메일 주소를 입력하세요"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-with-icon"
-                required
-              />
-            </div>
+            <Input
+              id="email"
+              type="email"
+              placeholder="이메일 주소를 입력하세요"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
           
           <div className="form-group">
@@ -265,18 +261,14 @@ function LoginPageContent() {
                 비밀번호 찾기
               </Link>
             </div>
-            <div className="relative">
-              <Lock className="input-icon" />
-              <Input
-                id="password"
-                type="password"
-                placeholder="비밀번호를 입력하세요"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-with-icon"
-                required
-              />
-            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="비밀번호를 입력하세요"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
 
           {error && (

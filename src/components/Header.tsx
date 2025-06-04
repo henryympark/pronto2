@@ -75,7 +75,7 @@ export function Header() {
         isAdminPage ? "w-full" : "w-full max-w-[500px] mx-auto"
       )}>
         {/* 데스크탑 헤더 */}
-        <div className="flex h-16 items-center px-4">
+        <div className="flex h-[50px] items-center px-4">
           {/* 로고 영역 */}
           <div className={headerStyles.logoContainer}>
             <Link href="/" className={headerStyles.logo}>
@@ -85,11 +85,18 @@ export function Header() {
             </Link>
           </div>
 
-          {/* 모바일 메뉴 버튼 (작은 화면에서만 표시) */}
-          <div className={headerStyles.mobileMenuButtonContainer}>
-            <Button variant="ghost" size="icon" onClick={toggleMenu}>
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </Button>
+          {/* 모바일에서 계정 버튼만 표시 */}
+          <div className="flex items-center ml-auto md:hidden">
+            <HeaderMenuItems 
+              shouldRenderUserButtons={shouldRenderUserButtons}
+              shouldRenderLoginButton={shouldRenderLoginButton}
+              isAdmin={isAdmin}
+              isServicePath={isServicePath}
+              specialPathClasses={specialPathClasses}
+              isLoading={loading}
+              isMounted={isMounted}
+              isMobile={true}
+            />
           </div>
 
           {/* 데스크탑 네비게이션 (중간-큰 화면에서만 표시) */}
@@ -120,25 +127,6 @@ export function Header() {
             />
           </nav>
         </div>
-
-        {/* ✅ 모바일 메뉴 (완전히 숨김 보장) */}
-        {isMenuOpen && (
-          <div className="lg:hidden">
-            <nav className="flex flex-col space-y-4 p-4 border-t">
-              <HeaderMenuItems 
-                shouldRenderUserButtons={shouldRenderUserButtons}
-                shouldRenderLoginButton={shouldRenderLoginButton}
-                isAdmin={isAdmin}
-                isServicePath={isServicePath}
-                specialPathClasses={specialPathClasses}
-                closeMenu={closeMenu}
-                isLoading={loading}
-                isMounted={isMounted}
-                isMobile={true}
-              />
-            </nav>
-          </div>
-        )}
       </header>
     </div>
   );

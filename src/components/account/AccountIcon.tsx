@@ -24,9 +24,10 @@ const accountIconVariants = cva(
         ],
       },
       size: {
-        sm: "h-8 w-8 text-xs",
+        sm: "h-[35px] w-[35px] text-sm",
         md: "h-10 w-10 text-sm",
         lg: "h-12 w-12 text-base",
+        xl: "h-[48px] w-[48px] text-base",
       },
       state: {
         default: "",
@@ -125,7 +126,9 @@ export const AccountIcon = forwardRef<HTMLButtonElement, AccountIconProps>(
               <div 
                 className={cn(
                   "border-2 border-current border-t-transparent rounded-full animate-spin",
-                  size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
+                  size === "sm" ? "h-4 w-4" : 
+                  size === "xl" ? "h-6 w-6" :
+                  size === "lg" ? "h-5 w-5" : "h-4 w-4"
                 )}
                 aria-label="로딩 중"
                 role="status"
@@ -142,7 +145,9 @@ export const AccountIcon = forwardRef<HTMLButtonElement, AccountIconProps>(
               <div 
                 className={cn(
                   "border-2 border-current border-t-transparent rounded-full animate-spin opacity-60",
-                  size === "sm" ? "h-3 w-3" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
+                  size === "sm" ? "h-4 w-4" : 
+                  size === "xl" ? "h-6 w-6" :
+                  size === "lg" ? "h-5 w-5" : "h-4 w-4"
                 )}
                 aria-label="페이지 이동 중"
                 role="status"
