@@ -198,56 +198,68 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   }, []);
   
   return (
-    <div className="px-4 py-6">
-      {/* 단일 열 레이아웃 - 모바일 친화적 */}
+    <div className="py-6">
+      {/* 단일 열 레이아웃 - 모듈화된 패딩 적용 */}
       <div className="space-y-6">
-        {/* 대표 이미지 영역 */}
-        <StudioImageGallery studio={studioData} />
+        {/* 대표 이미지 영역 - 브라우저 전체 너비 사용 */}
+        <div className="image-fullwidth">
+          <StudioImageGallery studio={studioData} />
+        </div>
         
-        {/* 기본 정보 카드 */}
-        <StudioHeader studio={studioData} />
+        {/* 기본 정보 카드 - 독립 패딩 */}
+        <div className="px-4">
+          <StudioHeader studio={studioData} />
+        </div>
         
-        {/* 탭 네비게이션 */}
-        <StudioTabs studio={studioData} />
+        {/* 탭 네비게이션 - 독립 패딩 */}
+        <div className="px-4">
+          <StudioTabs studio={studioData} />
+        </div>
         
-        {/* 날짜 선택 */}
-        <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
-          <div className="flex justify-center">
-            <Calendar
-              mode="single"
-              selected={selectedDate || undefined}
-              onSelect={handleDateSelect}
-              onMonthChange={handleMonthChange}
-              className="rounded-md border"
-              disabled={(date) =>
-                date < new Date() || date < new Date("1900-01-01")
-              }
-            />
+        {/* 날짜 선택 - 독립 패딩 */}
+        <div className="px-4">
+          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+            <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
+            <div className="flex justify-center">
+              <Calendar
+                mode="single"
+                selected={selectedDate || undefined}
+                onSelect={handleDateSelect}
+                onMonthChange={handleMonthChange}
+                className="rounded-md border"
+                disabled={(date) =>
+                  date < new Date() || date < new Date("1900-01-01")
+                }
+              />
+            </div>
           </div>
         </div>
 
-        {/* 예약 시간 선택 */}
-        <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
-          <TimeRangeSelector 
-            serviceId={service.id}
-            selectedDate={selectedDate}
-            onTimeRangeChange={handleTimeRangeChange}
-            pricePerHour={service.price_per_hour}
-          />
+        {/* 예약 시간 선택 - 독립 패딩 */}
+        <div className="px-4">
+          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+            <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
+            <TimeRangeSelector 
+              serviceId={service.id}
+              selectedDate={selectedDate}
+              onTimeRangeChange={handleTimeRangeChange}
+              pricePerHour={service.price_per_hour}
+            />
+          </div>
         </div>
         
-        {/* 예약 폼 */}
-        <div data-section="reservation" className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
-          <BookingForm 
-            serviceId={service.id} 
-            onReservationComplete={() => {
-              console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
-              refetchAvailableTimes();
-            }}
-          />
+        {/* 예약 폼 - 독립 패딩 */}
+        <div className="px-4">
+          <div data-section="reservation" className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+            <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
+            <BookingForm 
+              serviceId={service.id} 
+              onReservationComplete={() => {
+                console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
+                refetchAvailableTimes();
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>

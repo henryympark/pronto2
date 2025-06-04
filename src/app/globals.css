@@ -219,4 +219,19 @@
   .footer {
     @apply w-full border-t border-border/40 bg-background py-8;
   }
+
+  /* 이미지 전체 너비 유틸리티 클래스 - 500px 페이지 제약을 벗어나서 브라우저 전체 너비 사용 */
+  .image-fullwidth {
+    width: 100vw;
+    margin-left: calc(-50vw + 250px);
+    margin-right: calc(-50vw + 250px);
+  }
+  
+  /* 모바일에서는 더 간단한 계산 */
+  @media (max-width: 500px) {
+    .image-fullwidth {
+      margin-left: calc(-50vw + 50%);
+      margin-right: calc(-50vw + 50%);
+    }
+  }
 }
