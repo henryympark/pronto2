@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { ExtensionModal } from "@/components/reservation";
 import type { Reservation } from '@/types/reservation';
+import { ContentContainer } from '@/components/layout/ContentContainer';
 // 커스텀 훅들
 import { useReservations } from "@/features/my-page/hooks/useReservations";
 import { useUserStats } from "@/features/my-page/hooks/useUserStats";
@@ -117,32 +118,38 @@ export default function MyPage() {
   if (!user) return null;
 
   return (
-    <MyPageLayout
-      isLoading={reservationsLoading}
-      hasError={hasError}
-      errorMessage={errorMessage}
-      onRefresh={handleRefresh}
-      onSignOut={handleSignOut}
-    >
-      <StatsSection
-        accumulatedTime={accumulatedTime}
-        couponsCount={couponsCount}
-        reviewsCount={reviewsCount}
-        onStatsCardClick={(path) => router.push(path)}
-        isLoading={statsLoading}
-      />
-
-      <ReservationList
-        reservations={filteredReservations}
+    <>
+      {/* 메인 콘텐츠 - ContentContainer로 감싸기 */}
+      <MyPageLayout
         isLoading={reservationsLoading}
-        activeFilter={activeFilter}
-        onFilterChange={handleFilterChange}
-        onReservationClick={handleReservationClick}
-        onExtensionClick={actions.openExtensionModal}
         hasError={hasError}
         errorMessage={errorMessage}
-      />
+        onRefresh={handleRefresh}
+        onSignOut={handleSignOut}
+      >
+        <ContentContainer>
+          <StatsSection
+            accumulatedTime={accumulatedTime}
+            couponsCount={couponsCount}
+            reviewsCount={reviewsCount}
+            onStatsCardClick={(path) => router.push(path)}
+            isLoading={statsLoading}
+          />
 
+          <ReservationList
+            reservations={filteredReservations}
+            isLoading={reservationsLoading}
+            activeFilter={activeFilter}
+            onFilterChange={handleFilterChange}
+            onReservationClick={handleReservationClick}
+            onExtensionClick={actions.openExtensionModal}
+            hasError={hasError}
+            errorMessage={errorMessage}
+          />
+        </ContentContainer>
+      </MyPageLayout>
+
+      {/* 모달들은 Container 밖에 위치 */}
       <ReservationDetailModal
         reservation={selectedReservation}
         isOpen={isModalOpen}
@@ -170,6 +177,6 @@ export default function MyPage() {
           onSuccess={handleExtensionSuccess}
         />
       )}
-    </MyPageLayout>
+    </>
   );
 }

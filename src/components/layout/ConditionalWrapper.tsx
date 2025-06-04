@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
 
 interface ConditionalWrapperProps {
   children: ReactNode;
@@ -17,6 +16,6 @@ export function ConditionalWrapper({ children }: ConditionalWrapperProps) {
     return <div className="admin-full-width min-h-screen">{children}</div>;
   }
   
-  // 일반 페이지: 500px 제약 적용
-  return <div className="page-wrapper">{children}</div>;
+  // 일반 페이지: page-wrapper 제거
+  return <div className="min-h-screen">{children}</div>;
 } 

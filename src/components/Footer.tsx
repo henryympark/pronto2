@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { MobileNavigation } from "@/components/layout/MobileNavigation";
+import { ContentContainer } from '@/components/layout/ContentContainer';
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -10,7 +11,7 @@ export function Footer() {
     <>
       {/* 모바일에서는 하단 네비게이션으로 대체 */}
       <footer className="hidden md:block border-t py-6 md:py-8">
-        <div className="w-full max-w-[500px] mx-auto px-4">
+        <ContentContainer>
           <div className="flex flex-col gap-6">
             <div className="text-center">
               <Link href="/" className="inline-flex items-center gap-2 mb-4">
@@ -77,7 +78,7 @@ export function Footer() {
               </p>
             </div>
           </div>
-        </div>
+        </ContentContainer>
       </footer>
       
       {/* 모바일 하단 네비게이션 추가 */}

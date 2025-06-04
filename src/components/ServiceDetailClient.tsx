@@ -14,6 +14,7 @@ import type { Studio } from "@/domains/studio/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/shared/hooks/useToast";
 import { useAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
+import { ContentContainer } from '@/components/layout/ContentContainer';
 
 // 🚀 확장된 서비스 타입 (서버에서 전달받은 통합 데이터)
 interface ServiceWithDetails extends Service {
@@ -198,58 +199,62 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   }, []);
   
   return (
-    <div className="px-4 py-6">
-      {/* 단일 열 레이아웃 - 모바일 친화적 */}
-      <div className="space-y-6">
-        {/* 대표 이미지 영역 */}
+    <>
+      {/* 이미지 갤러리 - 500px 제한, 모든 여백 없음 */}
+      <ContentContainer noPadding noGutter>
         <StudioImageGallery studio={studioData} />
-        
-        {/* 기본 정보 카드 */}
-        <StudioHeader studio={studioData} />
-        
-        {/* 탭 네비게이션 */}
-        <StudioTabs studio={studioData} />
-        
-        {/* 날짜 선택 */}
-        <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
-          <div className="flex justify-center">
-            <Calendar
-              mode="single"
-              selected={selectedDate || undefined}
-              onSelect={handleDateSelect}
-              onMonthChange={handleMonthChange}
-              className="rounded-md border"
-              disabled={(date) =>
-                date < new Date() || date < new Date("1900-01-01")
-              }
+      </ContentContainer>
+      
+      {/* 메인 콘텐츠 - 제한된 너비 */}
+      <ContentContainer>
+        <div className="space-y-6">
+          {/* 기본 정보 카드 */}
+          <StudioHeader studio={studioData} />
+          
+          {/* 탭 네비게이션 */}
+          <StudioTabs studio={studioData} />
+          
+          {/* 날짜 선택 */}
+          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+            <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
+            <div className="flex justify-center">
+              <Calendar
+                mode="single"
+                selected={selectedDate || undefined}
+                onSelect={handleDateSelect}
+                onMonthChange={handleMonthChange}
+                className="rounded-md border"
+                disabled={(date) =>
+                  date < new Date() || date < new Date("1900-01-01")
+                }
+              />
+            </div>
+          </div>
+
+          {/* 예약 시간 선택 */}
+          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+            <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
+            <TimeRangeSelector 
+              serviceId={service.id}
+              selectedDate={selectedDate}
+              onTimeRangeChange={handleTimeRangeChange}
+              pricePerHour={service.price_per_hour}
+            />
+          </div>
+          
+          {/* 예약 폼 */}
+          <div data-section="reservation" className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+            <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
+            <BookingForm 
+              serviceId={service.id} 
+              onReservationComplete={() => {
+                console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
+                refetchAvailableTimes();
+              }}
             />
           </div>
         </div>
-
-        {/* 예약 시간 선택 */}
-        <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
-          <TimeRangeSelector 
-            serviceId={service.id}
-            selectedDate={selectedDate}
-            onTimeRangeChange={handleTimeRangeChange}
-            pricePerHour={service.price_per_hour}
-          />
-        </div>
-        
-        {/* 예약 폼 */}
-        <div data-section="reservation" className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
-          <BookingForm 
-            serviceId={service.id} 
-            onReservationComplete={() => {
-              console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
-              refetchAvailableTimes();
-            }}
-          />
-        </div>
-      </div>
-    </div>
+      </ContentContainer>
+    </>
   );
 } 

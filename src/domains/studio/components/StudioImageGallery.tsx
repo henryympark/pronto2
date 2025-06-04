@@ -59,7 +59,7 @@ export const StudioImageGallery = React.memo(({
   return (
     <>
       {/* 메인 갤러리 */}
-      <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+      <div className="relative bg-gray-100 overflow-hidden">
         {/* 메인 이미지 */}
         <div className="relative aspect-video md:aspect-[16/10]">
           <img
