@@ -73,8 +73,12 @@
   * {
     @apply border-border;
   }
+  html {
+    background-color: white;
+  }
   body {
     @apply bg-background text-foreground;
+    background-color: white !important;
     /* 그라데이션 배경 효과 제거 - 단순한 배경색으로 변경 */
   }
 }
