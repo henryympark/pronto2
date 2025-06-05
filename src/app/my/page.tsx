@@ -124,7 +124,7 @@ export default function MyPage() {
   if (!user) return null;
 
   return (
-    <ContentContainer className="pt-0">
+    <ContentContainer className="pt-0 min-h-screen">
       <div className="space-y-6">
         {/* 헤더 섹션 */}
         <div className="flex justify-between items-center py-6">
