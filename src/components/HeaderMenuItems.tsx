@@ -32,9 +32,6 @@ export function HeaderMenuItems({
 }: HeaderMenuItemsProps) {
   const servicePathClass = isServicePath && shouldRenderUserButtons ? menuItemStyles.servicePath : "";
   
-  // 로딩 메시지 표시 조건 - 초기 마운트 시에만
-  const showLoadingMessage = !isMounted;
-  
   // sessionStorage 백업 체크 (클라이언트에서만)
   const getStoredAuthState = () => {
     if (typeof window === 'undefined') return null;
@@ -101,11 +98,6 @@ export function HeaderMenuItems({
           onAfterClick={isMobile ? closeMenu : undefined} // 모바일에서 네비게이션 후 메뉴 닫기
         />
       </div>
-      
-      {/* 로딩 중일 때 표시 (AccountIcon이 로딩을 처리하므로 대부분 불필요) */}
-      {showLoadingMessage && (
-        <span className={menuItemStyles.loadingText}>로딩 중...</span>
-      )}
     </>
   );
 }
