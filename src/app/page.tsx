@@ -8,17 +8,17 @@ import { CTASection } from '@/components/home/CTASection';
 
 export default function Home() {
   return (
-    <>
-      {/* 히어로 섹션 - 전체 너비 */}
-      <HeroSection />
-      
-      {/* 기능 섹션 - 제한된 너비 */}
-      <ContentContainer>
+    <ContentContainer noGutter={true} className="pt-0">
+      <div className="space-y-8">
+        {/* 히어로 섹션 */}
+        <HeroSection />
+        
+        {/* 기능 섹션 */}
         <FeaturesSection />
-      </ContentContainer>
-      
-      {/* CTA 섹션 - 전체 너비 배경 */}
-      <CTASection />
-    </>
+        
+        {/* CTA 섹션 */}
+        <CTASection />
+      </div>
+    </ContentContainer>
   );
 }

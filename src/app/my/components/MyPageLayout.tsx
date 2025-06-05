@@ -29,10 +29,12 @@ export function MyPageLayout({
   return (
     <ErrorBoundary>
       <div className="space-y-6">
-        {/* 헤더 영역 */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">마이페이지</h1>
-        </div>
+        {/* 헤더 영역 - showUserActions가 true일 때만 표시 */}
+        {showUserActions && (
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">마이페이지</h1>
+          </div>
+        )}
         
         {/* 로딩 중 표시 */}
         {isLoading && (
@@ -61,7 +63,7 @@ export function MyPageLayout({
         {/* 메인 콘텐츠 */}
         {children}
 
-        {/* 내 정보 및 로그아웃 버튼 */}
+        {/* 내 정보 및 로그아웃 버튼 - showUserActions가 true일 때만 표시 */}
         {showUserActions && onSignOut && (
           <div className="flex flex-col space-y-4 justify-start mb-8">
             <Link href="/my/profile">

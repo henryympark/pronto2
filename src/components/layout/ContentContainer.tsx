@@ -7,6 +7,7 @@ interface ContentContainerProps {
   size?: 'default' | 'full' | 'wide';
   noPadding?: boolean;
   noGutter?: boolean; // 좌우 padding 제거
+  noShadow?: boolean; // 그림자 제거
 }
 
 export function ContentContainer({ 
@@ -14,7 +15,8 @@ export function ContentContainer({
   className,
   size = 'default',
   noPadding = false,
-  noGutter = false
+  noGutter = false,
+  noShadow = false
 }: ContentContainerProps) {
   const sizeClasses = {
     default: 'max-w-[500px]',
@@ -25,10 +27,11 @@ export function ContentContainer({
   return (
     <div 
       className={cn(
-        "w-full mx-auto",
+        "w-full mx-auto bg-white",
         sizeClasses[size],
         !noPadding && "py-6",
         !noGutter && "px-4",
+        !noShadow && "shadow-lg",
         className
       )}
     >

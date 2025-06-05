@@ -38,7 +38,7 @@ export function StatsSection({
 
   return (
     <Card className="mb-8">
-      <CardContent className="p-6">
+      <CardContent className="p-4">
         <div className="grid grid-cols-3 gap-6">
           {statsData.map((stat) => {
             return (

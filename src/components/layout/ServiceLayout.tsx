@@ -9,9 +9,7 @@ interface ServiceLayoutProps {
 export function ServiceLayout({ children }: ServiceLayoutProps) {
   return (
     <div className="w-full max-w-[500px] mx-auto min-h-screen bg-white dark:bg-gray-950">
-      <div className="px-4">
-        {children}
-      </div>
+      {children}
     </div>
   );
 } 

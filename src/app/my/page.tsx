@@ -124,27 +124,23 @@ export default function MyPage() {
   if (!user) return null;
 
   return (
-    <>
-      {/* 헤더 섹션 */}
-      <ContentContainer>
+    <ContentContainer className="pt-0">
+      <div className="space-y-6">
+        {/* 헤더 섹션 */}
         <div className="flex justify-between items-center py-6">
           <h1 className="text-2xl font-bold">마이페이지</h1>
         </div>
-      </ContentContainer>
 
-      {/* 데이터 로딩 상태 섹션 */}
-      {reservationsLoading && (
-        <ContentContainer>
+        {/* 데이터 로딩 상태 섹션 */}
+        {reservationsLoading && (
           <div className="flex justify-center items-center py-10">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <span className="ml-2 text-lg">데이터를 불러오는 중입니다...</span>
           </div>
-        </ContentContainer>
-      )}
+        )}
 
-      {/* 오류 메시지 섹션 */}
-      {hasError && !reservationsLoading && (
-        <ContentContainer>
+        {/* 오류 메시지 섹션 */}
+        {hasError && !reservationsLoading && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>예약 정보 조회 실패</AlertTitle>
@@ -155,11 +151,9 @@ export default function MyPage() {
               </Button>
             </div>
           </Alert>
-        </ContentContainer>
-      )}
+        )}
 
-      {/* 통계 섹션 */}
-      <ContentContainer>
+        {/* 통계 섹션 */}
         <StatsSection
           accumulatedTime={accumulatedTime}
           couponsCount={couponsCount}
@@ -167,10 +161,8 @@ export default function MyPage() {
           onStatsCardClick={(path) => router.push(path)}
           isLoading={statsLoading}
         />
-      </ContentContainer>
 
-      {/* 예약 목록 섹션 */}
-      <ContentContainer>
+        {/* 예약 목록 섹션 */}
         <ReservationList
           reservations={filteredReservations}
           isLoading={reservationsLoading}
@@ -181,10 +173,8 @@ export default function MyPage() {
           hasError={hasError}
           errorMessage={errorMessage}
         />
-      </ContentContainer>
 
-      {/* 사용자 액션 섹션 - 예약 목록 아래로 이동 */}
-      <ContentContainer>
+        {/* 사용자 액션 섹션 - 예약 목록 아래로 이동 */}
         <div className="flex flex-col space-y-4 justify-start py-4">
           <Link href="/my/profile">
             <Button variant="outline" className="flex items-center justify-center w-40">
@@ -197,7 +187,7 @@ export default function MyPage() {
             <span>로그아웃</span>
           </Button>
         </div>
-      </ContentContainer>
+      </div>
 
       {/* 모달들 */}
       <ReservationDetailModal
@@ -227,6 +217,6 @@ export default function MyPage() {
           onSuccess={handleExtensionSuccess}
         />
       )}
-    </>
+    </ContentContainer>
   );
 }

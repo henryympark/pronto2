@@ -200,11 +200,11 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   
   return (
     <>
-      {/* 이미지 갤러리 - 500px 제한, 모든 여백 없음 */}
+      {/* 이미지 갤러리 - 500px 제한, 패딩 없음 */}
       <ContentContainer noPadding noGutter>
         <StudioImageGallery studio={studioData} />
       </ContentContainer>
-      
+        
       {/* 메인 콘텐츠 - 제한된 너비 */}
       <ContentContainer>
         <div className="space-y-6">
