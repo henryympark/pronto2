@@ -104,6 +104,11 @@
   .hero-overlay {
     @apply absolute inset-0 bg-black/40 flex items-center justify-center;
   }
+  
+  /* 좌우 그림자만 적용 (shadow-lg와 동일한 강도) */
+  .shadow-horizontal {
+    box-shadow: 10px 0 15px -3px rgba(0, 0, 0, 0.1), -10px 0 15px -3px rgba(0, 0, 0, 0.1), 4px 0 6px -2px rgba(0, 0, 0, 0.05), -4px 0 6px -2px rgba(0, 0, 0, 0.05);
+  }
 
   /* 500px 레이아웃 컨테이너 스타일 */
   .content-container {
@@ -236,5 +241,16 @@
   /* 푸터 스타일 */
   .footer {
     @apply w-full border-t border-border/40 bg-background py-8;
+  }
+}
+
+@layer utilities {
+  /* 스크롤바 숨기기 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
   }
 }

@@ -75,8 +75,8 @@ export function Header() {
       isAdminPage ? "w-full" : "w-full max-w-[500px] mx-auto"
     )}>
       {isAdminPage ? (
-        // 관리자 페이지: 전체 너비
-        <div className="flex h-[50px] items-center px-4">
+        // 관리자 페이지: 전체 너비 (기존 px-4 유지)
+        <div className="flex h-[50px] items-center px-4 bg-white shadow-horizontal">
           {/* 로고 영역 */}
           <div className={headerStyles.logoContainer}>
             <Link href="/" className={headerStyles.logo}>
@@ -129,59 +129,66 @@ export function Header() {
           </nav>
         </div>
       ) : (
-        // 일반 페이지: 500px 제한 (패딩 포함)
-        <div className="flex h-[50px] items-center px-4">
-          {/* 로고 영역 */}
-          <div className={headerStyles.logoContainer}>
-            <Link href="/" className={headerStyles.logo}>
-              <span className={headerStyles.logoText}>
-                Pronto2
-              </span>
-            </Link>
-          </div>
+        // 일반 페이지: ContentContainer로 500px 제한
+        <ContentContainer 
+          size="default" 
+          noPadding={true} 
+          noShadow={true} 
+          className="bg-white shadow-horizontal"
+        >
+          <div className="flex h-[50px] items-center">
+            {/* 로고 영역 */}
+            <div className={headerStyles.logoContainer}>
+              <Link href="/" className={headerStyles.logo}>
+                <span className={headerStyles.logoText}>
+                  Pronto2
+                </span>
+              </Link>
+            </div>
 
-          {/* 모바일에서 계정 버튼만 표시 */}
-          <div className="flex items-center ml-auto md:hidden">
-            <HeaderMenuItems 
-              shouldRenderUserButtons={shouldRenderUserButtons}
-              shouldRenderLoginButton={shouldRenderLoginButton}
-              isAdmin={isAdmin}
-              isServicePath={isServicePath}
-              specialPathClasses={specialPathClasses}
-              isLoading={loading}
-              isMounted={isMounted}
-              isMobile={true}
-            />
-          </div>
+            {/* 모바일에서 계정 버튼만 표시 */}
+            <div className="flex items-center ml-auto md:hidden">
+              <HeaderMenuItems 
+                shouldRenderUserButtons={shouldRenderUserButtons}
+                shouldRenderLoginButton={shouldRenderLoginButton}
+                isAdmin={isAdmin}
+                isServicePath={isServicePath}
+                specialPathClasses={specialPathClasses}
+                isLoading={loading}
+                isMounted={isMounted}
+                isMobile={true}
+              />
+            </div>
 
-          {/* 데스크탑 네비게이션 (중간-큰 화면에서만 표시) */}
-          <nav className={headerStyles.desktopNav}>
-            {process.env.NODE_ENV === 'development' && (
-              <div className="hidden">
-                {/* 디버깅 정보 - 브라우저에서 검사할 수 있음 */}
-                <pre>
-                  {JSON.stringify({
-                    isServicePath,
-                    shouldRenderUserButtons, 
-                    userLoaded: !!user,
-                    authLoading: loading
-                  }, null, 2)}
-                </pre>
-              </div>
-            )}
-            
-            <HeaderMenuItems 
-              shouldRenderUserButtons={shouldRenderUserButtons}
-              shouldRenderLoginButton={shouldRenderLoginButton}
-              isAdmin={isAdmin}
-              isServicePath={isServicePath}
-              specialPathClasses={specialPathClasses}
-              isLoading={loading}
-              isMounted={isMounted}
-              isMobile={false}
-            />
-          </nav>
-        </div>
+            {/* 데스크탑 네비게이션 (중간-큰 화면에서만 표시) */}
+            <nav className={headerStyles.desktopNav}>
+              {process.env.NODE_ENV === 'development' && (
+                <div className="hidden">
+                  {/* 디버깅 정보 - 브라우저에서 검사할 수 있음 */}
+                  <pre>
+                    {JSON.stringify({
+                      isServicePath,
+                      shouldRenderUserButtons, 
+                      userLoaded: !!user,
+                      authLoading: loading
+                    }, null, 2)}
+                  </pre>
+                </div>
+              )}
+              
+              <HeaderMenuItems 
+                shouldRenderUserButtons={shouldRenderUserButtons}
+                shouldRenderLoginButton={shouldRenderLoginButton}
+                isAdmin={isAdmin}
+                isServicePath={isServicePath}
+                specialPathClasses={specialPathClasses}
+                isLoading={loading}
+                isMounted={isMounted}
+                isMobile={false}
+              />
+            </nav>
+          </div>
+        </ContentContainer>
       )}
     </header>
   );
