@@ -76,7 +76,7 @@ export function Header() {
     )}>
       {isAdminPage ? (
         // 관리자 페이지: 전체 너비 (기존 px-4 유지)
-        <div className="flex h-[50px] items-center px-4 bg-white shadow-horizontal">
+        <div className="flex h-[50px] items-center px-4 bg-white">
           {/* 로고 영역 */}
           <div className={headerStyles.logoContainer}>
             <Link href="/" className={headerStyles.logo}>
@@ -134,7 +134,7 @@ export function Header() {
           size="default" 
           noPadding={true} 
           noShadow={true} 
-          className="bg-white shadow-horizontal"
+          className="bg-white"
         >
           <div className="flex h-[50px] items-center">
             {/* 로고 영역 */}
