@@ -1,10 +1,12 @@
+// src/components/styles.ts 업데이트
+
 /**
  * 헤더와 관련 컴포넌트의 스타일 상수 정의
  */
 
-// 헤더 스타일 
+// 헤더 스타일 - 그림자 제거 버전
 export const headerStyles = {
-  container: "sticky top-0 z-50 w-full bg-white shadow-sm",
+  container: "sticky top-0 z-50 w-full bg-white", // shadow-sm 제거
   innerContainer: "w-full max-w-[500px] mx-auto flex h-16 items-center px-4",
   
   // 로고 영역
@@ -12,7 +14,7 @@ export const headerStyles = {
   logo: "flex items-center mr-6",
   logoText: "text-2xl font-bold tracking-tighter text-black",
   
-  // ✅ 올바른 해결책 - 모바일 우선 접근법
+  // 데스크탑/모바일 네비게이션
   desktopNav: "flex lg:flex-1 lg:items-center lg:justify-end lg:space-x-4 max-lg:hidden",
   mobileMenuButtonContainer: "flex flex-1 items-center justify-end lg:hidden",
   mobileNavContainer: "w-full max-w-[500px] mx-auto lg:hidden",

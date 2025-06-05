@@ -75,7 +75,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* 그라데이션 배경 제거 */
   }
 }
 
@@ -89,6 +88,24 @@
     right: 50%;
     margin-left: -50vw;
     margin-right: -50vw;
+  }
+  
+  /* 섹션 구분을 위한 새로운 스타일 */
+  .section-wrapper {
+    @apply w-full;
+  }
+  
+  .section-wrapper-white {
+    @apply bg-white;
+  }
+  
+  .section-wrapper-gray {
+    @apply bg-gray-50;
+  }
+  
+  /* 섹션 내부 컨텐츠 패딩 */
+  .section-content {
+    @apply py-6;
   }
   
   /* 섹션 배경 스타일 */
@@ -105,11 +122,14 @@
     @apply absolute inset-0 bg-black/40 flex items-center justify-center;
   }
   
-  /* 좌우 그림자만 적용 (아래쪽 그림자 제거) */
-  .shadow-horizontal {
-    box-shadow: 
-      10px 0 15px -3px rgba(0, 0, 0, 0.1), 
-      -10px 0 15px -3px rgba(0, 0, 0, 0.1);
+  /* 헤더 스타일 업데이트 - 그림자 제거 */
+  .header-clean {
+    @apply sticky top-0 z-50 w-full bg-white;
+  }
+  
+  /* 헤더와 본문 사이의 구분선 (선택사항) */
+  .header-divider {
+    @apply border-b border-gray-100;
   }
 
   /* 500px 레이아웃 컨테이너 스타일 */
@@ -142,25 +162,6 @@
       display: block;
     }
   }
-
-  /* page-wrapper 클래스 주석 처리 */
-  /*
-  .page-wrapper {
-    width: 100%;
-    max-width: var(--content-width);
-    margin: 0 auto;
-    background: hsl(var(--background));
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.08);
-    min-height: 100vh;
-    position: relative;
-  }
-  
-  @media (max-width: 500px) {
-    .page-wrapper {
-      box-shadow: none;
-    }
-  }
-  */
 
   /* 버튼 스타일 */
   .btn-primary {

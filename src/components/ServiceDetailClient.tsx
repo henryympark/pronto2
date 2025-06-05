@@ -1,3 +1,5 @@
+// src/components/ServiceDetailClient.tsx 리팩토링 버전
+
 "use client";
 
 import { useEffect, useMemo, useCallback, useState } from "react";
@@ -16,7 +18,28 @@ import { useToast } from "@/shared/hooks/useToast";
 import { useAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
 import { ContentContainer } from '@/components/layout/ContentContainer';
 
-// 🚀 확장된 서비스 타입 (서버에서 전달받은 통합 데이터)
+// 섹션 래퍼 컴포넌트 추가
+interface SectionWrapperProps {
+  children: React.ReactNode;
+  variant?: 'white' | 'gray';
+  className?: string;
+}
+
+function SectionWrapper({ children, variant = 'white', className = '' }: SectionWrapperProps) {
+  const bgClass = variant === 'gray' ? 'bg-gray-50' : 'bg-white';
+  
+  return (
+    <div className={`${bgClass} ${className}`}>
+      <ContentContainer noPadding noShadow>
+        <div className="py-6">
+          {children}
+        </div>
+      </ContentContainer>
+    </div>
+  );
+}
+
+// 확장된 서비스 타입 (서버에서 전달받은 통합 데이터)
 interface ServiceWithDetails extends Service {
   operating_hours: Array<{
     day_of_week: number;
@@ -39,29 +62,20 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   const { setStudio } = useStudioDetailStore();
   const { selectedDate, setSelectedDate, setSelectedTimeRange } = useReservationStore();
   const { toast } = useToast();
-  
-  // 🚀 NEW: 임시 저장 복원을 위한 AuthContext 훅 추가
   const { user } = useAuth();
   
   // 현재 표시 중인 월 상태
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   
-  // 🎯 서버에서 전달받은 휴무일 데이터 사용 (API 호출 제거)
+  // 서버에서 전달받은 휴무일 데이터 사용
   const holidays = useMemo(() => service.holidays || [], [service.holidays]);
   
-  console.log(`[ServiceDetailClient] 서버에서 받은 통합 데이터:`, {
-    serviceId: service.id,
-    operatingHoursCount: service.operating_hours?.length || 0,
-    holidaysCount: holidays.length,
-    holidays: holidays.map(h => h.holiday_date)
-  });
-  
-  // 🚀 운영시간 정보도 서버 데이터 활용
+  // 운영시간 정보도 서버 데이터 활용
   const operatingHoursMap = useMemo(() => {
     const map = new Map<number, { start: string; end: string; isClosed: boolean }>();
     (service.operating_hours || []).forEach(oh => {
       map.set(oh.day_of_week, {
-        start: oh.start_time.substring(0, 5), // HH:MM:SS -> HH:MM
+        start: oh.start_time.substring(0, 5),
         end: oh.end_time.substring(0, 5),
         isClosed: oh.is_closed
       });
@@ -73,13 +87,11 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   const { refetch: refetchAvailableTimes } = useAvailableTimes({
     serviceId: service.id,
     selectedDate: selectedDate,
-    // 🔥 서버 데이터를 훅에 전달하여 중복 쿼리 방지
     preloadedOperatingHours: operatingHoursMap
   });
   
-  // 서비스를 스튜디오 형태로 변환 - 운영시간 정보 포함
+  // 서비스를 스튜디오 형태로 변환
   const studioData: Studio = useMemo(() => {
-    // 기본 운영시간 설정 (첫 번째 요일의 시간을 기준으로, 없으면 기본값)
     const defaultHours = operatingHoursMap.get(1) || { start: "09:00", end: "18:00", isClosed: false };
     
     return {
@@ -88,8 +100,8 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
       description: service.description || undefined,
       images: service.image_url ? [service.image_url] : [],
       address: service.location || "주소 정보 없음",
-      region: "서울", // 기본값
-      district: "강남구", // 기본값
+      region: "서울",
+      district: "강남구",
       phone: undefined,
       email: undefined,
       website: undefined,
@@ -99,7 +111,6 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
         max: service.price_per_hour,
       },
       amenities: [],
-      // 🎯 서버에서 받은 운영시간 데이터 활용
       operatingHours: {
         monday: operatingHoursMap.get(1) ? { 
           open: operatingHoursMap.get(1)!.start, 
@@ -141,21 +152,20 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
     setStudio(studioData);
   }, [studioData, setStudio]);
 
-  // 초기 날짜 설정 (오늘 날짜)
+  // 초기 날짜 설정
   useEffect(() => {
     if (!selectedDate) {
       setSelectedDate(new Date());
     }
   }, [selectedDate, setSelectedDate]);
 
-  // 날짜 선택 핸들러 - 서버에서 받은 휴무일 데이터로 체크
+  // 날짜 선택 핸들러
   const handleDateSelect = useCallback((date: Date | undefined) => {
     if (!date) {
       setSelectedDate(null);
       return;
     }
     
-    // 🎯 서버에서 받은 휴무일 데이터로 검증 (API 호출 없음)
     const dateString = date.toISOString().split('T')[0];
     const isHoliday = holidays.some(holiday => holiday.holiday_date === dateString);
     
@@ -171,7 +181,7 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
     setSelectedDate(date);
   }, [setSelectedDate, holidays, toast]);
 
-  // 시간 범위 변경 핸들러 - useCallback으로 메모이제이션
+  // 시간 범위 변경 핸들러
   const handleTimeRangeChange = useCallback((startTime: string, endTime: string, durationHours: number, price: number) => {
     setSelectedTimeRange({
       start: startTime,
@@ -181,80 +191,69 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
     });
   }, [setSelectedTimeRange]);
   
-  // 🚀 월 변경 시 필요하면 추가 휴무일 로딩 (현재 월 외의 데이터)
+  // 월 변경 핸들러
   const handleMonthChange = useCallback(async (newMonth: Date) => {
     setCurrentMonth(newMonth);
-    
-    const newYear = newMonth.getFullYear();
-    const newMonthNum = newMonth.getMonth() + 1;
-    const currentYear = new Date().getFullYear();
-    const currentMonthNum = new Date().getMonth() + 1;
-    
-    // 현재 월이 아닌 경우에만 추가 데이터 로딩
-    if (newYear !== currentYear || newMonthNum !== currentMonthNum) {
-      console.log(`[ServiceDetailClient] 다른 월 휴무일 조회 필요: ${newYear}-${newMonthNum}`);
-      // TODO: 필요시 추가 월의 휴무일 데이터 로딩 로직
-      // 현재는 서버에서 받은 현재 월 데이터만 사용
-    }
   }, []);
   
   return (
-    <>
-      {/* 이미지 갤러리 - 500px 제한, 패딩 없음 */}
-      <ContentContainer noPadding noGutter>
-        <StudioImageGallery studio={studioData} />
-      </ContentContainer>
-        
-      {/* 메인 콘텐츠 - 제한된 너비 */}
-      <ContentContainer>
-        <div className="space-y-6">
-          {/* 기본 정보 카드 */}
-          <StudioHeader studio={studioData} />
-          
-          {/* 탭 네비게이션 */}
-          <StudioTabs studio={studioData} />
-          
-          {/* 날짜 선택 */}
-          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-            <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
-            <div className="flex justify-center">
-              <Calendar
-                mode="single"
-                selected={selectedDate || undefined}
-                onSelect={handleDateSelect}
-                onMonthChange={handleMonthChange}
-                className="rounded-md border"
-                disabled={(date) =>
-                  date < new Date() || date < new Date("1900-01-01")
-                }
-              />
-            </div>
-          </div>
-
-          {/* 예약 시간 선택 */}
-          <div className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-            <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
-            <TimeRangeSelector 
-              serviceId={service.id}
-              selectedDate={selectedDate}
-              onTimeRangeChange={handleTimeRangeChange}
-              pricePerHour={service.price_per_hour}
-            />
-          </div>
-          
-          {/* 예약 폼 */}
-          <div data-section="reservation" className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-            <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
-            <BookingForm 
-              serviceId={service.id} 
-              onReservationComplete={() => {
-                console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
-                refetchAvailableTimes();
-              }}
-            />
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* 이미지 갤러리 - 흰색 배경 */}
+      <div className="bg-white">
+        <ContentContainer noPadding noGutter noShadow>
+          <StudioImageGallery studio={studioData} />
+        </ContentContainer>
+      </div>
+      
+      {/* 기본 정보 - 회색 배경 */}
+      <SectionWrapper variant="gray">
+        <StudioHeader studio={studioData} />
+      </SectionWrapper>
+      
+      {/* 탭 네비게이션 - 흰색 배경 */}
+      <SectionWrapper variant="white">
+        <StudioTabs studio={studioData} />
+      </SectionWrapper>
+      
+      {/* 날짜 선택 - 회색 배경 */}
+      <SectionWrapper variant="gray">
+        <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
+        <div className="flex justify-center">
+          <Calendar
+            mode="single"
+            selected={selectedDate || undefined}
+            onSelect={handleDateSelect}
+            onMonthChange={handleMonthChange}
+            className="rounded-md border bg-white"
+            disabled={(date) =>
+              date < new Date() || date < new Date("1900-01-01")
+            }
+          />
         </div>
-      </ContentContainer>
-    </>
+      </SectionWrapper>
+
+      {/* 시간 선택 - 흰색 배경 */}
+      <SectionWrapper variant="white">
+        <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
+        <TimeRangeSelector 
+          serviceId={service.id}
+          selectedDate={selectedDate}
+          onTimeRangeChange={handleTimeRangeChange}
+          pricePerHour={service.price_per_hour}
+        />
+      </SectionWrapper>
+      
+      {/* 예약 정보 - 회색 배경 */}
+      <SectionWrapper variant="gray">
+        <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
+        <BookingForm 
+          serviceId={service.id} 
+          onReservationComplete={() => {
+            console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
+            refetchAvailableTimes();
+          }}
+        />
+      </SectionWrapper>
+    </div>
   );
-} 
+}
