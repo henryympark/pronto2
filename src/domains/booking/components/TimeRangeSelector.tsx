@@ -32,6 +32,7 @@ export default function TimeRangeSelector({
 }: TimeRangeSelectorProps) {
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [initialTimeSet, setInitialTimeSet] = useState(false);
+  const [displaySlots, setDisplaySlots] = useState<TimeSlot[]>([]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -48,17 +49,61 @@ export default function TimeRangeSelector({
     prefetchDays: 7 // 향후 확장 가능
   });
 
-  // 날짜가 변경될 때 선택된 슬롯 초기화
+  // 운영시간 기반 기본 슬롯 생성 함수
+  const generateBaseSlots = useCallback((start: string, end: string): TimeSlot[] => {
+    const slots: TimeSlot[] = [];
+    const [startHour, startMinute] = start.split(':').map(Number);
+    const [endHour, endMinute] = end.split(':').map(Number);
+    
+    const startTime = startHour * 60 + startMinute;
+    const endTime = endHour * 60 + endMinute;
+    
+    for (let time = startTime; time < endTime; time += TIME_SLOT_INTERVAL) {
+      const hour = Math.floor(time / 60);
+      const minute = time % 60;
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      
+      slots.push({
+        time: timeString,
+        status: 'loading' // 로딩 중 상태
+      });
+    }
+    
+    return slots;
+  }, []);
+
+  // 날짜가 변경될 때 선택된 슬롯 초기화 및 즉시 기본 슬롯 표시
   useEffect(() => {
     if (selectedDate) {
       setSelectedSlots([]);
       setInitialTimeSet(false);
+      
+      // 기본 운영시간으로 즉시 로딩 슬롯 생성 (9:00-22:00)
+      const baseSlots = generateBaseSlots("09:00", "22:00");
+      setDisplaySlots(baseSlots);
+      
+      console.log('[TimeRangeSelector] 날짜 변경 시 기본 슬롯 생성:', {
+        date: selectedDate,
+        slotsCount: baseSlots.length
+      });
     }
-  }, [selectedDate]);
+  }, [selectedDate, generateBaseSlots]);
+
+  // API 응답 시 실제 데이터로 업데이트
+  useEffect(() => {
+    if (timeSlots.length > 0 && !isLoading) {
+      setDisplaySlots(timeSlots);
+      console.log('[TimeRangeSelector] API 응답으로 실제 슬롯 업데이트:', {
+        slotsCount: timeSlots.length,
+        firstSlot: timeSlots[0]?.time,
+        lastSlot: timeSlots[timeSlots.length - 1]?.time
+      });
+    }
+  }, [timeSlots, isLoading]);
 
   // 시간 슬롯 클릭 핸들러
   const handleSlotClick = useCallback((slot: TimeSlot) => {
-    if (slot.status === 'unavailable' || slot.status === 'reserved') return;
+    if (slot.status === 'unavailable' || slot.status === 'reserved' || slot.status === 'loading') return;
     
     let newSelectedSlots: string[] = [];
 
@@ -99,7 +144,7 @@ export default function TimeRangeSelector({
         const nextSlotMins = nextSlotMinutes % 60;
         const nextSlotTime = `${nextSlotHours.toString().padStart(2, '0')}:${nextSlotMins.toString().padStart(2, '0')}`;
         
-        const nextSlot = timeSlots.find(s => s.time === nextSlotTime);
+        const nextSlot = displaySlots.find(s => s.time === nextSlotTime);
         if (nextSlot && nextSlot.status === 'available') {
           autoSelectSlots.push(nextSlotTime);
         }
@@ -129,7 +174,7 @@ export default function TimeRangeSelector({
           const nextSlotMins = nextSlotMinutes % 60;
           const nextSlotTime = `${nextSlotHours.toString().padStart(2, '0')}:${nextSlotMins.toString().padStart(2, '0')}`;
           
-          const nextSlot = timeSlots.find(s => s.time === nextSlotTime);
+          const nextSlot = displaySlots.find(s => s.time === nextSlotTime);
           if (nextSlot && nextSlot.status === 'available') {
             autoSelectSlots.push(nextSlotTime);
           }
@@ -144,7 +189,7 @@ export default function TimeRangeSelector({
     }
 
     setSelectedSlots(newSelectedSlots);
-  }, [selectedDate, selectedSlots, timeSlots]);
+  }, [selectedDate, selectedSlots, displaySlots]);
 
   // 선택된 시간이 변경될 때마다 부모 컴포넌트에 알림
   const notifyTimeRangeChange = useCallback(() => {
@@ -239,10 +284,9 @@ export default function TimeRangeSelector({
     <div className="w-full space-y-4">
       {/* 시간 선택 그리드 */}
       <TimeSlotGrid
-        timeSlots={timeSlots}
+        timeSlots={displaySlots}
         selectedSlots={selectedSlots}
         onSlotClick={handleSlotClick}
-        loading={isLoading}
         currentTime={currentTime}
       />
 

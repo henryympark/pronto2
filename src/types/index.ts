@@ -30,8 +30,9 @@ export interface TimeSlot {
    * - 'unavailable': 예약 불가능
    * - 'selected': 현재 선택됨
    * - 'reserved': 이미 예약됨 (선택적)
+   * - 'loading': 로딩 중 상태
    */
-  status: 'available' | 'unavailable' | 'selected' | 'reserved';
+  status: 'available' | 'unavailable' | 'selected' | 'reserved' | 'loading';
 }
 
 /**
