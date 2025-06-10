@@ -121,7 +121,7 @@ const TimeSlotGrid = memo(function TimeSlotGrid({
   }
 
   return (
-    <div className="relative w-full max-w-[350px] mx-auto">
+    <div className="relative w-full max-w-[468px] mx-auto">
       {/* 좌우 스크롤 버튼 - 모바일에서 더 큰 터치 영역 */}
       <Button
         variant="outline"

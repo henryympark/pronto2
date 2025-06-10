@@ -2,7 +2,7 @@
 :root {
   --calendar-bg: white;
   --calendar-border-radius: 8px;
-  --calendar-cell-size: 36px;
+  --calendar-cell-size: 60px;
   --calendar-cell-size-mobile: 32px;
   --calendar-gap: 2px;
   --calendar-header-height: 48px;
@@ -54,7 +54,7 @@
 /* 캘린더 컨테이너 */
 .calendar-container {
   width: 100%;
-  max-width: 350px;
+  max-width: 468px;
   margin: 0 auto;
   background-color: var(--calendar-bg);
   border-radius: var(--calendar-border-radius);

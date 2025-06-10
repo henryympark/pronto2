@@ -213,20 +213,18 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
       {/* 날짜 선택 섹션 - 흰색 배경 */}
       <section className="bg-white px-4 py-6">
         <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
-        <div className="flex justify-center">
-          <Calendar
-            mode="single"
-            selected={selectedDate || undefined}
-            onSelect={handleDateSelect}
-            onMonthChange={handleMonthChange}
-            className="rounded-md border bg-white"
-            disabled={(date) => {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0); // 오늘 자정으로 설정
-              return date < today;
-            }}
-          />
-        </div>
+        <Calendar
+          mode="single"
+          selected={selectedDate || undefined}
+          onSelect={handleDateSelect}
+          onMonthChange={handleMonthChange}
+          className="rounded-md border bg-white"
+          disabled={(date) => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // 오늘 자정으로 설정
+            return date < today;
+          }}
+        />
       </section>
 
       {/* 시간 선택 섹션 - 흰색 배경 */}
