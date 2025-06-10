@@ -173,7 +173,7 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--calendar-border-color);
+  border-bottom: none;
   padding-bottom: 8px;
 }
 
@@ -246,7 +246,7 @@
 .day-today::after {
   content: '오늘';
   position: absolute;
-  bottom: 2px;
+  bottom: 7px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 8px;
@@ -267,6 +267,7 @@
 [aria-selected="true"] {
   background-color: var(--calendar-accent-color) !important;
   color: white !important;
+  border-radius: 8px !important;
 }
 
 /* 선택된 날짜 내부의 모든 요소에 흰색 텍스트 적용 */

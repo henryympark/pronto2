@@ -53,7 +53,7 @@ export function ServiceHolidaysTab({ serviceId }: ServiceHolidaysTabProps) {
           </p>
           
           {/* 캘린더 */}
-          <div className="p-4 border rounded-md bg-white">
+          <div className="p-4 rounded-md bg-white">
             <div className="flex justify-center">
               <Calendar
                 mode="multiple"

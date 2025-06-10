@@ -454,7 +454,7 @@ export default function ReservationFilters({
                   mode="single"
                   selected={tempStartDate}
                   onSelect={setTempStartDate}
-                  className="rounded-md border"
+                  className="rounded-md"
                   locale={ko}
                 />
               </div>
@@ -465,7 +465,7 @@ export default function ReservationFilters({
                   mode="single"
                   selected={tempEndDate}
                   onSelect={setTempEndDate}
-                  className="rounded-md border"
+                  className="rounded-md"
                   locale={ko}
                   disabled={(date) => tempStartDate ? date < tempStartDate : false}
                 />

@@ -56,7 +56,7 @@ export default function ReservationChangeModal({
                 selected={selectedDate || undefined}
                 onSelect={(date) => onDateSelect(date || null)}
                 disabled={(date) => date < new Date()}
-                className="rounded-md border"
+                className="rounded-md"
               />
             </div>
 

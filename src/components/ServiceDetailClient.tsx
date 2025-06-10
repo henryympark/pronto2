@@ -218,7 +218,7 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
           selected={selectedDate || undefined}
           onSelect={handleDateSelect}
           onMonthChange={handleMonthChange}
-          className="rounded-md border bg-white"
+          className="rounded-md bg-white"
           disabled={(date) => {
             const today = new Date();
             today.setHours(0, 0, 0, 0); // 오늘 자정으로 설정

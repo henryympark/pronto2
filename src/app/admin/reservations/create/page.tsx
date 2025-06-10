@@ -562,7 +562,7 @@ export default function CreateReservationPage() {
                   selected={selectedDate || undefined}
                   onSelect={(date) => setSelectedDate(date || null)}
                   disabled={(date) => date < new Date()}
-                  className="rounded-md border"
+                  className="rounded-md"
                 />
               </div>
             </div>

@@ -404,7 +404,7 @@ export default function ChangeReservationPage() {
                     required={false} 
                     selected={selectedDate || undefined}
                     onSelect={(date) => setSelectedDate(date || null)}
-                    className="border rounded-md p-2"
+                    className="rounded-md p-2"
                     disabled={(date) => {
                       // 오늘 이전 날짜는 선택 불가
                       return date < new Date(new Date().setHours(0, 0, 0, 0));

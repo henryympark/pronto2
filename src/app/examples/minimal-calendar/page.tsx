@@ -76,7 +76,7 @@ export default function MinimalCalendarPage() {
       <h1 className="text-2xl font-bold mb-6">미니멀 스타일 캘린더와 시간 선택</h1>
       
       <div className="max-w-lg mx-auto">
-        <div className="border rounded-lg p-6 shadow-sm">
+        <div className="rounded-lg p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-6">통합된 월/년 네비게이터가 있는 캘린더</h2>
           <div className="flex flex-col items-center">
             <Calendar
