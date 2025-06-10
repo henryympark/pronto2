@@ -212,7 +212,7 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
       
       {/* 날짜 선택 섹션 - 흰색 배경 */}
       <section className="bg-white px-4 py-6">
-        <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
+        <h3 className="text-lg font-semibold mb-4">날짜와 시간을 선택해 주세요.</h3>
         <Calendar
           mode="single"
           selected={selectedDate || undefined}
@@ -229,7 +229,7 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
 
       {/* 시간 선택 섹션 - 흰색 배경 */}
       <section className="bg-white px-4 py-6">
-        <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
+        <h3 className="text-base font-semibold mb-4">최소 1시간부터 30분씩 선택 가능 </h3>
         <TimeRangeSelector 
           serviceId={service.id}
           selectedDate={selectedDate}
