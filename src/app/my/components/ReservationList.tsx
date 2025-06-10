@@ -57,7 +57,7 @@ export function ReservationList({
         /* 빈 상태 */
         <div className="text-center py-10">
           <p className="text-gray-500 mb-4">예약 내역이 없습니다.</p>
-          <Link href="/" className="mt-4 inline-block">
+          <Link href="/service/pronto-b" className="mt-4 inline-block">
             <Button>서비스 둘러보기</Button>
           </Link>
         </div>
