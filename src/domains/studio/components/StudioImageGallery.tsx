@@ -122,7 +122,7 @@ export const StudioImageGallery = React.memo(({
 
   return (
     <>
-      {/* 메인 캐러셀 - ContentContainer 너비에 맞춤 */}
+      {/* 메인 캐러셀 - 500px 너비에 맞춤 */}
       <div className="relative bg-gray-900">
         {/* 스크롤 컨테이너 */}
         <div 

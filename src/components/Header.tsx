@@ -11,7 +11,6 @@ import { HeaderMenuItems } from "@/components/HeaderMenuItems";
 import { cn } from "@/lib/utils";
 import { headerStyles } from "@/components/styles";
 import { usePathname } from "next/navigation";
-import { ContentContainer } from '@/components/layout/ContentContainer';
 
 export function Header() {
   const isMounted = useIsMounted();
@@ -76,7 +75,7 @@ export function Header() {
     )}>
       {isAdminPage ? (
         // 관리자 페이지: 전체 너비 (기존 px-4 유지)
-        <div className="flex h-[50px] items-center px-4 bg-white">
+        <div className="flex h-[50px] items-center px-4 bg-white shadow-horizontal">
           {/* 로고 영역 */}
           <div className={headerStyles.logoContainer}>
             <Link href="/" className={headerStyles.logo}>
@@ -129,14 +128,9 @@ export function Header() {
           </nav>
         </div>
       ) : (
-        // 일반 페이지: ContentContainer로 500px 제한
-        <ContentContainer 
-          size="default" 
-          noPadding={true} 
-          noShadow={true} 
-          className="bg-white"
-        >
-          <div className="flex h-[50px] items-center">
+        // 일반 페이지: 직접적인 구조
+        <div className="w-full max-w-[500px] mx-auto bg-white">
+          <div className="flex h-[50px] items-center px-4">
             {/* 로고 영역 */}
             <div className={headerStyles.logoContainer}>
               <Link href="/" className={headerStyles.logo}>
@@ -188,7 +182,7 @@ export function Header() {
               />
             </nav>
           </div>
-        </ContentContainer>
+        </div>
       )}
     </header>
   );

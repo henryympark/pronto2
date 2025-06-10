@@ -7,7 +7,7 @@ import { Loader2, LogOut, User, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { ExtensionModal } from "@/components/reservation";
 import type { Reservation } from '@/types/reservation';
-import { ContentContainer } from '@/components/layout/ContentContainer';
+
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
@@ -112,35 +112,35 @@ export default function MyPage() {
   // 로딩 상태 처리
   if (loading) {
     return (
-      <ContentContainer className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-          <p className="text-lg">로딩 중...</p>
-        </div>
-      </ContentContainer>
+      <section className="min-h-screen bg-white px-4 py-20 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+        <p className="text-lg">로딩 중...</p>
+      </section>
     );
   }
 
   if (!user) return null;
 
   return (
-    <ContentContainer className="pt-0 min-h-screen">
-      <div className="space-y-6">
-        {/* 헤더 섹션 */}
-        <div className="flex justify-between items-center py-6">
-          <h1 className="text-2xl font-bold">마이페이지</h1>
-        </div>
+    <>
+      {/* 헤더 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-6">
+        <h1 className="text-2xl font-bold">마이페이지</h1>
+      </section>
 
-        {/* 데이터 로딩 상태 섹션 */}
-        {reservationsLoading && (
-          <div className="flex justify-center items-center py-10">
+      {/* 데이터 로딩 상태 섹션 */}
+      {reservationsLoading && (
+        <section className="bg-white px-4 py-10">
+          <div className="flex justify-center items-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <span className="ml-2 text-lg">데이터를 불러오는 중입니다...</span>
           </div>
-        )}
+        </section>
+      )}
 
-        {/* 오류 메시지 섹션 */}
-        {hasError && !reservationsLoading && (
+      {/* 오류 메시지 섹션 */}
+      {hasError && !reservationsLoading && (
+        <section className="bg-red-50 px-4 py-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>예약 정보 조회 실패</AlertTitle>
@@ -151,9 +151,11 @@ export default function MyPage() {
               </Button>
             </div>
           </Alert>
-        )}
+        </section>
+      )}
 
-        {/* 통계 섹션 */}
+      {/* 통계 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-6">
         <StatsSection
           accumulatedTime={accumulatedTime}
           couponsCount={couponsCount}
@@ -161,8 +163,10 @@ export default function MyPage() {
           onStatsCardClick={(path) => router.push(path)}
           isLoading={statsLoading}
         />
+      </section>
 
-        {/* 예약 목록 섹션 */}
+      {/* 예약 목록 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-6">
         <ReservationList
           reservations={filteredReservations}
           isLoading={reservationsLoading}
@@ -173,23 +177,25 @@ export default function MyPage() {
           hasError={hasError}
           errorMessage={errorMessage}
         />
+      </section>
 
-        {/* 사용자 액션 섹션 - 예약 목록 아래로 이동 */}
-        <div className="flex flex-col space-y-4 justify-start py-4">
+      {/* 사용자 액션 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-6">
+        <div className="flex flex-col space-y-4">
           <Link href="/my/profile">
-            <Button variant="outline" className="flex items-center justify-center w-40">
+            <Button variant="outline" className="w-full">
               <User className="mr-2 h-4 w-4" />
               내 정보
             </Button>
           </Link>
-          <Button variant="outline" onClick={handleSignOut} className="flex items-center justify-center w-40">
+          <Button variant="outline" onClick={handleSignOut} className="w-full">
             <LogOut className="h-4 w-4 mr-2" />
-            <span>로그아웃</span>
+            로그아웃
           </Button>
         </div>
-      </div>
+      </section>
 
-      {/* 모달들 */}
+      {/* 모달들은 그대로 유지 */}
       <ReservationDetailModal
         reservation={selectedReservation}
         isOpen={isModalOpen}
@@ -217,6 +223,6 @@ export default function MyPage() {
           onSuccess={handleExtensionSuccess}
         />
       )}
-    </ContentContainer>
+    </>
   );
 }

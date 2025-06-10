@@ -14,7 +14,7 @@ import type { Studio } from "@/domains/studio/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/shared/hooks/useToast";
 import { useAvailableTimes } from "@/domains/booking/hooks/useAvailableTimes";
-import { ContentContainer } from '@/components/layout/ContentContainer';
+
 
 // 확장된 서비스 타입 (서버에서 전달받은 통합 데이터)
 interface ServiceWithDetails extends Service {
@@ -195,70 +195,60 @@ export default function ServiceDetailClient({ service }: ServiceDetailClientProp
   
   return (
     <>
-      {/* 이미지 갤러리 - 500px 제한, 패딩 없음 */}
-      <ContentContainer noPadding noGutter>
+      {/* 이미지 갤러리 - 패딩 없음 */}
+      <section>
         <StudioImageGallery studio={studioData} />
-      </ContentContainer>
+      </section>
       
-      {/* 기본 정보 섹션 - 회색 배경 */}
-      <div className="bg-gray-50">
-        <ContentContainer>
-          <StudioHeader studio={studioData} />
-        </ContentContainer>
-      </div>
+      {/* 기본 정보 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-6">
+        <StudioHeader studio={studioData} />
+      </section>
       
       {/* 탭 네비게이션 섹션 - 흰색 배경 */}
-      <div className="bg-white">
-        <ContentContainer>
-          <StudioTabs studio={studioData} />
-        </ContentContainer>
-      </div>
+      <section className="bg-white px-4 py-6">
+        <StudioTabs studio={studioData} />
+      </section>
       
-      {/* 날짜 선택 섹션 - 회색 배경 */}
-      <div className="bg-gray-50">
-        <ContentContainer>
-          <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
-          <div className="flex justify-center">
-            <Calendar
-              mode="single"
-              selected={selectedDate || undefined}
-              onSelect={handleDateSelect}
-              onMonthChange={handleMonthChange}
-              className="rounded-md border bg-white"
-              disabled={(date) =>
-                date < new Date() || date < new Date("1900-01-01")
-              }
-            />
-          </div>
-        </ContentContainer>
-      </div>
+      {/* 날짜 선택 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-6">
+        <h3 className="text-lg font-semibold mb-4">날짜 선택</h3>
+        <div className="flex justify-center">
+          <Calendar
+            mode="single"
+            selected={selectedDate || undefined}
+            onSelect={handleDateSelect}
+            onMonthChange={handleMonthChange}
+            className="rounded-md border bg-white"
+            disabled={(date) =>
+              date < new Date() || date < new Date("1900-01-01")
+            }
+          />
+        </div>
+      </section>
 
       {/* 시간 선택 섹션 - 흰색 배경 */}
-      <div className="bg-white">
-        <ContentContainer>
-          <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
-          <TimeRangeSelector 
-            serviceId={service.id}
-            selectedDate={selectedDate}
-            onTimeRangeChange={handleTimeRangeChange}
-            pricePerHour={service.price_per_hour}
-          />
-        </ContentContainer>
-      </div>
+      <section className="bg-white px-4 py-6">
+        <h3 className="text-lg font-semibold mb-4">시간 선택</h3>
+        <TimeRangeSelector 
+          serviceId={service.id}
+          selectedDate={selectedDate}
+          onTimeRangeChange={handleTimeRangeChange}
+          pricePerHour={service.price_per_hour}
+        />
+      </section>
       
-      {/* 예약 정보 섹션 - 회색 배경 */}
-      <div className="bg-gray-50">
-        <ContentContainer>
-          <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
-          <BookingForm 
-            serviceId={service.id} 
-            onReservationComplete={() => {
-              console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
-              refetchAvailableTimes();
-            }}
-          />
-        </ContentContainer>
-      </div>
+      {/* 예약 정보 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-6">
+        <h3 className="text-lg font-semibold mb-4">예약 정보</h3>
+        <BookingForm 
+          serviceId={service.id} 
+          onReservationComplete={() => {
+            console.log('[ServiceDetailClient] 예약 완료 - 시간슬라이더 새로고침');
+            refetchAvailableTimes();
+          }}
+        />
+      </section>
     </>
   );
 }

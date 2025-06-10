@@ -1,6 +1,5 @@
 "use client";
 
-import { ContentContainer } from '@/components/layout/ContentContainer';
 // 분리된 컴포넌트들
 import { HeroSection } from '@/components/home/HeroSection';
 import { FeaturesSection } from '@/components/home/FeaturesSection';
@@ -8,17 +7,21 @@ import { CTASection } from '@/components/home/CTASection';
 
 export default function Home() {
   return (
-    <ContentContainer noGutter={true} className="pt-0">
-      <div className="space-y-8">
-        {/* 히어로 섹션 */}
+    <>
+      {/* 히어로 섹션 - 패딩 없음 */}
+      <section>
         <HeroSection />
-        
-        {/* 기능 섹션 */}
+      </section>
+      
+      {/* 기능 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-8">
         <FeaturesSection />
-        
-        {/* CTA 섹션 */}
+      </section>
+      
+      {/* CTA 섹션 - 흰색 배경 */}
+      <section className="bg-white px-4 py-8">
         <CTASection />
-      </div>
-    </ContentContainer>
+      </section>
+    </>
   );
 }
