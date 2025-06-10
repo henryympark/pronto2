@@ -413,7 +413,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId, onReservati
       
       {/* 플로팅 예약하기 버튼 - '예약하기' 상태일 때만 표시 */}
       {!showBookingForm && (
-        <div className="fixed bottom-6 left-4 right-4 z-50 max-w-md mx-auto">
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-[500px] px-4">
           <Button 
             onClick={handleBookingClick} 
             className="w-full bg-pronto-primary hover:bg-pronto-primary/90 text-white shadow-lg hover:shadow-xl flex items-center justify-center space-x-1"
