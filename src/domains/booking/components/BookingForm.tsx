@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -24,6 +24,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId, onReservati
   const router = useRouter();
   const supabase = useSupabase();
   const { user } = useAuth();
+  
+  // 플로팅 버튼을 위한 상태 (항상 true로 설정)
+  const buttonContainerRef = useRef<HTMLDivElement>(null);
   
   const { 
     formData, 
@@ -49,14 +52,34 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId, onReservati
     }
   }, [selectedTimeRange.duration, selectedTimeRange.price, showBookingForm, calculateDiscount]);
   
+
+  
+  // 날짜 선택 영역으로 스크롤하는 함수
+  const scrollToDateSelection = () => {
+    const dateSelectionHeader = document.querySelector('h3');
+    const targetHeader = Array.from(document.querySelectorAll('h3')).find(
+      h3 => h3.textContent?.includes('날짜와 시간을 선택해 주세요')
+    );
+    
+    if (targetHeader) {
+      targetHeader.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start',
+        inline: 'nearest'
+      });
+    }
+  };
+
   // 예약하기 버튼 클릭 핸들러
   const handleBookingClick = async () => {
     try {
+      // 날짜나 시간이 선택되지 않은 경우 날짜 선택 영역으로 스크롤
       if (!selectedTimeRange.start || !selectedTimeRange.end) {
+        scrollToDateSelection();
         toast({
-          title: "시간 선택 필요",
-          description: "예약 시간을 선택해주세요.",
-          variant: "destructive"
+          title: "날짜와 시간을 선택해 주세요",
+          description: "예약을 위해 먼저 날짜와 시간을 선택해주세요.",
+          variant: "default"
         } as any);
         return;
       }
@@ -376,18 +399,30 @@ export const BookingForm: React.FC<BookingFormProps> = ({ serviceId, onReservati
   };
 
   return (
-    <div>
-      {/* 예약하기 버튼 */}
-      <div>
+    <div className="relative">
+      {/* 원래 위치의 예약하기 버튼 */}
+      <div ref={buttonContainerRef}>
         <Button 
           onClick={handleBookingClick} 
-          className="w-full bg-pronto-primary hover:bg-pronto-primary/90 flex items-center justify-center space-x-1"
-          disabled={!selectedTimeRange.start || !selectedTimeRange.end}
+          className="w-full bg-pronto-primary hover:bg-pronto-primary/90 text-white flex items-center justify-center space-x-1"
         >
           <span>{showBookingForm ? "예약 정보 입력 완료" : "예약하기"}</span>
           {showBookingForm ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </Button>
       </div>
+      
+      {/* 플로팅 예약하기 버튼 - '예약하기' 상태일 때만 표시 */}
+      {!showBookingForm && (
+        <div className="fixed bottom-6 left-4 right-4 z-50 max-w-md mx-auto">
+          <Button 
+            onClick={handleBookingClick} 
+            className="w-full bg-pronto-primary hover:bg-pronto-primary/90 text-white shadow-lg hover:shadow-xl flex items-center justify-center space-x-1"
+          >
+            <span>예약하기</span>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       
       {/* 예약 폼 (기본적으로 숨겨짐) */}
       {showBookingForm && (
