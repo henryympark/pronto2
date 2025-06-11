@@ -291,16 +291,28 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
             sessionError: sessionError?.message,
             accessToken: session?.access_token ? "있음" : "없음"
           });
+
+          if (!session?.access_token) {
+            throw new Error("인증 토큰이 없습니다. 다시 로그인해주세요.");
+          }
           
+          const requestPayload = {
+            customer_id: user.id,
+            review_id: review.id,
+            reward_minutes: 10
+          };
+
+          console.log("Edge Function 호출 준비:", {
+            functionName: 'review-reward',
+            payload: requestPayload,
+            hasAuth: true
+          });
+
           const { data: rewardResult, error: rewardError } = await supabase.functions.invoke('review-reward', {
-            body: {
-              customer_id: user.id,
-              review_id: review.id,
-              reward_minutes: 10  // Edge Function에서 기대하는 파라미터명
-            },
+            body: requestPayload,
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token}`
+              'Authorization': `Bearer ${session.access_token}`
             }
           });
 
@@ -310,7 +322,8 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
               name: rewardError.name,
               message: rewardError.message,
               details: rewardError.details || rewardError,
-              context: rewardError.context
+              context: rewardError.context,
+              stack: rewardError.stack
             } : null,
             hasData: !!rewardResult,
             dataSuccess: rewardResult?.success
@@ -354,8 +367,23 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
             errorCode: rewardError?.code,
             errorDetails: rewardError?.details,
             errorContext: rewardError?.context,
+            errorStack: rewardError?.stack,
             fullError: JSON.stringify(rewardError, null, 2)
           });
+          
+          // FunctionsFetchError의 경우 더 자세한 정보 로깅
+          if (rewardError?.name === 'FunctionsFetchError') {
+            console.error("Edge Function 네트워크 오류:", {
+              url: "review-reward",
+              fetchError: true,
+              possibleCauses: [
+                "Edge Function이 비활성화됨",
+                "네트워크 연결 문제", 
+                "인증 토큰 문제",
+                "Supabase 서비스 장애"
+              ]
+            });
+          }
           
           // Edge Function 실패 시 백업 로직: 직접 데이터베이스 업데이트
           try {
@@ -435,11 +463,24 @@ export default function WriteReviewPage({ params }: { params: Promise<{ reservat
               title: "성공",
               description: "소중한 리뷰를 작성해주셔서 감사합니다."
             });
-            toast({
-              title: "안내",
-              description: "적립 시간 부여 중 문제가 발생했습니다. 고객센터로 문의해주세요.",
-              variant: "destructive"
-            });
+            
+            // 백업 로직도 실패한 경우에만 고객센터 안내
+            const isEdgeFunctionFailure = backupError?.message?.includes("Edge Function") || 
+                                         backupError?.name === 'FunctionsFetchError';
+            
+            if (isEdgeFunctionFailure) {
+              toast({
+                title: "안내",
+                description: "적립 시간은 나중에 자동으로 부여될 예정입니다. 잠시만 기다려주세요.",
+                variant: "default"
+              });
+            } else {
+              toast({
+                title: "안내", 
+                description: "적립 시간 부여 중 문제가 발생했습니다. 고객센터로 문의해주세요.",
+                variant: "destructive"
+              });
+            }
           }
         }
         
