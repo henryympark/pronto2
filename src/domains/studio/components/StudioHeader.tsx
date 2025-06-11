@@ -16,7 +16,7 @@ interface StudioHeaderProps {
 
 export const StudioHeader = React.memo(({ studio }: StudioHeaderProps) => {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <>
       {/* 스튜디오 이름 */}
       <h1 className="text-2xl md:text-3xl font-bold mb-2">{studio.name}</h1>
       
@@ -73,7 +73,7 @@ export const StudioHeader = React.memo(({ studio }: StudioHeaderProps) => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 });
 
