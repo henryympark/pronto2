@@ -182,7 +182,7 @@
   align-items: center;
   justify-content: center;
   height: var(--calendar-weekday-height);
-  font-size: 0.75rem;
+  font-size: 15px;
   color: var(--calendar-text-muted);
   text-align: center;
 }
@@ -229,7 +229,7 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 15px;
   color: var(--calendar-text-color);
   padding: 0;
   transition: background-color 0.2s;
@@ -340,6 +340,6 @@
   .calendar-day {
     width: var(--calendar-cell-size-mobile);
     height: var(--calendar-cell-size-mobile);
-    font-size: 0.8rem;
+    font-size: 15px;
   }
 } 

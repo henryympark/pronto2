@@ -13,6 +13,9 @@
 **목표:**
 Trevari처럼 깔끔하고 단순한 UI 구조로 개선하여 코드 가독성, 유지보수성, 일관성을 향상시킵니다.
 
+**추가 요청 - 캘린더 폰트 사이즈 변경:**
+캘린더의 숫자 날짜와 요일의 폰트 사이즈를 15px로 모두 변경 요청이 들어왔습니다.
+
 ## Key Challenges and Analysis
 
 ### 1. 현재 ContentContainer 분석
@@ -73,21 +76,13 @@ Trevari처럼 깔끔하고 단순한 UI 구조로 개선하여 코드 가독성,
 ## Project Status Board
 
 ### 📋 Pending Tasks
-- [ ] T1-1: 새로운 섹션 구조 패턴 확립
-- [ ] T1-2: 선택적 Section 컴포넌트 생성 (필요시)
-- [ ] T2-1: 루트 페이지 개선 (ContentContainer → Section 구조)
-- [ ] T2-2: 홈 컴포넌트들 개선 (HeroSection, FeaturesSection, CTASection)
-- [ ] T3-1: ServiceDetailClient 컴포넌트 개선 (8개 ContentContainer 변환)
-- [ ] T4-1: MyPage 컴포넌트 개선 (섹션별 배경색 분리)
-- [ ] T5-1: Header 컴포넌트 개선 (직접적인 구조로 변환)
-- [ ] T5-2: Footer 컴포넌트 개선 (섹션 구조 적용)  
-- [ ] T6-1: ContentContainer 컴포넌트 제거
-- [ ] T6-2: 일관성 검토 및 최종 조정
+- (UI 구조 개선 프로젝트 완료됨)
 
 ### 🔄 In Progress
 - (모든 작업 완료됨)
 
 ### ✅ Completed Tasks
+**UI 구조 개선 프로젝트:**
 - [x] T1-1: 새로운 섹션 구조 패턴 확립 (기본 섹션 패턴 정의)
 - [x] T1-2: 선택적 Section 컴포넌트 생성 (src/components/layout/Section.tsx 생성)
 - [x] T2-1: 루트 페이지 개선 (ContentContainer → Section 구조 변환 완료)
@@ -98,6 +93,11 @@ Trevari처럼 깔끔하고 단순한 UI 구조로 개선하여 코드 가독성,
 - [x] T5-2: Footer 컴포넌트 개선 (섹션 구조 적용 완료)
 - [x] T6-1: ContentContainer 컴포넌트 제거 (파일 삭제 완료)
 - [x] T6-2: 일관성 검토 및 최종 조정 (주석 업데이트 완료)
+
+**캘린더 폰트 사이즈 변경:**
+- [x] 캘린더 요일 헤더 폰트 사이즈 변경 (12px → 15px)
+- [x] 캘린더 날짜 숫자 폰트 사이즈 변경 (14px → 15px)
+- [x] 모바일 날짜 숫자 폰트 사이즈 변경 (12.8px → 15px)
 
 ## Current Status / Progress Tracking
 
@@ -120,6 +120,22 @@ Trevari처럼 깔끔하고 단순한 UI 구조로 개선하여 코드 가독성,
 5. **코드 가독성 70% 향상**: HTML 구조가 바로 보이는 명확한 코드
 6. **부정형 Props 제거**: `noBackground`, `noShadow`, `noPadding` 등 복잡성 제거
 
+### 🎯 **캘린더 폰트 사이즈 변경 완료!**
+
+**사용자 요청**: 캘린더의 숫자 날짜와 요일의 폰트 사이즈를 15px로 모두 변경
+
+**변경 사항:**
+1. **요일 헤더** (월, 화, 수, 목, 금, 토, 일): `0.75rem` (12px) → `15px`
+2. **날짜 숫자** (1, 2, 3, ... 31): `0.875rem` (14px) → `15px`
+3. **모바일에서 날짜 숫자**: `0.8rem` (12.8px) → `15px`
+
+**수정된 파일**: `src/components/ui/calendar.css`
+- `.calendar-weekday` 클래스의 `font-size` 속성 변경
+- `.calendar-day` 클래스의 `font-size` 속성 변경  
+- 모바일 미디어 쿼리의 `.calendar-day` `font-size` 속성 변경
+
+**결과**: 캘린더의 모든 텍스트(요일 + 날짜 숫자)가 일관되게 15px로 통일됨
+
 **수정된 파일들** (총 8개):
 1. `src/app/page.tsx` - 섹션 구조로 변환
 2. `src/components/home/HeroSection.tsx` - ContentContainer 제거
@@ -129,6 +145,7 @@ Trevari처럼 깔끔하고 단순한 UI 구조로 개선하여 코드 가독성,
 6. `src/components/Header.tsx` - 직접적인 구조로 변환
 7. `src/components/Footer.tsx` - 섹션 구조 적용
 8. `src/domains/studio/components/StudioImageGallery.tsx` - 주석 업데이트
+9. `src/components/ui/calendar.css` - 캘린더 폰트 사이즈 변경
 
 **새로 생성된 파일들** (총 1개):
 1. `src/components/layout/Section.tsx` - 선택적 Section 컴포넌트
@@ -136,30 +153,35 @@ Trevari처럼 깔끔하고 단순한 UI 구조로 개선하여 코드 가독성,
 **삭제된 파일들** (총 1개):
 1. `src/components/layout/ContentContainer.tsx` - 더 이상 사용하지 않음
 
-**프로젝트 완료**: Trevari처럼 깔끔하고 단순한 UI 구조 구현 완료! 🚀
+**프로젝트 완료**: Trevari처럼 깔끔하고 단순한 UI 구조 구현 완료! 🚀  
+**캘린더 개선**: 사용자 요청 사항 반영 완료! ✨
 
 ## Executor's Feedback or Assistance Requests
 
-### **Planner → Executor 지시사항**
+### **캘린더 폰트 사이즈 변경 완료 보고**
 
-**실행 우선순위:**
-1. **Phase 1 (기본 패턴 정의)**: 가장 중요 - 모든 후속 작업의 기반
-2. **Phase 2 (홈페이지)**: 사용자 첫 인상, 높은 트래픽 
-3. **Phase 3 (서비스 페이지)**: 핵심 비즈니스 로직, 복잡도 높음
-4. **Phase 4 (마이페이지)**: 사용자 경험 중요
-5. **Phase 5 (레이아웃)**: 전체 일관성
-6. **Phase 6 (정리)**: 코드 클린업
+**Executor → 사용자 완료 보고:**
 
-**주의사항:**
-- 각 Phase별로 하나씩 완료 후 다음 단계 진행
-- 변경 전 기존 파일 구조 확인 필수
-- 관리자 페이지 호환성 유지
-- 모바일 반응형 확인 필요
+✅ **작업 완료**: 캘린더의 숫자 날짜와 요일의 폰트 사이즈를 모든 15px로 변경했습니다.
 
-**성공 기준:**
-- 각 파일에서 ContentContainer import 제거 완료
-- 일관된 섹션 구조 적용 완료
-- 기존 UI/UX 동일하게 유지
+**수행한 작업:**
+1. 캘린더 CSS 파일 (`src/components/ui/calendar.css`) 위치 확인
+2. 현재 폰트 사이즈 분석:
+   - 요일 헤더: 12px (0.75rem)
+   - 날짜 숫자: 14px (0.875rem)  
+   - 모바일 날짜: 12.8px (0.8rem)
+3. 모든 폰트 사이즈를 15px로 통일 변경
+4. 데스크톱과 모바일 모두 15px로 일관성 있게 적용
+
+**변경된 CSS 클래스:**
+- `.calendar-weekday` → `font-size: 15px`
+- `.calendar-day` → `font-size: 15px`
+- 모바일 미디어 쿼리의 `.calendar-day` → `font-size: 15px`
+
+**결과:** 
+캘린더의 요일(월화수목금토일)과 날짜 숫자(1,2,3...31)가 모두 15px로 통일되어 더욱 선명하고 일관된 사용자 경험을 제공합니다.
+
+사용자께서 수동으로 테스트하여 변경사항을 확인해주시기 바랍니다.
 
 ## Lessons
 
